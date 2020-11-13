@@ -1,0 +1,381 @@
+package org.dwbn.plugins.playlist
+
+import android.util.Log
+import com.devbrackets.android.playlistcore.data.MediaProgress
+import com.getcapacitor.*
+import org.dwbn.plugins.playlist.data.AudioTrack
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.*
+
+@NativePlugin
+class PlaylistPlugin : Plugin(), OnStatusReportListener {
+    var TAG = "RmxAudioPlayer"
+    private var statusCallback: OnStatusCallback? = null
+    private var audioPlayerImpl: RmxAudioPlayer? = null
+    private var resetStreamOnPause = true
+
+    override fun load() {
+        audioPlayerImpl = RmxAudioPlayer(this, (this.context.applicationContext as App))
+    }
+
+    @PluginMethod
+    fun initialize(call: PluginCall) {
+        statusCallback = OnStatusCallback(this)
+        onStatus(RmxAudioStatusMessage.RMXSTATUS_REGISTER, "INIT", null)
+        call.resolve()
+        Log.i(TAG, "Initialized")
+    }
+    @PluginMethod
+    fun setOptions(call: PluginCall) {
+        val options: JSObject = call.getObject("options")
+        resetStreamOnPause = options.optBoolean("resetStreamOnPause", this.resetStreamOnPause)
+        var jsonOptions = options.optJSONObject("options")
+        if (jsonOptions == null) {
+            jsonOptions = JSONObject()
+        }
+        Log.i("AudioPlayerOptions", jsonOptions.toString())
+        audioPlayerImpl!!.resetStreamOnPause = resetStreamOnPause
+        audioPlayerImpl!!.setOptions(jsonOptions)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun release(call: PluginCall) {
+        destroyResources()
+        call.resolve()
+        Log.i(TAG,"released")
+    }
+
+    @PluginMethod
+    fun setLoop(call: PluginCall) {
+        val loop: Boolean = call.getBoolean("loop", audioPlayerImpl!!.playlistManager.loop)
+        audioPlayerImpl!!.playlistManager.loop = loop
+        call.resolve()
+        Log.i(TAG,"setLoop")
+    }
+
+    @PluginMethod
+    fun setPlaylistItems(call: PluginCall) {
+        val items: JSArray = call.getArray("items")
+        val optionsArgs: JSONObject = call.getObject("options")
+        val options = PlaylistItemOptions(optionsArgs)
+
+        val trackItems: ArrayList<AudioTrack> = getTrackItems(items)
+        audioPlayerImpl!!.playlistManager.setAllItems(trackItems, options)
+        for (playerItem in trackItems) {
+            if (playerItem.trackId != null) {
+                onStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED, playerItem.trackId, playerItem.toDict())
+            }
+        }
+
+        call.resolve()
+
+        Log.i(TAG,"setPlaylistItems" + items.length().toString())
+    }
+    
+    @PluginMethod
+    fun addItem(call: PluginCall) {
+        val item: JSONObject = call.getObject("item")
+        val playerItem: AudioTrack? = getTrackItem(item)
+        audioPlayerImpl!!.getPlaylistManager().addItem(playerItem)
+
+
+        if (playerItem?.trackId != null) {
+            onStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED, playerItem.trackId, playerItem.toDict())
+        }
+        call.resolve()
+        Log.i(TAG,"addItem")
+    }
+
+    @PluginMethod
+    fun addAllItems(call: PluginCall) {
+        val items: JSONArray = call.getArray("items")
+        val trackItems = getTrackItems(items)
+        audioPlayerImpl!!.playlistManager.addAllItems(trackItems)
+
+        for (playerItem in trackItems) {
+            if (playerItem.trackId != null) {
+                onStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED, playerItem.trackId, playerItem.toDict())
+            }
+        }
+        call.resolve()
+        Log.i(TAG,"addAllItems")
+    }
+
+    @PluginMethod
+    fun removeItem(call: PluginCall) {
+        val trackIndex: Int = call.getInt("trackId")
+        val trackId: String = call.getString("trackIndex")
+        val item = audioPlayerImpl!!.playlistManager.removeItem(trackIndex, trackId)
+
+        if (item != null) {
+            onStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, item.trackId, item.toDict())
+        }
+
+        if (item != null) {
+            call.resolve()
+        }
+        else {
+            call.reject("Could not find item!")
+        }
+
+        Log.i(TAG,"removeItem")
+    }
+    
+    @PluginMethod
+    fun removeItems(call: PluginCall) {
+        val items: JSONArray = call.getArray("items")
+        var removed = 0
+
+        val removals = ArrayList<TrackRemovalItem>()
+        for (index in 0 until items.length()) {
+            val entry = items.optJSONObject(index) ?: continue
+            val trackIndex = entry.optInt("trackIndex", -1)
+            val trackId = entry.optString("trackId", "")
+            removals.add(TrackRemovalItem(trackIndex, trackId))
+            val removedTracks = audioPlayerImpl!!.playlistManager.removeAllItems(removals)
+            if (removedTracks.size > 0) {
+                for (removedItem in removedTracks) {
+                    onStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, removedItem.trackId, removedItem.toDict())
+                }
+                removed = removedTracks.size
+            }
+        }
+        
+        val result = JSObject()
+        result.put("removed", removed)
+        call.resolve(result)
+
+        Log.i(TAG,"removeItems")
+    }
+    
+    @PluginMethod
+    fun clearAllItems(call: PluginCall) {
+        audioPlayerImpl!!.playlistManager.clearItems()
+
+        onStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_CLEARED, "INVALID", null)
+        call.resolve()
+
+        Log.i(TAG,"clearAllItems")
+    }
+    
+    @PluginMethod
+    fun play(call: PluginCall) {
+        if (audioPlayerImpl!!.playlistManager.playlistHandler != null) {
+            val isPlaying = (audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer != null
+                    && audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer?.isPlaying!!)
+            // There's a bug in the threaded repeater that it stacks up the repeat calls instead of ignoring
+            // additional ones or starting a new one. E.g. every time this is called, you'd get a new repeat cycle,
+            // meaning you get N updates per second. Ew.
+            if (!isPlaying) {
+                audioPlayerImpl!!.playlistManager.playlistHandler?.play()
+                //audioPlayerImpl.getPlaylistManager().playlistHandler.seek(position)
+            }
+        }
+        
+        call.resolve()
+
+        Log.i(TAG,"play")
+    }
+
+    @PluginMethod
+    fun playTrackByIndex(call: PluginCall) {
+        val index: Int = call.getInt("index", audioPlayerImpl!!.playlistManager.currentPosition)
+        val seekPosition = (call.getInt("position", 0) * 1000.0).toLong()
+
+        audioPlayerImpl!!.playlistManager.currentPosition = index
+        audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, false)
+
+        call.resolve()
+
+        Log.i(TAG,"playTrackByIndex")
+    }
+
+    @PluginMethod
+    fun playTrackById(call: PluginCall) {
+        val trackId: String = call.getString("id")
+        if ("" != trackId) {
+            // alternatively we could search for the item and set the current index to that item.
+            val code = trackId.hashCode()
+            val seekPosition = (call.getInt("position", 0) * 1000.0).toLong()
+            audioPlayerImpl!!.playlistManager.setCurrentItem(code.toLong())
+            audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, false)
+        }
+
+        call.resolve()
+
+        Log.i(TAG,"playTrackById")
+    }
+
+    @PluginMethod
+    fun selectTrackByIndex(call: PluginCall) {
+        val index: Int = call.getInt("index", audioPlayerImpl!!.playlistManager.currentPosition)
+
+        audioPlayerImpl!!.playlistManager.currentPosition = index
+
+        val seekPosition = (call.getInt("position", 0) * 1000.0).toLong()
+
+        audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, true)
+
+        call.resolve()
+
+        Log.i(TAG,"selectTrackByIndex")
+    }
+
+
+    @PluginMethod
+    fun selectTrackById(call: PluginCall) {
+        val trackId: String = call.getString("id")
+        if ("" != trackId) {
+            // alternatively we could search for the item and set the current index to that item.
+            val code = trackId.hashCode()
+            audioPlayerImpl!!.playlistManager.setCurrentItem(code.toLong())
+
+            val seekPosition = (call.getInt("position", 0) * 1000.0).toLong()
+
+            audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, true)
+        }
+        call.resolve()
+
+        Log.i(TAG,"selectTrackById")
+    }
+
+    @PluginMethod
+    fun pause(call: PluginCall) {
+        // Hmmm.
+        // audioPlayerImpl.playlistManager.invokePausePlay()
+        audioPlayerImpl!!.playlistManager.playlistHandler?.pause(true)
+
+        call.resolve()
+
+        Log.i(TAG,"pause")
+    }
+
+    @PluginMethod
+    fun skipForward(call: PluginCall) {
+        audioPlayerImpl!!.playlistManager.invokeNext()
+
+        call.resolve()
+
+        Log.i(TAG,"skipForward")
+    }
+
+    @PluginMethod
+    fun skipBack(call: PluginCall) {
+        audioPlayerImpl!!.playlistManager.invokePrevious()
+
+        call.resolve()
+
+        Log.i(TAG,"skipBack")
+    }
+
+    @PluginMethod
+    fun seekTo(call: PluginCall) {
+        var position: Long = 0
+        val progress: MediaProgress? = audioPlayerImpl!!.playlistManager.currentProgress
+        if (progress != null) {
+            position = progress.position
+        }
+
+        val seekPosition = (call.getDouble("position",  position / 1000.0f.toDouble()) * 1000.0).toLong()
+
+        val isPlaying: Boolean? = audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer?.isPlaying
+        audioPlayerImpl!!.playlistManager.playlistHandler?.seek((seekPosition * 1000.0).toLong())
+        if (!isPlaying!!) {
+            audioPlayerImpl!!.playlistManager.playlistHandler?.pause(false)
+        }
+
+        call.resolve()
+
+        Log.i(TAG,"seekTo")
+    }
+
+    @PluginMethod
+    fun setPlaybackRate(call: PluginCall) {
+        val speed = call.getFloat("rate", audioPlayerImpl!!.playlistManager.getPlaybackSpeed())
+        audioPlayerImpl!!.playlistManager.setPlaybackSpeed(speed)
+
+        call.resolve()
+
+        Log.i(TAG,"addItem")
+    }
+
+    @PluginMethod
+    fun setVolume(call: PluginCall) {
+        val volume = call.getFloat("volume", audioPlayerImpl!!.volume)
+        audioPlayerImpl!!.volume = volume
+
+        call.resolve()
+
+        Log.i(TAG,"addItem")
+    }
+
+    override fun handleOnPause() {
+        super.handleOnPause()
+        Log.d(TAG, "Plugin paused")
+        audioPlayerImpl!!.pause()
+    }
+
+    override fun handleOnResume() {
+        super.handleOnResume()
+        Log.d(TAG, "Plugin resumed")
+        audioPlayerImpl!!.resume()
+    }
+
+    override fun handleOnRestart() {
+        super.handleOnRestart()
+        Log.d(TAG, "Plugin reset")
+        destroyResources()
+    }
+
+    override fun handleOnDestroy() {
+        super.handleOnDestroy()
+        destroyResources()
+    }
+
+    override fun onError(errorCode: RmxAudioErrorType?, trackId: String?, message: String?) {
+        if (statusCallback == null) {
+            return
+        }
+        val errorObj = OnStatusCallback.createErrorWithCode(errorCode, message)
+        onStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, trackId, errorObj)
+    }
+
+    override fun onStatus(what: RmxAudioStatusMessage?, trackId: String?, param: JSONObject?) {
+        if (statusCallback == null) {
+            return
+        }
+        statusCallback!!.onStatus(what, trackId, param)
+    }
+
+    private fun destroyResources() {
+        statusCallback = null
+        audioPlayerImpl!!.playlistManager.clearItems()
+    }
+
+    private fun getTrackItem(item: JSONObject?): AudioTrack? {
+        if (item != null) {
+            val track = AudioTrack(item)
+            return if (track.trackId != null) {
+                track
+            } else null
+        }
+        return null
+    }
+    private fun getTrackItems(items: JSONArray?): ArrayList<AudioTrack> {
+        val trackItems = ArrayList<AudioTrack>()
+        if (items != null && items.length() > 0) {
+            for (index in 0 until items.length()) {
+                val obj = items.optJSONObject(index)
+                val track: AudioTrack = getTrackItem(obj) ?: continue
+                trackItems.add(track)
+            }
+        }
+        return trackItems
+    }
+
+    fun emit(name: String, data: JSObject) {
+        this.notifyListeners(name, data)
+    }
+}
