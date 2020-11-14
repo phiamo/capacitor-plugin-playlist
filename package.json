@@ -60,5 +60,8 @@
   },
   "bugs": {
     "url": "https://github.com/phiamo/issues"
+  },
+  "dependencies": {
+    "@types/hls.js": "^0.13.2"
   }
 }

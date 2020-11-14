@@ -1,4 +1,12 @@
-import {AudioPlayerOptions, AudioTrackRemoval, PlaylistItemOptions} from "./interfaces";
+import {
+  AudioPlayerOptions,
+  AudioTrackRemoval,
+  PlaylistItemOptions,
+  AudioTrack,
+  PlaylistStatusChangeCallback
+} from "./interfaces";
+
+import {PluginListenerHandle} from "@capacitor/core/dist/esm/definitions";
 
 declare module '@capacitor/core' {
   interface PluginRegistry {
@@ -6,7 +14,12 @@ declare module '@capacitor/core' {
   }
 }
 
+
 export interface PlaylistPlugin {
+  /**
+   * Listen for screen reader state change (on/off)
+   */
+  addListener(eventName: 'status', listenerFunc: PlaylistStatusChangeCallback): PluginListenerHandle;
   // Playlist item management
   setOptions(options: AudioPlayerOptions): Promise<void>;
   initialize(): Promise<void>;
@@ -49,7 +62,7 @@ export interface AddAllItemOptions {
 }
 
 export interface RemoveItemOptions {
-  items: AudioTrackRemoval
+  item: AudioTrackRemoval
 }
 
 export interface RemoveItemsOptions {

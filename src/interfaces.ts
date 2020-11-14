@@ -15,6 +15,11 @@ export interface AudioPlayerEventHandlers {
   [key: string]: AudioPlayerEventHandler[]
 }
 
+export declare type PlaylistStatusChangeCallback = (data: PlaylistStatusChangeCallbackArg) => void;
+export interface PlaylistStatusChangeCallbackArg {
+    action: string;
+    status: OnStatusCallbackData;
+}
 /**
  * Options governing the overall behavior of the audio player plugin
  */
@@ -136,7 +141,7 @@ export interface OnStatusCallbackData {
   /**
    * The type of status update
    */
-  type: RmxAudioStatusMessage;
+  msgType: RmxAudioStatusMessage;
   /**
    * The status payload. For all updates except ERROR, the data package is described by OnStatusCallbackUpdateData.
    * For Errors, the data is shaped as OnStatusErrorCallbackData
@@ -247,11 +252,3 @@ export interface OnStatusErrorCallbackData {
  * Function declaration for onStatus event handlers
  */
 export declare type OnStatusCallback = (info: OnStatusCallbackData) => void;
-/**
- * Function declaration for the successCallback fields of the Cordova functions
- */
-export declare type SuccessCallback = (args?: any) => void;
-/**
- * Function declaration for the errorCallback fields of the Cordova functions
- */
-export declare type ErrorCallback = (error: any) => void;

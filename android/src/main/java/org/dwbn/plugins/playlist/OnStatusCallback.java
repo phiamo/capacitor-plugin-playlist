@@ -27,17 +27,19 @@ public class OnStatusCallback{
 
   public void onStatus(RmxAudioStatusMessage what, String trackId, JSONObject param) {
 
-    JSObject status = new JSObject();
+    JSObject data = new JSObject();
+    JSObject detail = new JSObject();
 
-    status.put("type", what.getValue()); // not .ordinal()
-    status.put("trackId", trackId);
-    status.put("value", param);
+    detail.put("msgType", what.getValue());
+    detail.put("trackId", trackId);
+    detail.put("value", param);
 
-    status.put("action", "status");
+    data.put("action", "status");
+    data.put("status", detail);
 
-    Log.v(TAG, "statusChanged:" + status.toString());
+    Log.v(TAG, "statusChanged:" + data.toString());
 
-    this.plugin.emit("status", status);
+    this.plugin.emit("status", data);
   }
 
 }
