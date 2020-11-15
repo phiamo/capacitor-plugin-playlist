@@ -23,8 +23,8 @@ public class PlaylistPlugin: CAPPlugin {
         call.resolve();
     }
     @objc func setPlaylistItems(_ call: CAPPluginCall) {
-        let items: [[String:Any]] = call.getArray("items", [String:Any].self)!
-        let options: [[String:Any]] = call.getArray("options", [String:Any].self)!
+        let items = call.getArray("items", [String:Any].self)!
+        let options = call.getObject("options")!
         
         audioPlayerImpl.setPlaylistItems(items, options: options)
         call.resolve();

@@ -120,7 +120,7 @@ class RmxAudioPlayer {
     // public API
 
     // Item managementString:Any
-    func setPlaylistItems(_ items: [String:Any], options: [String:Any]) {
+    func setPlaylistItems(_ items: [[String:Any]], options: [String:Any]) {
         print("RmxAudioPlayer.execute=setPlaylistItems, \(options), \(items)")
 
         var seekToPosition: Float = 0.0
