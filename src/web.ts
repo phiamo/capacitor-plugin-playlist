@@ -152,23 +152,22 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
   setPlaylistItems(options: PlaylistOptions): Promise<void> {
     this.playlistItems = options.items;
-    return this.setCurrent(this.playlistItems[0], options.options.playFromPosition);
+    return this.setCurrent(this.playlistItems[0], options.options?.playFromPosition || 0);
   }
 
   skipForward(): Promise<void> {
     let found: number | null = null;
     this.playlistItems.forEach((item, index) => {
-      if(!found && this.currentTrack?.trackId === item.trackId) {
+      if(!found && this.getCurrentTrackId() === item.trackId) {
         found = index;
       }
     })
 
     if(found === this.playlistItems.length-1) {
-      found = 0;
+      found = -1;
     }
 
-    this.log("Skipping forward to ", found)
-    if(found) {
+    if(found !== null) {
       return this.setCurrent(this.playlistItems[found + 1]);
     }
 
@@ -178,7 +177,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   skipBack(): Promise<void> {
     let found: number | null = null;
     this.playlistItems.forEach((item, index) => {
-      if(!found && this.currentTrack?.trackId === item.trackId) {
+      if(!found && this.getCurrentTrackId() === item.trackId) {
         found = index;
       }
     })
@@ -186,7 +185,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
       found = this.playlistItems.length-1;
     }
 
-    if(found) {
+    if(found !== null) {
       this.setCurrent(this.playlistItems[found - 1]);
       return Promise.resolve();
     }
@@ -210,7 +209,8 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         action: "status",
         status: {
           msgType: RmxAudioStatusMessage.RMXSTATUS_CANPLAY,
-          trackId: this.currentTrack?.trackId
+          trackId: this.getCurrentTrackId(),
+          value: this.getCurrentTrackStatus('loading'),
         }
       })
       if(position) {
@@ -221,12 +221,12 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   registerHtmlListeners(position?: number) {
     if(this.audio) {
       this.audio.addEventListener('canplay', async () => {
-        this.log("Event: canplay")
         this.notifyListeners('status', {
           action: "status",
           status: {
             msgType: RmxAudioStatusMessage.RMXSTATUS_CANPLAY,
-            trackId: this.currentTrack?.trackId
+            trackId: this.getCurrentTrackId(),
+            value: this.getCurrentTrackStatus('loading'),
           }
         })
         if(position) {
@@ -234,70 +234,103 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         }
       });
       this.audio.addEventListener('playing', () => {
-        this.log("Event: playing")
         this.notifyListeners('status', {
           action: "status",
           status: {
             msgType: RmxAudioStatusMessage.RMXSTATUS_PLAYING,
-            trackId: this.currentTrack?.trackId
+            trackId: this.getCurrentTrackId(),
+            value: this.getCurrentTrackStatus('playing'),
           }
         })
       });
 
       this.audio.addEventListener('pause', () => {
-        this.log("Event: pause")
         this.notifyListeners('status', {
           action: "status",
           status: {
             msgType: RmxAudioStatusMessage.RMXSTATUS_PAUSE,
-            trackId: this.currentTrack?.trackId
+            trackId: this.getCurrentTrackId(),
+            value: this.getCurrentTrackStatus('paused'),
           }
         })
       });
 
       this.audio.addEventListener('error', () => {
-        this.log("Event: error")
         this.notifyListeners('status', {
           action: "status",
           status: {
             msgType: RmxAudioStatusMessage.RMXSTATUS_ERROR,
-            trackId: this.currentTrack?.trackId
+            trackId: this.getCurrentTrackId(),
+            value: this.getCurrentTrackStatus('error'),
           }
         })
       });
 
       this.audio.addEventListener('ended', () => {
-        this.log("Event: ended")
         this.notifyListeners('status', {
           action: "status",
           status: {
             msgType: RmxAudioStatusMessage.RMXSTATUS_STOPPED,
-            trackId: this.currentTrack?.trackId
+            trackId: this.getCurrentTrackId(),
+            value: this.getCurrentTrackStatus('stopped'),
           }
         })
       });
 
       this.audio.addEventListener('timeupdate', () => {
-        this.log("Event: timeupdate", this.audio?.currentTime)
-        if(!this.audio?.paused) {
-          this.notifyListeners('status', {
-            action: "status",
-            status: {
-              msgType: RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION,
-              trackId: this.currentTrack?.trackId,
-              value: {
-                currentPosition: this.audio?.currentTime
-              }
-            }
-          })
-        }
+        this.notifyListeners('status', {
+          action: "status",
+          status: {
+            msgType: RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION,
+            trackId: this.getCurrentTrackId(),
+            value: this.getCurrentTrackStatus('playing'),
+          }
+        })
       });
+    }
+  }
+  protected getCurrentTrackId() {
+    if(this.currentTrack) {
+      return this.currentTrack.trackId;
+    }
+    return "INVALID";
+  }
+  protected getCurrentIndex() {
+    if(this.currentTrack) {
+      for(let i = 0; i < this.playlistItems.length; i++) {
+        if(this.playlistItems[i].trackId === this.currentTrack.trackId) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+  protected getCurrentTrackStatus(currentState: string) {
+    return {
+      trackId: this.getCurrentTrackId(),
+      isStream: !!this.currentTrack?.isStream,
+      currentIndex: this.getCurrentIndex(),
+      status: currentState,
+      currentPosition: this.audio?.currentTime,
+      // android as well defines those:
+      // duration
+      // playbackPercent
+      // bufferPercent
+      // bufferStart
+      // bufferEnd
     }
   }
   // more internal methods
   protected async setCurrent(item: AudioTrack, position?: number) {
+    let wasPlaying = false;
+    if(this.audio) {
+      wasPlaying = !this.audio.paused
+      this.audio.pause();
+      this.audio.src = "";
+      this.audio.removeAttribute('src');
+      this.audio.load()
+    }
     this.audio = document.createElement('video')
-    this.log("Setting current Item: ", item)
     this.currentTrack = item;
     if(item.assetUrl.includes('.m3u8')) {
       await this.loadHlsJs();
@@ -310,7 +343,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
       hls.attachMedia(this.audio);
 
       hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-        hls.loadSource("https://vod.dwbn.org/myRecordings/_definst_/mp4:ALTMUHLE-STREAMING-OCTOBER-31-1-2020-10-31/3rd-karmapa-mahamudra-and-questions-and-answers-6_96.mp4/playlist.m3u8?wowzatokenendtime=1605364671&wowzatokenstarttime=1605357799&wowzatokensso_user_id=c9725986d4d34ee58906d1779996518d&wowzatokenhash=-hSX1CilC8Lwj4lQ560xpecuXk-_bYB2WunPjCviT2Y=");
+        hls.loadSource(item.assetUrl);
       })
 
       this.registerHlsListeners(hls, position);
@@ -320,6 +353,23 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
       this.audio.src = item.assetUrl;
       await this.registerHtmlListeners(position);
     }
+
+    if(wasPlaying) {
+      this.audio.addEventListener('canplay', () => {
+        this.play();
+      })
+    }
+
+    this.notifyListeners("status", {
+      action: "status",
+      status: {
+        msgType: RmxAudioStatusMessage.RMXSTATUS_TRACK_CHANGED,
+        trackId: this.getCurrentTrackId(),
+        value: {
+          currentItem: item
+        }
+      }
+    })
   }
 
   protected log(message?: any, ...optionalParams: any[]) {

@@ -52,7 +52,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
         val loop: Boolean = call.getBoolean("loop", audioPlayerImpl!!.playlistManager.loop)
         audioPlayerImpl!!.playlistManager.loop = loop
         call.resolve()
-        Log.i(TAG,"setLoop")
+        Log.i(TAG,"setLoop: " + (if (loop)  "TRUE" else "FALSE"))
     }
 
     @PluginMethod
@@ -243,9 +243,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     @PluginMethod
     fun pause(call: PluginCall) {
-        // Hmmm.
-        // audioPlayerImpl.playlistManager.invokePausePlay()
-        audioPlayerImpl!!.playlistManager.playlistHandler?.pause(true)
+        audioPlayerImpl!!.playlistManager.invokePausePlay()
 
         call.resolve()
 

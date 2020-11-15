@@ -89,57 +89,27 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
             } else isConstrained
         }
 
-    override val currentItem: AudioTrack?
-        get() {
-            val isAtEnd = currentPosition + 1 == itemCount
-            val isConstrained = currentPosition in 0 until itemCount
-            if (isAtEnd && isShouldStopPlaylist) {
-                return null
-            }
-            return if (isConstrained) {
-                getItem(currentPosition)
-            } else null
-        }
-
-    override fun previous(): AudioTrack? {
-        currentPosition = 0.coerceAtLeast(currentPosition - 1)
-        val prevItem = currentItem
-        if (!previousInvoked) { // this command came from the notification, not the user
-            Log.i(TAG, "PlaylistManager.previous: invoked via service.")
-            if (mediaControlsListener.get() != null) {
-                mediaControlsListener.get()!!.onPrevious(prevItem, currentPosition)
-            }
-        }
-        previousInvoked = false
-        return prevItem
-    }
-
     override operator fun next(): AudioTrack? {
         if (isNextAvailable) {
-            currentPosition = (currentPosition + 1).coerceAtMost(itemCount)
+            val isAtEnd = currentPosition + 1 >= itemCount
+            if(isAtEnd && loop) {
+                currentPosition = 0
+            }
+            else {
+                currentPosition = (currentPosition + 1).coerceAtMost(itemCount)
+            }
         } else {
             if (loop) {
                 currentPosition = INVALID_POSITION
             } else {
                 isShouldStopPlaylist = true
-                raiseAndCheckOnNext()
                 return null
             }
         }
-        raiseAndCheckOnNext()
+
         return currentItem
     }
 
-    private fun raiseAndCheckOnNext() {
-        val nextItem = currentItem
-        if (!nextInvoked) { // this command came from the notification, not the user
-            Log.i(TAG, "PlaylistManager.next: invoked via service.")
-            if (mediaControlsListener.get() != null) {
-                mediaControlsListener.get()!!.onNext(nextItem, currentPosition)
-            }
-        }
-        nextInvoked = false
-    }
 
     /*
      * List management

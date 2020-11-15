@@ -326,7 +326,7 @@ export class RmxAudioPlayer {
    * Sets a flag indicating whether the playlist should loop back to the beginning once it reaches the end.
    */
   setLoop = (loop: boolean) => {
-    return Playlist.setLoop({loop: !!loop});
+    return Playlist.setLoop({loop: loop});
   }
   /**
    * Status event handling
