@@ -723,6 +723,7 @@ class RmxAudioPlayer: NSObject {
     }
 
     func createCoverArtwork(_ coverUri: String?) -> MPMediaItemArtwork? {
+        print("Creating cover art : \(String(describing: coverUri))")
         var coverImage: UIImage? = nil
         if coverUri == nil {
             return nil
@@ -736,6 +737,7 @@ class RmxAudioPlayer: NSObject {
             }
         } else if coverUri?.hasPrefix("http://") ?? false || coverUri?.hasPrefix("https://") ?? false {
             let coverImageUrl = URL(string: coverUri ?? "")
+            
             var coverImageData: Data? = nil
             if let coverImageUrl = coverImageUrl {
                 do {
@@ -763,6 +765,21 @@ class RmxAudioPlayer: NSObject {
             
         }
         return nil
+    }
+    func downloadImage(url: URL, completion: @escaping ((_ image: UIImage?) -> Void)){
+        print("Started downloading \"\(url.deletingPathExtension().lastPathComponent)\".")
+        self.getImageDataFromUrl(url) { (_ data: Data?) in
+            DispatchQueue.main.async {
+                print("Finished downloading \"\(url.deletingPathExtension().lastPathComponent)\".")
+                completion(UIImage(data: data!))
+            }
+        }
+    }
+
+    func getImageDataFromUrl(_ url: URL, completion: @escaping ((_ data: Data?) -> Void)) {
+        URLSession.shared.dataTask(with: url) { (data, response, error) in
+            completion(data)
+        }.resume()
     }
 
     func isCoverImageValid(_ coverImage: UIImage?) -> Bool {
