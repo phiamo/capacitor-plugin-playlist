@@ -33,21 +33,24 @@ let AVBidirectionalQueueRemovedItem = "AVBidirectionalQueuePlayer.RemovedItem"
 let AVBidirectionalQueueCleared = "AVBidirectionalQueuePlayer.Cleared"
 
 class AVBidirectionalQueuePlayer: AVQueuePlayer {
-    private var _itemsForPlayer: [AudioTrack]?
-    var itemsForPlayer: [AudioTrack]? {
+    private var _itemsForPlayer: [AudioTrack] = []
+    var itemsForPlayer: [AudioTrack] {
         get {
-            if _itemsForPlayer == nil {
-                _itemsForPlayer = []
-            }
             return _itemsForPlayer
-        }
-        set(itemsForPlayer) {
-            removeAllItems()
-            var _itemsForPlayer = itemsForPlayer
-            insertAllItems(&_itemsForPlayer!)
         }
     }
 
+    // CONSTRUCTORS
+    override init() {
+        super.init()
+    }
+
+    init(items: [AudioTrack]) {
+        // This function calls the constructor for AVQueuePlayer, then sets up the nowPlayingIndex to 0 and saves the array that the player was generated from as itemsForPlayer
+        super.init(items: items)
+        _itemsForPlayer = items
+    }
+    
     // Two methods need to be added to the AVQueuePlayer: one which will play the last song in the queue, and one which will return if the queue is at the beginning (in case the user wishes to implement special behavior when a queue is at its first item, such as restarting a song). A getIndex method to return the current index is also provided.
     // NEW METHODS
 
@@ -59,7 +62,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         // yourself fairly easily using the isAtBeginning method to test if the player is at its start.
         var tempNowPlayingIndex: Int? = nil
         if let currentItem = currentItem as? AudioTrack {
-            tempNowPlayingIndex = itemsForPlayer?.firstIndex(of: currentItem) ?? NSNotFound
+            tempNowPlayingIndex = itemsForPlayer.firstIndex(of: currentItem) ?? NSNotFound
         }
 
         if (tempNowPlayingIndex ?? 0) > 0 && tempNowPlayingIndex != NSNotFound {
@@ -77,19 +80,17 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
 
             var offset = 1
             while true {
-                let _it = tempPlaylist?[(tempNowPlayingIndex ?? 0) - offset]
-                if _it?.error != nil {
+                let _it = tempPlaylist[(tempNowPlayingIndex ?? 0) - offset]
+                if _it.error != nil {
                     offset += 1
                 }
                 break
             }
 
-            for i in ((tempNowPlayingIndex ?? 0) - offset)..<(tempPlaylist?.count ?? 0) {
-                let item = tempPlaylist?[i]
-                item?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
-                if let item = item {
-                    super.insert(item, after: nil)
-                }
+            for i in ((tempNowPlayingIndex ?? 0) - offset)..<(tempPlaylist.count) {
+                let item = tempPlaylist[i]
+                item.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
+                super.insert(item, after: nil)
             }
 
             // Not a typo; see above comment
@@ -116,7 +117,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     }
 
     func isAtEnd() -> Bool {
-        if currentIndex() >= (itemsForPlayer?.count ?? 0) - 1 || currentItem == nil {
+        if currentIndex() >= (itemsForPlayer.count ) - 1 || currentItem == nil {
             return true
         }
         return false
@@ -140,22 +141,24 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         // The next two lines are necessary since RemoveAllItems resets both the nowPlayingIndex and _itemsForPlayer
         let tempPlaylist = itemsForPlayer
         super.removeAllItems()
-        for i in newCurrentIndex..<(tempPlaylist?.count ?? 0) {
-            let item = tempPlaylist?[i]
-            item?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
-            if let item = item {
-                super.insert(item, after: nil)
-            }
+        for i in newCurrentIndex..<(tempPlaylist.count) {
+            let item = tempPlaylist[i]
+            item.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
+            super.insert(item, after: nil)
         }
         // Not a typo; see above comment
         seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
         // }
     }
 
-    func insertAllItems(_ itemsForPlayer: inout [AudioTrack]) {
+    func insertAllItems(_ itemsForPlayer: [AudioTrack], append: Bool) {
+        if !append {
+            removeAllItems();
+        }
         for item in itemsForPlayer {
             insert(item, after: nil)
         }
+        
         let center = NotificationCenter.default
         center.post(name: NSNotification.Name(AVBidirectionalQueueAddedAllItems), object: self, userInfo: [
             "items": itemsForPlayer
@@ -171,23 +174,11 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
  */
 
 
-
-    // CONSTRUCTORS
-    override init() {
-        super.init()
-        itemsForPlayer = []
-    }
-
-    init(items: [AudioTrack]) {
-        // This function calls the constructor for AVQueuePlayer, then sets up the nowPlayingIndex to 0 and saves the array that the player was generated from as itemsForPlayer
-        super.init(items: items)
-        itemsForPlayer = items
-    }
     
     func currentIndex() -> Int {
         // This method simply returns the now playing index
         if let currentItem = currentItem {
-            return itemsForPlayer?.firstIndex(of: currentItem as! AudioTrack) ?? NSNotFound
+            return itemsForPlayer.firstIndex(of: currentItem as! AudioTrack) ?? NSNotFound
         }
         return 0
     }
@@ -209,7 +200,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     override func removeAllItems() {
         // This does the same thing as the normal AVQueuePlayer removeAllItems, but clears our collection copy
         super.removeAllItems()
-        itemsForPlayer?.removeAll()
+        _itemsForPlayer.removeAll()
 
         NotificationCenter.default.post(name: NSNotification.Name(AVBidirectionalQueueCleared), object: self, userInfo: nil)
     }
@@ -222,7 +213,9 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         // array before the current value.
         super.remove(item)
 
-        itemsForPlayer?.removeAll { $0 as AnyObject === item as AnyObject }
+        if let index = _itemsForPlayer.firstIndex(of: item) {
+            _itemsForPlayer.remove(at: index)
+        }
         NotificationCenter.default.post(name: NSNotification.Name(AVBidirectionalQueueRemovedItem), object: self, userInfo: [
             "item": item
         ])
@@ -233,18 +226,17 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         // proper location in the itemsForPlayer array and increments the nowPlayingIndex if necessary.
         super.insert(item, after: afterItem)
 
-        if let afterItem = afterItem {
-            if itemsForPlayer?.contains(afterItem) ?? false {
-                // AfterItem is non-nil
-                if (itemsForPlayer?.firstIndex(of: afterItem) ?? NSNotFound) < (itemsForPlayer?.count ?? 0) - 1 {
-                    itemsForPlayer?.insert(item, at: (itemsForPlayer?.firstIndex(of: afterItem) ?? NSNotFound) + 1)
-                } else {
-                    itemsForPlayer?.append(item)
-                }
+        
+        if afterItem != nil && itemsForPlayer.contains(afterItem!) {
+            // AfterItem is non-nil
+            if (itemsForPlayer.firstIndex(of: afterItem!) ?? NSNotFound) < (itemsForPlayer.count ) - 1 {
+                _itemsForPlayer.insert(item, at: (itemsForPlayer.firstIndex(of: afterItem!) ?? NSNotFound) + 1)
             } else {
-                // afterItem is nil
-                itemsForPlayer?.append(item)
+                _itemsForPlayer.append(item)
             }
+        } else {
+            // afterItem is nil
+            _itemsForPlayer.append(item)
         }
 
         NotificationCenter.default.post(name: NSNotification.Name(AVBidirectionalQueueAddedItem), object: self, userInfo: [

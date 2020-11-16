@@ -11,10 +11,6 @@ protocol StatusUpdater {
 @objc(PlaylistPlugin)
 public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     let audioPlayerImpl = RmxAudioPlayer()
-    // MARK: - StatusUpdater
-    func onStatus(_ data: [String: Any]) {
-        notifyListeners("status", data: data)
-    }
     
     // MARK: - Capacitor API
     @objc func initialize(_ call: CAPPluginCall) {
@@ -35,14 +31,17 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         let items = call.getArray("items", [String:Any].self)!
         let options = call.getObject("options")!
         
-        var tracks = createTracks(items)
-        audioPlayerImpl.setPlaylistItems(&tracks, options: options)
+        let tracks = createTracks(items)
+        audioPlayerImpl.setPlaylistItems(tracks, options: options)
+        
         call.resolve();
     }
     @objc func addItem(_ call: CAPPluginCall) {
         let trackInfo = call.getObject("item")
         
-        var track = AudioTrack.initWithDictionary(trackInfo)
+        let track = AudioTrack.initWithDictionary(trackInfo)
+        audioPlayerImpl.addItem(track!)
+        
         call.resolve();
     }
     @objc func addAllItems(_ call: CAPPluginCall) {
@@ -62,24 +61,24 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         call.resolve();
     }
     @objc func play(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
         audioPlayerImpl.playCommand(false)
         call.resolve();
     }
     @objc func pause(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        audioPlayerImpl.pauseCommand(false)
         call.resolve();
     }
     @objc func skipForward(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        audioPlayerImpl.playNext(false)
         call.resolve();
     }
     @objc func skipBack(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        audioPlayerImpl.playPrevious(false)
         call.resolve();
     }
     @objc func seekTo(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        let to = call.getFloat("position", 0.0)
+        audioPlayerImpl.seek(to: to!, isCommand: false)
         call.resolve();
     }
     @objc func playTrackByIndex(_ call: CAPPluginCall) {
@@ -99,22 +98,27 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         call.resolve();
     }
     @objc func setPlaybackVolume(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        let volume = call.getFloat("volume", 1)
+        audioPlayerImpl.setPlaybackVolume(volume!)
         call.resolve();
     }
     @objc func setLoop(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        let loop = call.getBool("loop", true)
+        audioPlayerImpl.setLoopAll(loop!)
         call.resolve();
     }
     @objc func setPlaybackRate(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        let rate = call.getFloat("rate", 1)
+        audioPlayerImpl.setRate(rate!)
         call.resolve();
     }
     
+    // MARK: - StatusUpdater delegate
+    func onStatus(_ data: [String: Any]) {
+        notifyListeners("status", data: data)
+    }
         
     // MARK: - Utility
-    // ******
-    // Utilities for the above functions
     func createTracks(_ items: [[String: Any]]?) -> [AudioTrack] {
         if items == nil || items?.count == 0 {
             return []
