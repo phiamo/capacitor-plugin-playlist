@@ -24,7 +24,7 @@ class AudioTrack: AVPlayerItem {
     var album: String?
     var title: String?
 
-    class func initWithDictionary(_ trackInfo: [AnyHashable : Any]?) -> AudioTrack? {
+    class func initWithDictionary(_ trackInfo: [String : Any]?) -> AudioTrack? {
         let trackId = trackInfo?["trackId"] as? String
         let assetUrl = trackInfo?["assetUrl"] as? String
         let isStreamStr = trackInfo?["isStream"] as? String
@@ -63,7 +63,7 @@ class AudioTrack: AVPlayerItem {
         return track
     }
 
-    func toDict() -> [AnyHashable : Any]? {
+    func toDict() -> [String : Any]? {
         let info = [
             "isStream": NSNumber(value: isStream),
             "trackId": trackId ?? "",
