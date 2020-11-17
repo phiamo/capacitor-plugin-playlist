@@ -48,7 +48,6 @@ final class RmxAudioPlayer: NSObject {
         return avQueuePlayer
     }()
 
-    // structural methods
     override init() {
         super.init()
         playbackTimeObserver = nil
@@ -63,6 +62,11 @@ final class RmxAudioPlayer: NSObject {
         activateAudioSession()
         observeLifeCycle()
     }
+    
+    deinit {
+        releaseResources()
+    }
+    
     func setOptions(_ options: [String:Any]) {
         print("RmxAudioPlayer.execute=setOptions, \(options)")
         resetStreamOnPause = (options["resetStreamOnPause"] as? NSNumber)?.boolValue ?? false
@@ -209,7 +213,7 @@ final class RmxAudioPlayer: NSObject {
     }
 
 
-// MARK: - Cordova interface
+    // MARK: - Cordova interface
 
     ///
     /// Cordova interface
@@ -217,11 +221,6 @@ final class RmxAudioPlayer: NSObject {
     /// These are basically just passing through to the core functionality of the queue and this player.
     ///
     /// These functions don't really do anything interesting by themselves.
-    ///
-    ///
-    ///
-    ///
-    ///
     func selectTrack(index: Int?) -> Bool {
         guard let index = index else { return false }
         if index < 0 || index >= avQueuePlayer.queuedAudioTracks.count {
@@ -442,18 +441,10 @@ final class RmxAudioPlayer: NSObject {
         }
     }
 
-// MARK: - remote control events
+    // MARK: - remote control events
 
     ///
     /// Events - receive events from the iOS remote controls and command center.
-    ///
-    ///
-    ///
-    ///
-    ///
-    ///
-    ///
-    ///
     @objc func play(_ event: MPRemoteCommandEvent?) -> MPRemoteCommandHandlerStatus {
         playCommand(true)
         return .success
@@ -488,19 +479,12 @@ final class RmxAudioPlayer: NSObject {
         return .success
     }
 
-// MARK: - notifications
+    // MARK: - notifications
 
     ///
     /// Notifications
     ///
     /// These handle the events raised by the queue and the player items.
-    ///
-    ///
-    ///
-    ///
-    ///
-    ///
-    ///
     @objc func itemStalledPlaying(_ notification: Notification?) {
         // This happens when the network is insufficient to continue playback.
         let playerItem = avQueuePlayer.currentItem as? AudioTrack
@@ -653,10 +637,6 @@ final class RmxAudioPlayer: NSObject {
             let nowPlayingInfo = nowPlayingInfoCenter.nowPlayingInfo
             updatedNowPlayingInfo = nowPlayingInfo
         }
-
-        // for (NSString* val in _updatedNowPlayingInfo.allKeys) {
-        //     NSLog(@"%@ ==> %@", val, _updatedNowPlayingInfo[val]);
-        // }
 
         var currentTime: Float? = nil
         if let currentTime1 = currentItem?.currentTime() {
@@ -841,21 +821,18 @@ final class RmxAudioPlayer: NSObject {
         // It doesn't always fire, and it is not needed because the queue's periodic update can also
         // deliver this info.
         //NSString* name = ((AVURLAsset*)playerItem.asset).URL.pathComponents.lastObject;
-        let name = playerItem?.trackId
-        if !CMTIME_IS_INDEFINITE(playerItem!.duration) {
-            var duration: Float? = nil
-            if let duration1 = playerItem?.duration {
-                duration = Float(CMTimeGetSeconds(duration1))
-            }
-            print("The track duration was changed [\(name ?? "")]: \(duration ?? 0.0)")
+        
+        guard let playerItem = playerItem else { return }
+        
+        if !CMTIME_IS_INDEFINITE(playerItem.duration) {
+            let duration = CMTimeGetSeconds(playerItem.duration)
+            print("The track duration was changed [\(playerItem.trackId ?? "")]: \(duration)")
 
             // We will still report the duration though.
             let trackStatus = getStatusItem(playerItem)
-            onStatus(.rmxstatus_DURATION, trackId: playerItem?.trackId, param: trackStatus)
-        } else {
-            if let URL = (playerItem?.asset as? AVURLAsset)?.url {
-                print("Item duration is indefinite (unknown): \(URL)")
-            }
+            onStatus(.rmxstatus_DURATION, trackId: playerItem.trackId, param: trackStatus)
+        } else if let url = (playerItem.asset as? AVURLAsset)?.url {
+            print("Item duration is indefinite (unknown): \(url)")
         }
     }
 
@@ -885,11 +862,6 @@ final class RmxAudioPlayer: NSObject {
     /// These provide the statis objects and data for the player items when they update.
     ///
     /// It is largely this data that is actually reported to the consumers.
-    ///
-    ///
-    ///
-    ///
-    ///
 
     // Not really needed, the dicts do this themselves but, blah.
     func getNumberFor(_ str: String?) -> NSNumber? {
@@ -900,12 +872,7 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func getStatusItem(_ playerItem: AudioTrack?) -> [String : Any]? {
-        var currentItem = playerItem
-        if currentItem == nil {
-            currentItem = avQueuePlayer.currentItem as? AudioTrack
-        }
-
-        if currentItem == nil {
+        guard let currentItem = playerItem ?? avQueuePlayer.currentAudioTrack else {
             return nil
         }
 
@@ -920,12 +887,13 @@ final class RmxAudioPlayer: NSObject {
 
         let playbackPercent = duration > 0 ? (position / duration) * 100.0 : 0.0
 
-        var status = ""
-        if currentItem?.status == .readyToPlay {
+        var status: String
+        switch currentItem.status {
+        case .readyToPlay:
             status = "ready"
-        } else if currentItem?.status == .failed {
+        case .failed:
             status = "error"
-        } else {
+        default:
             status = "unknown"
         }
 
@@ -941,9 +909,9 @@ final class RmxAudioPlayer: NSObject {
             }
         }
 
-        let info = [
-            "trackId": currentItem?.trackId ?? "",
-            "isStream": currentItem?.isStream ?? false ? NSNumber(value: 1) : NSNumber(value: 0),
+        return [
+            "trackId": currentItem.trackId ?? "",
+            "isStream": currentItem.isStream ? NSNumber(value: 1) : NSNumber(value: 0),
             "currentIndex": NSNumber(value: avQueuePlayer.currentIndex() ?? 0),
             "status": status,
             "currentPosition": NSNumber(value: position),
@@ -952,12 +920,11 @@ final class RmxAudioPlayer: NSObject {
             "bufferPercent": NSNumber(value: (bufferInfo?["bufferPercent"] as? NSNumber)?.floatValue ?? 0.0),
             "bufferStart": NSNumber(value: (bufferInfo?["start"] as? NSNumber)?.floatValue ?? 0.0),
             "bufferEnd": NSNumber(value: (bufferInfo?["end"] as? NSNumber)?.floatValue ?? 0.0)
-        ] as [String : Any]
-        return info
+        ]
     }
 
     func getTrackCurrentTime(_ playerItem: AudioTrack?) -> Float {
-        guard let currentItem = playerItem ?? (avQueuePlayer.currentItem as? AudioTrack) else {
+        guard let currentItem = playerItem ?? avQueuePlayer.currentAudioTrack else {
             return 0
         }
 
@@ -1091,16 +1058,14 @@ final class RmxAudioPlayer: NSObject {
 
         do {
             try avSession.setCategory(.playAndRecord, options: options)
-        }
-        catch let categoryError {
-            print("Error setting category! \(categoryError.localizedDescription)")
+        } catch {
+            print("Error setting category! \(error.localizedDescription)")
         }
 
         do {
             try AVAudioSession.sharedInstance().setActive(true)
-        }
-        catch let activationError {
-            print("Could not activate audio session. \(activationError.localizedDescription)")
+        } catch {
+            print("Could not activate audio session. \(error.localizedDescription)")
         }
     }
 
@@ -1120,11 +1085,9 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func createError(withCode code: RmxAudioErrorType, message: String?) -> [String : Any]? {
-        let finalMessage = message ?? ""
-
-        return [
+        [
             "code": NSNumber(value: code.rawValue),
-            "message": finalMessage
+            "message": message ?? ""
         ]
     }
 
@@ -1166,10 +1129,6 @@ final class RmxAudioPlayer: NSObject {
     func onReset() {
         // Override to cancel any long-running requests when the WebView navigates or refreshes.
         //super.onReset()
-        releaseResources()
-    }
-
-    deinit {
         releaseResources()
     }
 
