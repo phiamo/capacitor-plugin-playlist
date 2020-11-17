@@ -12,15 +12,16 @@ import Cordova
 import MediaPlayer
 import UIKit
 
-
 private var kAvQueuePlayerContext = 0
 private var kAvQueuePlayerRateContext = 0
 private var kPlayerItemStatusContext = 0
 private var kPlayerItemDurationContext = 0
 private var kPlayerItemTimeRangesContext = 0
 
-
-class RmxAudioPlayer: NSObject {
+final class RmxAudioPlayer: NSObject {
+    
+    var statusUpdater: StatusUpdater? = nil
+    
     private var playbackTimeObserver: Any?
     private var wasPlayingInterrupted = false
     private var commandCenterRegistered = false
@@ -29,57 +30,23 @@ class RmxAudioPlayer: NSObject {
     private var isReplacingItems = false
     private var isWaitingToStartPlayback = false
     private var loop = false
-    var statusUpdater: StatusUpdater? = nil
 
-    private var _avQueuePlayer: AVBidirectionalQueuePlayer?
-    private var avQueuePlayer: AVBidirectionalQueuePlayer? {
-        if _avQueuePlayer == nil {
-            let queue: [AudioTrack]? = []
+    private lazy var avQueuePlayer: AVBidirectionalQueuePlayer = {
+        let avQueuePlayer = AVBidirectionalQueuePlayer(items: [])
+        
+        avQueuePlayer.actionAtItemEnd = .advance
+        avQueuePlayer.addObserver(self, forKeyPath: "currentItem", options: .new, context: UnsafeMutableRawPointer(mutating: &kAvQueuePlayerContext))
+        avQueuePlayer.addObserver(self, forKeyPath: "rate", options: .new, context: UnsafeMutableRawPointer(mutating: &kAvQueuePlayerRateContext))
 
-            if let queue = queue {
-                _avQueuePlayer = AVBidirectionalQueuePlayer(items: queue)
-            }
-            
-            _avQueuePlayer?.actionAtItemEnd = .advance
-            _avQueuePlayer?.addObserver(self, forKeyPath: "currentItem", options: .new, context: UnsafeMutableRawPointer(mutating: &kAvQueuePlayerContext))
-            _avQueuePlayer?.addObserver(self, forKeyPath: "rate", options: .new, context: UnsafeMutableRawPointer(mutating: &kAvQueuePlayerRateContext))
-
-            let interval = CMTimeMakeWithSeconds(Float64(1.0), preferredTimescale: Int32(Double(NSEC_PER_SEC)))
-            weak var weakSelf = self
-            let mainQueue = DispatchQueue.main
-            playbackTimeObserver = _avQueuePlayer?.addPeriodicTimeObserver(forInterval: interval, queue: mainQueue, using: { time in
-                let strongSelf = weakSelf
-                if let strongSelf = strongSelf {
-                    strongSelf.executePeriodicUpdate(time)
-                }
-            })
-            if ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 10, minorVersion: 0, patchVersion: 0)) {
-                //_avQueuePlayer.automaticallyWaitsToMinimizeStalling = NO;
-            }
-            // Put this behind a flag.
-        }
-
-        return _avQueuePlayer
-    }
-
-    private var currentItems: [AudioTrack]? {
-        return avQueuePlayer?.itemsForPlayer
-    }
-
-    private var _isAtEnd = false
-    private var isAtEnd: Bool {
-        return avQueuePlayer?.isAtEnd() ?? false
-    }
-
-    private var _isAtBeginning = false
-    private var isAtBeginning: Bool {
-        return avQueuePlayer?.isAtBeginning() ?? false
-    }
-
-    private var _isPlaying = false
-    private var isPlaying: Bool {
-        return avQueuePlayer?.isPlaying ?? false
-    }
+        let interval = CMTimeMakeWithSeconds(Float64(1.0), preferredTimescale: Int32(Double(NSEC_PER_SEC)))
+        playbackTimeObserver = avQueuePlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] time in
+            self?.executePeriodicUpdate(time)
+        })
+        
+        //_avQueuePlayer.automaticallyWaitsToMinimizeStalling = NO;
+        
+        return avQueuePlayer
+    }()
 
     // structural methods
     override init() {
@@ -127,9 +94,9 @@ class RmxAudioPlayer: NSObject {
         let result = findTrack(byId: playFromId)
         let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
 
-        if (avQueuePlayer?.itemsForPlayer.count ?? 0) > 0 {
+        if !avQueuePlayer.itemsForPlayer.isEmpty {
             if idx >= 0 {
-                avQueuePlayer?.setCurrentIndex(idx)
+                avQueuePlayer.setCurrentIndex(idx)
             }
         }
         
@@ -183,18 +150,16 @@ class RmxAudioPlayer: NSObject {
     }
 
     func playTrack(index: Int, positionTime: Float) -> (Bool, String?) {
-        if index < 0 || index >= (avQueuePlayer?.itemsForPlayer.count ?? 0) {
+        guard index < 0 || index >= avQueuePlayer.itemsForPlayer.count else {
             return (false, "Provided index is out of bounds")
-        } else {
-            avQueuePlayer?.setCurrentIndex(index)
-            playCommand(false)
-
-            seek(to: positionTime, isCommand: false)
-
-            return (true, nil)
         }
 
+        avQueuePlayer.setCurrentIndex(index)
+        playCommand(false)
+
         seek(to: positionTime, isCommand: false)
+
+        return (true, nil)
     }
 
     func playTrack(_ trackId: String, positionTime: Float) -> (Bool, String?) {
@@ -202,9 +167,9 @@ class RmxAudioPlayer: NSObject {
         let idx = result?["index"] as? Int ?? -1
         // AudioTrack* track = result[@"track"];
 
-        if (avQueuePlayer?.itemsForPlayer.count ?? 0) > 0 {
+        if !avQueuePlayer.itemsForPlayer.isEmpty {
             if idx >= 0 {
-                avQueuePlayer?.setCurrentIndex(idx)
+                avQueuePlayer.setCurrentIndex(idx)
                 playCommand(false)
                 seek(to: positionTime, isCommand: false)
 
@@ -218,12 +183,12 @@ class RmxAudioPlayer: NSObject {
     }
 
     func setPlaybackRate(_ rate: Float) {
-        avQueuePlayer!.rate = rate
+        avQueuePlayer.rate = rate
     }
 
     // Not supporten in IOS ?https://developer.apple.com/documentation/avfoundation/avplayer/1390127-volume
     func setPlaybackVolume(_ volume: Float) {
-        avQueuePlayer!.volume = volume
+        avQueuePlayer.volume = volume
     }
 
     func setLoopAll(_ loop: Bool) {
@@ -258,13 +223,11 @@ class RmxAudioPlayer: NSObject {
     ///
     ///
     func selectTrack(index: Int?) -> Bool {
-        guard index != nil else {
-            return false
-        }
-        if index! < 0 || index! >= (avQueuePlayer?.itemsForPlayer.count ?? 0) {
+        guard let index = index else { return false }
+        if index < 0 || index >= avQueuePlayer.itemsForPlayer.count {
             return false
         } else {
-            avQueuePlayer?.setCurrentIndex(index!)
+            avQueuePlayer.setCurrentIndex(index)
             playCommand(false)
             return true
         }
@@ -274,23 +237,23 @@ class RmxAudioPlayer: NSObject {
         let result = findTrack(byId: trackId)
         let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
 
-        if (avQueuePlayer?.itemsForPlayer.count ?? 0) > 0 {
+        if !avQueuePlayer.itemsForPlayer.isEmpty {
             if idx >= 0 {
-                avQueuePlayer?.setCurrentIndex(idx)
+                avQueuePlayer.setCurrentIndex(idx)
             }
         }
     }
 
 
     func removeItem(trackIndex: Int?, trackId: String?) -> Bool {
-        if trackIndex != nil && trackIndex! > -1 && trackIndex! < (avQueuePlayer?.itemsForPlayer.count ?? 0) {
-            let item = avQueuePlayer?.itemsForPlayer[Int(trackIndex!)]
+        guard let trackIndex = trackIndex else { return false }
+        
+        if trackIndex > -1 && trackIndex < avQueuePlayer.itemsForPlayer.count {
+            let item = avQueuePlayer.itemsForPlayer[trackIndex]
             removeTrackObservers(item)
-            if let item = item {
-                avQueuePlayer?.remove(item)
-            }
+            avQueuePlayer.remove(item)
             return true
-        } else if trackId != nil && !(trackId == "") {
+        } else if let trackId = trackId, !trackId.isEmpty {
             let result = findTrack(byId: trackId)
             let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
             let track = result?["track"] as? AudioTrack
@@ -298,9 +261,11 @@ class RmxAudioPlayer: NSObject {
             if idx >= 0 {
                 // AudioTrack* item = [self avQueuePlayer].itemsForPlayer[idx];
                 removeTrackObservers(track)
+                
                 if let track = track {
-                    avQueuePlayer?.remove(track)
+                    avQueuePlayer.remove(track)
                 }
+                
                 return true
             } else {
                 return false
@@ -310,27 +275,20 @@ class RmxAudioPlayer: NSObject {
         }
     }
 
-// MARK: - player actions
+    // MARK: - player actions
 
     ///
     /// Player actions.
     ///
     /// These are the public API for the player and wrap most of the complexity of the queue.
-    ///
-    ///
-    ///
-    ///
-    ///
-    ///
-    ///
     func playCommand(_ isCommand: Bool) {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
 
         if resetStreamOnPause {
-            let currentTrack = avQueuePlayer?.currentItem as? AudioTrack
+            let currentTrack = avQueuePlayer.currentItem as? AudioTrack
             if currentTrack != nil && currentTrack?.isStream ?? false {
-                avQueuePlayer?.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero)
+                avQueuePlayer.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero)
                 currentTrack?.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
             }
         }
@@ -339,13 +297,13 @@ class RmxAudioPlayer: NSObject {
             let action = "music-controls-play"
             print("\(action)")
         }
-        avQueuePlayer?.play()
+        avQueuePlayer.play()
     }
 
     func pauseCommand(_ isCommand: Bool) {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
-        avQueuePlayer?.pause()
+        avQueuePlayer.pause()
 
         // When the track is a stream, we do not want it to hold the buffer at the current location;
         // it does in fact continue buffering afterwards but the buffer on iOS is rather small, so you'll end up
@@ -353,10 +311,9 @@ class RmxAudioPlayer: NSObject {
         // The correct behavior for streams is to pick up at the current LIVE point in the stream, which we accomplish
         // by seeking to the "end" of the stream.
         if resetStreamOnPause {
-            let currentTrack = avQueuePlayer?.currentItem as? AudioTrack
-            if currentTrack != nil && currentTrack?.isStream ?? false {
-                avQueuePlayer?.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero)
-                currentTrack?.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
+            if let currentTrack = avQueuePlayer.currentItem as? AudioTrack, currentTrack.isStream {
+                avQueuePlayer.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero)
+                currentTrack.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
             }
         }
 		
@@ -370,17 +327,17 @@ class RmxAudioPlayer: NSObject {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
 
-        avQueuePlayer?.playPreviousItem()
+        avQueuePlayer.playPreviousItem()
 
         if isCommand {
             let action = "music-controls-previous"
             print("\(action)")
 
-            let playerItem = avQueuePlayer?.currentItem as? AudioTrack
+            let playerItem = avQueuePlayer.currentItem as? AudioTrack
             var param: [String : Any]? = nil
             if let to = playerItem?.toDict() {
                 param = [
-                    "currentIndex": NSNumber(value: avQueuePlayer?.currentIndex() ?? 0),
+                    "currentIndex": NSNumber(value: avQueuePlayer.currentIndex() ?? 0),
                     "currentItem": to
                 ]
             }
@@ -392,17 +349,17 @@ class RmxAudioPlayer: NSObject {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
 
-        avQueuePlayer?.advanceToNextItem()
+        avQueuePlayer.advanceToNextItem()
 
         if isCommand {
             let action = "music-controls-next"
             print("\(action)")
 
-            let playerItem = avQueuePlayer?.currentItem as? AudioTrack
+            let playerItem = avQueuePlayer.currentItem as? AudioTrack
             var param: [String : Any]? = nil
             if let to = playerItem?.toDict() {
                 param = [
-                    "currentIndex": NSNumber(value: avQueuePlayer?.currentIndex() ?? 0),
+                    "currentIndex": NSNumber(value: avQueuePlayer.currentIndex() ?? 0),
                     "currentItem": to
                 ]
             }
@@ -416,13 +373,13 @@ class RmxAudioPlayer: NSObject {
         initializeMPCommandCenter()
 
         let seekToTime = CMTimeMakeWithSeconds(Float64(positionTime), preferredTimescale: 1000)
-        avQueuePlayer?.seek(to: seekToTime, toleranceBefore: .zero, toleranceAfter: .zero)
+        avQueuePlayer.seek(to: seekToTime, toleranceBefore: .zero, toleranceAfter: .zero)
 
         let action = "music-controls-seek-to"
         print(String(format: "%@ %.3f", action, positionTime))
 
         if isCommand {
-            let playerItem = avQueuePlayer?.currentItem as? AudioTrack
+            let playerItem = avQueuePlayer.currentItem as? AudioTrack
             onStatus(.rmxstatus_SEEK, trackId: playerItem?.trackId, param: [
                 "position": NSNumber(value: positionTime)
             ])
@@ -430,11 +387,11 @@ class RmxAudioPlayer: NSObject {
     }
 
     func setRate(_ rate: Float) {
-        avQueuePlayer?.rate = rate
+        avQueuePlayer.rate = rate
     }
     
     func setVolume(_ volume: Float) {
-        avQueuePlayer?.volume = volume
+        avQueuePlayer.volume = volume
     }
     
     func addTracks(_ tracks: [AudioTrack], startPosition: Float) {
@@ -442,7 +399,7 @@ class RmxAudioPlayer: NSObject {
             addTrackObservers(playerItem)
         }
 
-        avQueuePlayer!.insertAllItems(tracks, append: true)
+        avQueuePlayer.insertAllItems(tracks, append: true)
         
         if startPosition > 0 {
             seek(to: startPosition, isCommand: false)
@@ -450,7 +407,7 @@ class RmxAudioPlayer: NSObject {
     }
 
     func setTracks(_ tracks: [AudioTrack], startPosition: Float) {
-        for item in avQueuePlayer?.itemsForPlayer ?? [] {
+        for item in avQueuePlayer.itemsForPlayer {
             removeTrackObservers(item)
         }
 
@@ -459,7 +416,7 @@ class RmxAudioPlayer: NSObject {
         }
 
         isReplacingItems = true
-        avQueuePlayer!.insertAllItems(tracks, append: false)
+        avQueuePlayer.insertAllItems(tracks, append: false)
 
         if startPosition > 0 {
             seek(to: startPosition, isCommand: false)
@@ -467,11 +424,11 @@ class RmxAudioPlayer: NSObject {
     }
 
     func removeAllTracks(_ isCommand: Bool) {
-        for item in avQueuePlayer!.itemsForPlayer {
+        for item in avQueuePlayer.itemsForPlayer {
             removeTrackObservers(item)
         }
 
-        avQueuePlayer?.removeAllItems()
+        avQueuePlayer.removeAllItems()
         wasPlayingInterrupted = false
 
         print("RmxAudioPlayer, removeAllTracks, ==> RMXSTATUS_PLAYLIST_CLEARED")
@@ -508,7 +465,7 @@ class RmxAudioPlayer: NSObject {
     }
 
     @objc func togglePlayPauseTrackEvent(_ event: MPRemoteCommandEvent?) -> MPRemoteCommandHandlerStatus {
-        if avQueuePlayer?.isPlaying ?? false {
+        if avQueuePlayer.isPlaying {
             pauseCommand(true)
         } else {
             playCommand(true)
@@ -546,7 +503,7 @@ class RmxAudioPlayer: NSObject {
     ///
     @objc func itemStalledPlaying(_ notification: Notification?) {
         // This happens when the network is insufficient to continue playback.
-        let playerItem = avQueuePlayer?.currentItem as? AudioTrack
+        let playerItem = avQueuePlayer.currentItem as? AudioTrack
         let trackStatus = getStatusItem(playerItem)
         onStatus(.rmxstatus_STALLED, trackId: playerItem?.trackId, param: trackStatus)
         onStatus(.rmxstatus_PAUSE, trackId: playerItem?.trackId, param: trackStatus)
@@ -582,7 +539,7 @@ class RmxAudioPlayer: NSObject {
         case AVAudioSession.InterruptionType.began:
             let suspended = (interruptionNotification?.userInfo?[AVAudioSessionInterruptionWasSuspendedKey] as? NSNumber)?.boolValue ?? false
                 print("AVAudioSessionInterruptionTypeBegan. Was suspended: \(suspended)")
-                if avQueuePlayer?.isPlaying ?? false {
+                if avQueuePlayer.isPlaying {
                     wasPlayingInterrupted = true
                 }
 
@@ -594,7 +551,7 @@ class RmxAudioPlayer: NSObject {
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
             if options.contains(.shouldResume) {
                 if wasPlayingInterrupted {
-                    avQueuePlayer?.play()
+                    avQueuePlayer.play()
                 }
             } else {
                 // Interruption ended. Playback should not resume.
@@ -609,13 +566,26 @@ class RmxAudioPlayer: NSObject {
      * This method only executes while the queue is playing, so we can use the playback position event.
      */
     func executePeriodicUpdate(_ time: CMTime) {
-        let playerItem = avQueuePlayer?.currentItem as? AudioTrack
+        
+        let optionalNumber: Int? = 42
+        
+        if let number = optionalNumber {
+            print("is never nil: \(number)")
+        }
+        
+        guard let number = optionalNumber else {
+            return
+        }
+        
+        print("\(number)")
+        
+        guard let playerItem = avQueuePlayer.currentItem as? AudioTrack else { return }
 
-        if !CMTIME_IS_INDEFINITE(playerItem!.currentTime()) {
+        if !CMTIME_IS_INDEFINITE(playerItem.currentTime()) {
             updateNowPlayingTrackInfo(playerItem, updateTrackData: false)
-            if avQueuePlayer?.isPlaying ?? false {
+            if avQueuePlayer.isPlaying {
                 let trackStatus = getStatusItem(playerItem)
-                onStatus(.rmxstatus_PLAYBACK_POSITION, trackId: playerItem?.trackId, param: trackStatus)
+                onStatus(.rmxstatus_PLAYBACK_POSITION, trackId: playerItem.trackId, param: trackStatus)
                 // NSLog(@" . %.5f / %.5f sec (%.1f %%) [%@]", currentTime, duration, (currentTime / duration)*100.0, name);
             }
         }
@@ -675,7 +645,7 @@ class RmxAudioPlayer: NSObject {
     func updateNowPlayingTrackInfo(_ playerItem: AudioTrack?, updateTrackData: Bool) {
         var currentItem = playerItem
         if currentItem == nil {
-            currentItem = avQueuePlayer?.currentItem as? AudioTrack
+            currentItem = avQueuePlayer.currentItem as? AudioTrack
         }
 
         let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
@@ -718,8 +688,8 @@ class RmxAudioPlayer: NSObject {
         nowPlayingInfoCenter.nowPlayingInfo = updatedNowPlayingInfo
 
         let commandCenter = MPRemoteCommandCenter.shared()
-        commandCenter.nextTrackCommand.isEnabled = !isAtEnd
-        commandCenter.previousTrackCommand.isEnabled = !isAtBeginning
+        commandCenter.nextTrackCommand.isEnabled = !avQueuePlayer.isAtEnd
+        commandCenter.previousTrackCommand.isEnabled = !avQueuePlayer.isAtBeginning
     }
 
     func createCoverArtwork(_ coverUri: String?) -> MPMediaItemArtwork? {
@@ -792,7 +762,7 @@ class RmxAudioPlayer: NSObject {
             print("Queue changed current item to: \(playerItem.toDict() ?? [:])")
             // NSLog(@"New music name: %@", ((AVURLAsset*)playerItem.asset).URL.pathComponents.lastObject);
             print("New item ID: \(playerItem.trackId ?? "")")
-            print("Queue is at end: \(isAtEnd ? "YES" : "NO")")
+            print("Queue is at end: \(avQueuePlayer.isAtEnd ? "YES" : "NO")")
             // When an item starts, immediately scrub it back to the beginning
             playerItem.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
             // Update the command center
@@ -805,25 +775,25 @@ class RmxAudioPlayer: NSObject {
         if let to = playerItem != nil ? playerItem?.toDict() : [:] {
             info = [
                 "currentItem": to,
-                "currentIndex": NSNumber(value: avQueuePlayer?.currentIndex() ?? 0),
-                "isAtEnd": NSNumber(value: isAtEnd),
-                "isAtBeginning": NSNumber(value: isAtBeginning),
-                "hasNext": NSNumber(value: !isAtEnd),
-                "hasPrevious": NSNumber(value: !isAtBeginning)
+                "currentIndex": NSNumber(value: avQueuePlayer.currentIndex() ?? 0),
+                "isAtEnd": NSNumber(value: avQueuePlayer.isAtEnd),
+                "isAtBeginning": NSNumber(value: avQueuePlayer.isAtBeginning),
+                "hasNext": NSNumber(value: !avQueuePlayer.isAtEnd),
+                "hasPrevious": NSNumber(value: !avQueuePlayer.isAtBeginning)
             ]
         }
         let trackId = playerItem != nil ? playerItem?.trackId : "NONE"
         onStatus(.rmxstatus_TRACK_CHANGED, trackId: trackId, param: info)
 
-        if avQueuePlayer?.isAtEnd() ?? false && avQueuePlayer?.currentItem == nil {
-            avQueuePlayer?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+        if avQueuePlayer.isAtEnd && avQueuePlayer.currentItem == nil {
+            avQueuePlayer.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
 
-            if (avQueuePlayer?.itemsForPlayer.count ?? 0) > 0 && !isReplacingItems {
+            if !avQueuePlayer.itemsForPlayer.isEmpty && !isReplacingItems {
                 onStatus(.rmxstatus_PLAYLIST_COMPLETED, trackId: "INVALID", param: nil)
             }
 
-            if loop && (avQueuePlayer?.itemsForPlayer.count ?? 0) > 0 {
-                avQueuePlayer?.play()
+            if loop && !avQueuePlayer.itemsForPlayer.isEmpty {
+                avQueuePlayer.play()
             } else {
                 onStatus(.rmxstatus_STOPPED, trackId: "INVALID", param: nil)
             }
@@ -932,7 +902,7 @@ class RmxAudioPlayer: NSObject {
     func getStatusItem(_ playerItem: AudioTrack?) -> [String : Any]? {
         var currentItem = playerItem
         if currentItem == nil {
-            currentItem = avQueuePlayer?.currentItem as? AudioTrack
+            currentItem = avQueuePlayer.currentItem as? AudioTrack
         }
 
         if currentItem == nil {
@@ -959,8 +929,8 @@ class RmxAudioPlayer: NSObject {
             status = "unknown"
         }
 
-        if avQueuePlayer?.currentItem == currentItem {
-            if avQueuePlayer?.rate != 0.0 {
+        if avQueuePlayer.currentItem == currentItem {
+            if avQueuePlayer.rate != 0 {
                 status = "playing"
 
                 if position <= 0 && (bufferInfo?["bufferPercent"] as? NSNumber)?.floatValue ?? 0.0 == 0 {
@@ -974,7 +944,7 @@ class RmxAudioPlayer: NSObject {
         let info = [
             "trackId": currentItem?.trackId ?? "",
             "isStream": currentItem?.isStream ?? false ? NSNumber(value: 1) : NSNumber(value: 0),
-            "currentIndex": NSNumber(value: avQueuePlayer?.currentIndex() ?? 0),
+            "currentIndex": NSNumber(value: avQueuePlayer.currentIndex() ?? 0),
             "status": status,
             "currentPosition": NSNumber(value: position),
             "duration": NSNumber(value: duration),
@@ -987,72 +957,53 @@ class RmxAudioPlayer: NSObject {
     }
 
     func getTrackCurrentTime(_ playerItem: AudioTrack?) -> Float {
-        var currentItem = playerItem
-        if currentItem == nil {
-            currentItem = avQueuePlayer?.currentItem as? AudioTrack
+        guard let currentItem = playerItem ?? (avQueuePlayer.currentItem as? AudioTrack) else {
+            return 0
         }
 
-        if currentItem == nil {
-            return 0.0
-        }
-
-        if !CMTIME_IS_INDEFINITE(currentItem!.currentTime()) && CMTIME_IS_VALID(currentItem!.currentTime()) {
-            if let currentTime = currentItem?.currentTime() {
-                return Float(CMTimeGetSeconds(currentTime))
-            }
-            return 0.0
+        if !CMTIME_IS_INDEFINITE(currentItem.currentTime()) && CMTIME_IS_VALID(currentItem.currentTime()) {
+            return Float(CMTimeGetSeconds(currentItem.currentTime()))
         } else {
-            return 0.0
+            return 0
         }
     }
 
     func getTrackBufferInfo(_ playerItem: AudioTrack?) -> [String : Any]? {
-        if !CMTIME_IS_INDEFINITE(playerItem!.duration) {
-            var duration: Float? = nil
-            if let duration1 = playerItem?.duration {
-                duration = Float(CMTimeGetSeconds(duration1))
-            }
-            let timeRanges = playerItem?.loadedTimeRanges
-            if timeRanges != nil && timeRanges!.count > 0 {
-                let timerange = timeRanges?[0].timeRangeValue
-                var start: Float? = nil
-                if let start1 = timerange?.start {
-                    start = Float(CMTimeGetSeconds(start1))
-                }
-                var rangeEnd: Float? = nil
-                if let duration1 = timerange?.duration {
-                    rangeEnd = Float(CMTimeGetSeconds(duration1))
-                }
-                let bufferPercent = ((rangeEnd ?? 0.0) / (duration ?? 0.0)) * 100.0
-
-                let bufferInfo = [
-                    "start": NSNumber(value: start ?? 0.0),
-                    "end": NSNumber(value: rangeEnd ?? 0.0),
-                    "bufferPercent": NSNumber(value: bufferPercent),
-                    "duration": NSNumber(value: duration ?? 0.0)
-                ]
-                return bufferInfo
-            } else {
-                let bufferInfo = [
-                    "start": NSNumber(value: 0.0),
-                    "end": NSNumber(value: 0.0),
-                    "bufferPercent": NSNumber(value: 0.0),
-                    "duration": NSNumber(value: duration ?? 0.0)
-                ]
-                return bufferInfo
-            }
+        guard let playerItem = playerItem, !CMTIME_IS_INDEFINITE(playerItem.duration) else {
+            return [
+                "start": NSNumber(value: 0.0),
+                "end": NSNumber(value: 0.0),
+                "bufferPercent": NSNumber(value: 0.0),
+                "duration": NSNumber(value: 0.0)
+            ]
         }
+        
+        let duration = Float(CMTimeGetSeconds(playerItem.duration))
+        let timeRanges = playerItem.loadedTimeRanges
+        
+        guard !timeRanges.isEmpty else {
+            return [
+                "start": NSNumber(value: 0.0),
+                "end": NSNumber(value: 0.0),
+                "bufferPercent": NSNumber(value: 0.0),
+                "duration": NSNumber(value: duration)
+            ]
+        }
+        
+        let timerange = timeRanges[0].timeRangeValue
+        let start = Float(CMTimeGetSeconds(timerange.start))
+        let rangeEnd = Float(CMTimeGetSeconds(timerange.duration))
+        let bufferPercent = (rangeEnd / duration) * 100.0
 
-        let bufferInfo = [
-            "start": NSNumber(value: 0.0),
-            "end": NSNumber(value: 0.0),
-            "bufferPercent": NSNumber(value: 0.0),
-            "duration": NSNumber(value: 0.0)
+        return [
+            "start": NSNumber(value: start),
+            "end": NSNumber(value: rangeEnd),
+            "bufferPercent": NSNumber(value: bufferPercent),
+            "duration": NSNumber(value: duration)
         ]
-        return bufferInfo
     }
 
-// MARK: - plugin initialization
+    // MARK: - plugin initialization
 
     ///
     /// Object initialization. Mostly boring plumbing to initialize the objects and wire everything up.
@@ -1069,39 +1020,31 @@ class RmxAudioPlayer: NSObject {
             commandCenter.previousTrackCommand.addTarget(self, action: #selector(prevTrackEvent(_:)))
             commandCenter.togglePlayPauseCommand.isEnabled = true
             commandCenter.togglePlayPauseCommand.addTarget(self, action: #selector(togglePlayPauseTrackEvent(_:)))
-
-            if #available(iOS 9.0, *) {
-                commandCenter.changePlaybackPositionCommand.isEnabled = true
-                commandCenter.changePlaybackPositionCommand.addTarget(self, action: #selector(changedThumbSlider(onLockScreen:)))
-            }
+            commandCenter.changePlaybackPositionCommand.isEnabled = true
+            commandCenter.changePlaybackPositionCommand.addTarget(self, action: #selector(changedThumbSlider(onLockScreen:)))
 
             commandCenterRegistered = true
         }
     }
 
     func findTrack(byId trackId: String?) -> [String: Any]? {
-        var idx = -1
-        var track: AudioTrack? = nil
-
-        if (avQueuePlayer?.itemsForPlayer.count ?? 0) > 0 {
-            let arr = avQueuePlayer?.itemsForPlayer
-            let indexes = (arr as NSArray?)?.indexesOfObjects(passingTest: { obj, idx, stop in
-                return (obj as? AudioTrack)?.trackId == trackId
+        let trackInformation: (Int, AudioTrack)? = avQueuePlayer.itemsForPlayer
+            .enumerated()
+            .first(where: { _, track in
+                track.trackId == trackId
             })
 
-            if (indexes?.count ?? 0) > 0 {
-                idx = indexes!.first!
-                track = arr?[idx]
-            }
+        guard
+            let index = trackInformation?.0,
+            let track = trackInformation?.1
+        else {
+            return nil
         }
-
-        if let track = track ?? nil {
-            return [
-                "track": track,
-                "index": NSNumber(value: idx)
-            ]
-        }
-        return nil
+    
+        return [
+            "track": track,
+            "index": NSNumber(value: index)
+        ]
     }
 
     func addTrackObservers(_ playerItem: AudioTrack?) {
@@ -1144,11 +1087,7 @@ class RmxAudioPlayer: NSObject {
         var options: AVAudioSession.CategoryOptions = .defaultToSpeaker
 
         // If both Bluetooth streaming options are enabled, the low quality stream is preferred; enable A2DP only.
-        if #available(iOS 10.0, *) {
-            options.insert(.allowBluetoothA2DP)
-        } else {
-            options.insert(.allowBluetooth)
-        }
+        options.insert(.allowBluetoothA2DP)
 
         do {
             try avSession.setCategory(.playAndRecord, options: options)
@@ -1205,16 +1144,7 @@ class RmxAudioPlayer: NSObject {
         statusUpdater?.onStatus(dict)
     }
 
-    ///
     /// Cleanup
-    ///
-    ///
-    ///
-    ///
-    ///
-    ///
-    ///
-    ///
     func deregisterMusicControlsEventListener() {
         // We don't use the remote control, and no need to remove observer on
         // NSNotificationCenter, that is done automatically
@@ -1227,12 +1157,8 @@ class RmxAudioPlayer: NSObject {
         commandCenter.nextTrackCommand.removeTarget(self)
         commandCenter.previousTrackCommand.removeTarget(self)
         commandCenter.togglePlayPauseCommand.removeTarget(self)
-
-        // if (floor(NSFoundationVersionNumber) > NSFoundationVersionNumber_iOS_9_0) {
-        if #available(iOS 9.0, *) {
-            commandCenter.changePlaybackPositionCommand.isEnabled = false
-            commandCenter.changePlaybackPositionCommand.removeTarget(self, action: nil)
-        }
+        commandCenter.changePlaybackPositionCommand.isEnabled = false
+        commandCenter.changePlaybackPositionCommand.removeTarget(self, action: nil)
 
         commandCenterRegistered = false
     }
@@ -1244,16 +1170,15 @@ class RmxAudioPlayer: NSObject {
     }
 
     deinit {
-        // [super dealloc];
         releaseResources()
     }
 
     func releaseResources() {
         if let playbackTimeObserver = playbackTimeObserver {
-            avQueuePlayer?.removeTimeObserver(playbackTimeObserver)
+            avQueuePlayer.removeTimeObserver(playbackTimeObserver)
         }
-        avQueuePlayer?.removeObserver(self as NSObject, forKeyPath: "currentItem")
-        avQueuePlayer?.removeObserver(self as NSObject, forKeyPath: "rate")
+        avQueuePlayer.removeObserver(self as NSObject, forKeyPath: "currentItem")
+        avQueuePlayer.removeObserver(self as NSObject, forKeyPath: "rate")
         deregisterMusicControlsEventListener()
 
         // onReset or when killing app:
@@ -1261,7 +1186,7 @@ class RmxAudioPlayer: NSObject {
         //    viewController.resignFirstResponder()
         //}
         removeAllTracks(false)
-        _avQueuePlayer = nil
+        avQueuePlayer.insertAllItems([], append: false)
 
         playbackTimeObserver = nil
     }
