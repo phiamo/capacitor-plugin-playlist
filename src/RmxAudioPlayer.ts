@@ -23,7 +23,7 @@ import {validateTrack, validateTracks} from "./utils";
  * Module dependencies.
  */
 
-import {Capacitor, Plugins} from "@capacitor/core";
+import {Plugins} from "@capacitor/core";
 const Playlist = Plugins.PlaylistPlugin as PlaylistPluginInterface;
 const log = console;
 
@@ -132,10 +132,9 @@ export class RmxAudioPlayer {
       this._readyResolve = resolve;
       this._readyReject = reject;
     });
-      new Promise((resolve) => {
-        window.addEventListener('beforeunload', () => resolve(), {once: true})
-      }).then(() => Playlist.release());
-    }
+    new Promise((resolve) => {
+      window.addEventListener('beforeunload', () => resolve(), {once: true})
+    }).then(() => Playlist.release());
   }
 
   /**
