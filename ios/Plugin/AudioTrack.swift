@@ -1,12 +1,3 @@
-//  Converted to Swift 5.3 by Swiftify v5.3.19197 - https://swiftify.com/
-//
-//  AudioTrack.swift
-//  BackgroundAudioObjc
-//
-//  Created by Patrick Sears on 3/29/18.
-//
-
-//
 //  AudioTrack.swift
 //  RmxAudioPlayer
 //
@@ -15,7 +6,7 @@
 
 import AVFoundation
 
-class AudioTrack: AVPlayerItem {
+final class AudioTrack: AVPlayerItem {
     var isStream = false
     var trackId: String?
     var assetUrl: URL?
@@ -25,63 +16,44 @@ class AudioTrack: AVPlayerItem {
     var title: String?
 
     class func initWithDictionary(_ trackInfo: [String : Any]?) -> AudioTrack? {
-        let trackId = trackInfo?["trackId"] as? String
-        let assetUrl = trackInfo?["assetUrl"] as? String
-        let isStreamStr = trackInfo?["isStream"] as? String
-        let albumArt = trackInfo?["albumArt"] as? String
-
-        if trackId == nil || (trackId == "") {
+        guard
+            let trackInfo = trackInfo,
+            let trackId = trackInfo["trackId"] as? String,
+            !trackId.isEmpty,
+            let assetUrlString = trackInfo["assetUrl"] as? String,
+            let assetUrl = URL(string: assetUrlString)
+        else {
             return nil
         }
-        if assetUrl == nil {
-            return nil
+        
+        let track = AudioTrack(url: assetUrl)
+        track.canUseNetworkResourcesForLiveStreamingWhilePaused = true
+
+        if let isStreamStr = trackInfo["isStream"] as? NSString {
+            track.isStream = isStreamStr.boolValue
         }
-
-        let assetUrlObj = self.getUrlForAsset(assetUrl)
-        var track: AudioTrack? = nil
-        if let assetUrlObj = assetUrlObj {
-            track = AudioTrack(url: assetUrlObj)
-        }
-
-        var isStream = false
-        if isStreamStr != nil && (isStreamStr as NSString?)?.boolValue ?? false {
-            isStream = true
-        }
-
-        track?.isStream = isStream
-        track?.trackId = trackId
-        track?.assetUrl = assetUrlObj
-        track?.albumArt = albumArt != nil ? self.getUrlForAsset(albumArt) : nil
-        track?.artist = trackInfo?["artist"] as? String
-        track?.album = trackInfo?["album"] as? String
-        track?.title = trackInfo?["title"] as? String
-
-        if isStream && track?.responds(to: #selector(setter: AVPlayerItem.canUseNetworkResourcesForLiveStreamingWhilePaused)) ?? false {
-            track?.canUseNetworkResourcesForLiveStreamingWhilePaused = true
-        }
-
+        
+        let albumArt = trackInfo["albumArt"] as? String
+        track.albumArt = albumArt != nil ? URL(string: albumArt!) : nil
+        
+        track.trackId = trackId
+        track.assetUrl = assetUrl
+        track.artist = trackInfo["artist"] as? String
+        track.album = trackInfo["album"] as? String
+        track.title = trackInfo["title"] as? String
+        
         return track
     }
 
     func toDict() -> [String : Any]? {
-        let info = [
+        [
             "isStream": NSNumber(value: isStream),
             "trackId": trackId ?? "",
             "assetUrl": assetUrl?.absoluteString ?? "",
-            "albumArt": (albumArt != nil ? albumArt?.absoluteString : "") ?? "",
+            "albumArt": albumArt?.absoluteString ?? "",
             "artist": artist ?? "",
             "album": album ?? "",
             "title": title ?? ""
-        ] as [String : Any]
-
-        return info
-    }
-
-    // We create a wrapper function for this so that we can properly handle web, file, cdv, and document urls.
-    class func getUrlForAsset(_ assetUrl: String?) -> URL? {
-        return URL(string: assetUrl ?? "")
-    }
-
-    deinit {
+        ]
     }
 }
