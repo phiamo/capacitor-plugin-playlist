@@ -180,7 +180,7 @@ export class RmxAudioPlayer {
    */
   setOptions = (options: AudioPlayerOptions) => {
     this.options = { ...this.options, ...options };
-    return Playlist.setOptions(options)
+    return Playlist.setOptions(this.options)
   }
 
   /**
