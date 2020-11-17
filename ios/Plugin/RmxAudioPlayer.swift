@@ -50,14 +50,6 @@ final class RmxAudioPlayer: NSObject {
 
     override init() {
         super.init()
-        playbackTimeObserver = nil
-        wasPlayingInterrupted = false
-        commandCenterRegistered = false
-        updatedNowPlayingInfo = nil
-        resetStreamOnPause = true
-        isReplacingItems = false
-        isWaitingToStartPlayback = false
-        loop = false
 
         activateAudioSession()
         observeLifeCycle()
