@@ -154,7 +154,7 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func playTrack(index: Int, positionTime: Float) -> (Bool, String?) {
-        guard index < 0 || index >= avQueuePlayer.queuedAudioTracks.count else {
+        guard (0..<avQueuePlayer.queuedAudioTracks.count).contains(index) else {
             return (false, "Provided index is out of bounds")
         }
 
