@@ -31,22 +31,7 @@ final class RmxAudioPlayer: NSObject {
     private var isWaitingToStartPlayback = false
     private var loop = false
 
-    private lazy var avQueuePlayer: AVBidirectionalQueuePlayer = {
-        let avQueuePlayer = AVBidirectionalQueuePlayer(items: [])
-        
-        avQueuePlayer.actionAtItemEnd = .advance
-        avQueuePlayer.addObserver(self, forKeyPath: "currentItem", options: .new, context: UnsafeMutableRawPointer(mutating: &kAvQueuePlayerContext))
-        avQueuePlayer.addObserver(self, forKeyPath: "rate", options: .new, context: UnsafeMutableRawPointer(mutating: &kAvQueuePlayerRateContext))
-
-        let interval = CMTimeMakeWithSeconds(Float64(1.0), preferredTimescale: Int32(Double(NSEC_PER_SEC)))
-        playbackTimeObserver = avQueuePlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] time in
-            self?.executePeriodicUpdate(time)
-        })
-        
-        //_avQueuePlayer.automaticallyWaitsToMinimizeStalling = NO;
-        
-        return avQueuePlayer
-    }()
+    private let avQueuePlayer = AVBidirectionalQueuePlayer(items: [])
 
     override init() {
         super.init()
@@ -66,6 +51,16 @@ final class RmxAudioPlayer: NSObject {
 
     func initialize() {
         print("RmxAudioPlayer.execute=initialize")
+        
+        avQueuePlayer.actionAtItemEnd = .advance
+        avQueuePlayer.addObserver(self, forKeyPath: "currentItem", options: .new, context: UnsafeMutableRawPointer(mutating: &kAvQueuePlayerContext))
+        avQueuePlayer.addObserver(self, forKeyPath: "rate", options: .new, context: UnsafeMutableRawPointer(mutating: &kAvQueuePlayerRateContext))
+
+        let interval = CMTimeMakeWithSeconds(Float64(1.0), preferredTimescale: Int32(Double(NSEC_PER_SEC)))
+        playbackTimeObserver = avQueuePlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] time in
+            self?.executePeriodicUpdate(time)
+        })
+        
         onStatus(.rmxstatus_REGISTER, trackId: "INIT", param: nil)
     }
     
@@ -1120,7 +1115,6 @@ final class RmxAudioPlayer: NSObject {
         //    viewController.resignFirstResponder()
         //}
         removeAllTracks(false)
-        avQueuePlayer.removeAllItems()
 
         playbackTimeObserver = nil
     }
