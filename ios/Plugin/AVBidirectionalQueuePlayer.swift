@@ -33,7 +33,7 @@ let AVBidirectionalQueueRemovedItem = "AVBidirectionalQueuePlayer.RemovedItem"
 let AVBidirectionalQueueCleared = "AVBidirectionalQueuePlayer.Cleared"
 
 class AVBidirectionalQueuePlayer: AVQueuePlayer {
-    private(set) var itemsForPlayer: [AudioTrack] = []
+    private(set) var queuedAudioTracks: [AudioTrack] = []
     
     var isPlaying: Bool { rate != 0 }
     
@@ -46,13 +46,13 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     
     var isAtEnd: Bool {
         guard let currentIndex = currentIndex() else { return true }
-        return currentIndex >= (itemsForPlayer.endIndex - 1)
+        return currentIndex >= (queuedAudioTracks.endIndex - 1)
     }
 
     init(items: [AudioTrack]) {
         // This function calls the constructor for AVQueuePlayer, then sets up the nowPlayingIndex to 0 and saves the array that the player was generated from as itemsForPlayer
         super.init(items: items)
-        itemsForPlayer = items
+        queuedAudioTracks = items
     }
     
     // Two methods need to be added to the AVQueuePlayer: one which will play the last song in the queue, and one which will return if the queue is at the beginning (in case the user wishes to implement special behavior when a queue is at its first item, such as restarting a song). A getIndex method to return the current index is also provided.
@@ -67,7 +67,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         // yourself fairly easily using the isAtBeginning method to test if the player is at its start.
         var tempNowPlayingIndex: Int? = nil
         if let currentItem = currentItem as? AudioTrack {
-            tempNowPlayingIndex = itemsForPlayer.firstIndex(of: currentItem) ?? NSNotFound
+            tempNowPlayingIndex = queuedAudioTracks.firstIndex(of: currentItem) ?? NSNotFound
         }
 
         if (tempNowPlayingIndex ?? 0) > 0 && tempNowPlayingIndex != NSNotFound {
@@ -80,7 +80,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
             seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
 
             // The next two lines are necessary since RemoveAllItems resets both the nowPlayingIndex and _itemsForPlayer
-            let tempPlaylist = itemsForPlayer
+            let tempPlaylist = queuedAudioTracks
             super.removeAllItems()
 
             var offset = 1
@@ -130,7 +130,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         // Note: it is necessary to have seekToTime called twice in this method, once before and once after re-making the area. If it is not present before, the player will resume from the same spot in the next item when the previous item finishes playing; if it is not present after, the previous item will be played from the same spot that the current item was on.
         seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
         // The next two lines are necessary since RemoveAllItems resets both the nowPlayingIndex and _itemsForPlayer
-        let tempPlaylist = itemsForPlayer
+        let tempPlaylist = queuedAudioTracks
         super.removeAllItems()
         for i in newCurrentIndex..<(tempPlaylist.count) {
             let item = tempPlaylist[i]
@@ -166,7 +166,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     
     func currentIndex() -> Int? {
         guard let currentItem = currentItem as? AudioTrack else { return nil }
-        return itemsForPlayer.firstIndex(of: currentItem)
+        return queuedAudioTracks.firstIndex(of: currentItem)
     }
 
     // OVERRIDDEN AVQUEUEPLAYER METHODS
@@ -182,7 +182,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     override func removeAllItems() {
         // This does the same thing as the normal AVQueuePlayer removeAllItems, but clears our collection copy
         super.removeAllItems()
-        itemsForPlayer.removeAll()
+        queuedAudioTracks.removeAll()
 
         NotificationCenter.default.post(name: NSNotification.Name(AVBidirectionalQueueCleared), object: self, userInfo: nil)
     }
@@ -195,8 +195,8 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         // array before the current value.
         super.remove(item)
 
-        if let index = itemsForPlayer.firstIndex(of: item) {
-            itemsForPlayer.remove(at: index)
+        if let index = queuedAudioTracks.firstIndex(of: item) {
+            queuedAudioTracks.remove(at: index)
         }
         NotificationCenter.default.post(name: NSNotification.Name(AVBidirectionalQueueRemovedItem), object: self, userInfo: [
             "item": item
@@ -208,16 +208,16 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         // proper location in the itemsForPlayer array and increments the nowPlayingIndex if necessary.
         super.insert(item, after: afterItem)
         
-        if afterItem != nil && itemsForPlayer.contains(afterItem!) {
+        if afterItem != nil && queuedAudioTracks.contains(afterItem!) {
             // AfterItem is non-nil
-            if (itemsForPlayer.firstIndex(of: afterItem!) ?? NSNotFound) < (itemsForPlayer.count ) - 1 {
-                itemsForPlayer.insert(item, at: (itemsForPlayer.firstIndex(of: afterItem!) ?? NSNotFound) + 1)
+            if (queuedAudioTracks.firstIndex(of: afterItem!) ?? NSNotFound) < (queuedAudioTracks.count ) - 1 {
+                queuedAudioTracks.insert(item, at: (queuedAudioTracks.firstIndex(of: afterItem!) ?? NSNotFound) + 1)
             } else {
-                itemsForPlayer.append(item)
+                queuedAudioTracks.append(item)
             }
         } else {
             // afterItem is nil
-            itemsForPlayer.append(item)
+            queuedAudioTracks.append(item)
         }
 
         NotificationCenter.default.post(name: NSNotification.Name(AVBidirectionalQueueAddedItem), object: self, userInfo: [

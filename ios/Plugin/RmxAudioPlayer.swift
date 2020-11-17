@@ -94,7 +94,7 @@ final class RmxAudioPlayer: NSObject {
         let result = findTrack(byId: playFromId)
         let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
 
-        if !avQueuePlayer.itemsForPlayer.isEmpty {
+        if !avQueuePlayer.queuedAudioTracks.isEmpty {
             if idx >= 0 {
                 avQueuePlayer.setCurrentIndex(idx)
             }
@@ -150,7 +150,7 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func playTrack(index: Int, positionTime: Float) -> (Bool, String?) {
-        guard index < 0 || index >= avQueuePlayer.itemsForPlayer.count else {
+        guard index < 0 || index >= avQueuePlayer.queuedAudioTracks.count else {
             return (false, "Provided index is out of bounds")
         }
 
@@ -167,7 +167,7 @@ final class RmxAudioPlayer: NSObject {
         let idx = result?["index"] as? Int ?? -1
         // AudioTrack* track = result[@"track"];
 
-        if !avQueuePlayer.itemsForPlayer.isEmpty {
+        if !avQueuePlayer.queuedAudioTracks.isEmpty {
             if idx >= 0 {
                 avQueuePlayer.setCurrentIndex(idx)
                 playCommand(false)
@@ -224,7 +224,7 @@ final class RmxAudioPlayer: NSObject {
     ///
     func selectTrack(index: Int?) -> Bool {
         guard let index = index else { return false }
-        if index < 0 || index >= avQueuePlayer.itemsForPlayer.count {
+        if index < 0 || index >= avQueuePlayer.queuedAudioTracks.count {
             return false
         } else {
             avQueuePlayer.setCurrentIndex(index)
@@ -237,7 +237,7 @@ final class RmxAudioPlayer: NSObject {
         let result = findTrack(byId: trackId)
         let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
 
-        if !avQueuePlayer.itemsForPlayer.isEmpty {
+        if !avQueuePlayer.queuedAudioTracks.isEmpty {
             if idx >= 0 {
                 avQueuePlayer.setCurrentIndex(idx)
             }
@@ -248,8 +248,8 @@ final class RmxAudioPlayer: NSObject {
     func removeItem(trackIndex: Int?, trackId: String?) -> Bool {
         guard let trackIndex = trackIndex else { return false }
         
-        if trackIndex > -1 && trackIndex < avQueuePlayer.itemsForPlayer.count {
-            let item = avQueuePlayer.itemsForPlayer[trackIndex]
+        if trackIndex > -1 && trackIndex < avQueuePlayer.queuedAudioTracks.count {
+            let item = avQueuePlayer.queuedAudioTracks[trackIndex]
             removeTrackObservers(item)
             avQueuePlayer.remove(item)
             return true
@@ -407,7 +407,7 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func setTracks(_ tracks: [AudioTrack], startPosition: Float) {
-        for item in avQueuePlayer.itemsForPlayer {
+        for item in avQueuePlayer.queuedAudioTracks {
             removeTrackObservers(item)
         }
 
@@ -424,7 +424,7 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func removeAllTracks(_ isCommand: Bool) {
-        for item in avQueuePlayer.itemsForPlayer {
+        for item in avQueuePlayer.queuedAudioTracks {
             removeTrackObservers(item)
         }
 
@@ -788,11 +788,11 @@ final class RmxAudioPlayer: NSObject {
         if avQueuePlayer.isAtEnd && avQueuePlayer.currentItem == nil {
             avQueuePlayer.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
 
-            if !avQueuePlayer.itemsForPlayer.isEmpty && !isReplacingItems {
+            if !avQueuePlayer.queuedAudioTracks.isEmpty && !isReplacingItems {
                 onStatus(.rmxstatus_PLAYLIST_COMPLETED, trackId: "INVALID", param: nil)
             }
 
-            if loop && !avQueuePlayer.itemsForPlayer.isEmpty {
+            if loop && !avQueuePlayer.queuedAudioTracks.isEmpty {
                 avQueuePlayer.play()
             } else {
                 onStatus(.rmxstatus_STOPPED, trackId: "INVALID", param: nil)
@@ -1028,7 +1028,7 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func findTrack(byId trackId: String?) -> [String: Any]? {
-        let trackInformation: (Int, AudioTrack)? = avQueuePlayer.itemsForPlayer
+        let trackInformation: (Int, AudioTrack)? = avQueuePlayer.queuedAudioTracks
             .enumerated()
             .first(where: { _, track in
                 track.trackId == trackId
