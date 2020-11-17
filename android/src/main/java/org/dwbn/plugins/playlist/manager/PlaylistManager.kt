@@ -154,8 +154,13 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
         if (item == null) {
             return
         }
+        val countBefore = audioTracks.size;
         audioTracks.add(item)
         items = audioTracks
+        if(countBefore == 0) {
+            currentPosition = 0
+            beginPlayback(1, true)
+        }
     }
 
     fun addAllItems(its: List<AudioTrack>?) {
@@ -165,7 +170,7 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
         currentPosition = audioTracks.indexOf(currentItem)
     }
 
-    fun removeItem(index: Int, itemId: String?): AudioTrack? {
+    fun removeItem(index: Int, itemId: String): AudioTrack? {
         val wasPlaying = isPlaying
         if (playlistHandler != null) {
             playlistHandler!!.pause(true)
@@ -228,11 +233,11 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
         currentPosition = INVALID_POSITION
     }
 
-    private fun resolveItemPosition(trackIndex: Int, trackId: String?): Int {
+    private fun resolveItemPosition(trackIndex: Int, trackId: String): Int {
         var resolvedPosition = -1
         if (trackIndex >= 0 && trackIndex < audioTracks.size) {
             resolvedPosition = trackIndex
-        } else if (trackId != null && "" != trackId) {
+        } else if ( "" != trackId) {
             val itemPos = getPositionForItem(trackId.hashCode().toLong())
             if (itemPos != INVALID_POSITION) {
                 resolvedPosition = itemPos

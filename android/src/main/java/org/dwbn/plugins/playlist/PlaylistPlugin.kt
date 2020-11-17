@@ -105,8 +105,8 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     @PluginMethod
     fun removeItem(call: PluginCall) {
-        val trackIndex: Int = call.getInt("trackId")
-        val trackId: String = call.getString("trackIndex")
+        val trackIndex: Int = call.getInt("trackId", -1)
+        val trackId: String = call.getString("trackIndex", "")
         val item = audioPlayerImpl!!.playlistManager.removeItem(trackIndex, trackId)
 
         if (item != null) {
@@ -276,10 +276,10 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
             position = progress.position
         }
 
-        val seekPosition = (call.getDouble("position",  position / 1000.0f.toDouble()) * 1000.0).toLong()
+        val seekPosition = (call.getInt("position",  (position / 1000.0f).toInt()) * 1000.0).toLong()
 
         val isPlaying: Boolean? = audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer?.isPlaying
-        audioPlayerImpl!!.playlistManager.playlistHandler?.seek((seekPosition * 1000.0).toLong())
+        audioPlayerImpl!!.playlistManager.playlistHandler?.seek(seekPosition)
         if (!isPlaying!!) {
             audioPlayerImpl!!.playlistManager.playlistHandler?.pause(false)
         }

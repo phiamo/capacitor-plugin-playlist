@@ -28,9 +28,12 @@ const Playlist = Plugins.PlaylistPlugin as PlaylistPluginInterface;
 const log = console;
 
 const itemStatusChangeTypes = [
-  RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION, RmxAudioStatusMessage.RMXSTATUS_DURATION,
-  RmxAudioStatusMessage.RMXSTATUS_BUFFERING, RmxAudioStatusMessage.RMXSTATUS_CANPLAY,
-  RmxAudioStatusMessage.RMXSTATUS_LOADING, RmxAudioStatusMessage.RMXSTATUS_LOADED,
+  RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION,
+  RmxAudioStatusMessage.RMXSTATUS_DURATION,
+  RmxAudioStatusMessage.RMXSTATUS_BUFFERING,
+  RmxAudioStatusMessage.RMXSTATUS_CANPLAY,
+  RmxAudioStatusMessage.RMXSTATUS_LOADING,
+  RmxAudioStatusMessage.RMXSTATUS_LOADED,
   RmxAudioStatusMessage.RMXSTATUS_PAUSE,
   RmxAudioStatusMessage.RMXSTATUS_COMPLETED,
   RmxAudioStatusMessage.RMXSTATUS_ERROR,
@@ -129,7 +132,6 @@ export class RmxAudioPlayer {
       this._readyResolve = resolve;
       this._readyReject = reject;
     });
-    // release the player e.g. in live reload
     new Promise((resolve) => {
       window.addEventListener('beforeunload', () => resolve(), {once: true})
     }).then(() => Playlist.release());
@@ -178,7 +180,7 @@ export class RmxAudioPlayer {
    */
   setOptions = (options: AudioPlayerOptions) => {
     this.options = { ...this.options, ...options };
-    return Playlist.setOptions(options)
+    return Playlist.setOptions(this.options)
   }
 
   /**

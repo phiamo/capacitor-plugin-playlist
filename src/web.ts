@@ -25,6 +25,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   protected loop = false;
   protected options: AudioPlayerOptions = {};
   protected currentTrack: AudioTrack | null = null;
+  protected lastState = "stopped";
   constructor() {
     super({
       name: 'PlaylistPlugin',
@@ -202,7 +203,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   }
 
   // register events
-
+/*
   private registerHlsListeners(hls: Hls, position?: number) {
     hls.on(Hls.Events.MANIFEST_PARSED, async () => {
       this.notifyListeners('status', {
@@ -217,22 +218,24 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         await this.seekTo({position});
       }
     });
-  }
+  }*/
   registerHtmlListeners(position?: number) {
-    if(this.audio) {
-      this.audio.addEventListener('canplay', async () => {
-        this.notifyListeners('status', {
-          action: "status",
-          status: {
-            msgType: RmxAudioStatusMessage.RMXSTATUS_CANPLAY,
-            trackId: this.getCurrentTrackId(),
-            value: this.getCurrentTrackStatus('loading'),
-          }
-        })
-        if(position) {
-          await this.seekTo({position});
+    const canPlayListener = async () => {
+      this.notifyListeners('status', {
+        action: "status",
+        status: {
+          msgType: RmxAudioStatusMessage.RMXSTATUS_CANPLAY,
+          trackId: this.getCurrentTrackId(),
+          value: this.getCurrentTrackStatus('loading'),
         }
-      });
+      })
+      if(position) {
+        await this.seekTo({position});
+      }
+      this.audio?.removeEventListener('canplay', canPlayListener)
+    }
+    if(this.audio) {
+      this.audio.addEventListener('canplay', canPlayListener);
       this.audio.addEventListener('playing', () => {
         this.notifyListeners('status', {
           action: "status",
@@ -283,7 +286,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
           status: {
             msgType: RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION,
             trackId: this.getCurrentTrackId(),
-            value: this.getCurrentTrackStatus('playing'),
+            value: this.getCurrentTrackStatus(this.lastState),
           }
         })
       });
@@ -306,6 +309,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     return -1;
   }
   protected getCurrentTrackStatus(currentState: string) {
+    this.lastState = currentState;
     return {
       trackId: this.getCurrentTrackId(),
       isStream: !!this.currentTrack?.isStream,
@@ -346,7 +350,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         hls.loadSource(item.assetUrl);
       })
 
-      this.registerHlsListeners(hls, position);
+      //this.registerHlsListeners(hls, position);
       await this.registerHtmlListeners(position);
     }
     else {
