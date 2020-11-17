@@ -25,6 +25,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   protected loop = false;
   protected options: AudioPlayerOptions = {};
   protected currentTrack: AudioTrack | null = null;
+  protected lastState = "stopped";
   constructor() {
     super({
       name: 'PlaylistPlugin',
@@ -285,7 +286,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
           status: {
             msgType: RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION,
             trackId: this.getCurrentTrackId(),
-            value: this.getCurrentTrackStatus('playing'),
+            value: this.getCurrentTrackStatus(this.lastState),
           }
         })
       });
@@ -308,6 +309,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     return -1;
   }
   protected getCurrentTrackStatus(currentState: string) {
+    this.lastState = currentState;
     return {
       trackId: this.getCurrentTrackId(),
       isStream: !!this.currentTrack?.isStream,
