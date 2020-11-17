@@ -399,7 +399,7 @@ final class RmxAudioPlayer: NSObject {
             addTrackObservers(playerItem)
         }
 
-        avQueuePlayer.insertAllItems(tracks, append: true)
+        avQueuePlayer.appendItems(tracks)
         
         if startPosition > 0 {
             seek(to: startPosition, isCommand: false)
@@ -416,7 +416,7 @@ final class RmxAudioPlayer: NSObject {
         }
 
         isReplacingItems = true
-        avQueuePlayer.insertAllItems(tracks, append: false)
+        avQueuePlayer.replaceAllItems(with: tracks)
 
         if startPosition > 0 {
             seek(to: startPosition, isCommand: false)
@@ -1186,7 +1186,7 @@ final class RmxAudioPlayer: NSObject {
         //    viewController.resignFirstResponder()
         //}
         removeAllTracks(false)
-        avQueuePlayer.insertAllItems([], append: false)
+        avQueuePlayer.removeAllItems()
 
         playbackTimeObserver = nil
     }

@@ -48,6 +48,8 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         guard let currentIndex = currentIndex() else { return true }
         return currentIndex >= (queuedAudioTracks.endIndex - 1)
     }
+    
+    var currentAudioTrack: AudioTrack? { currentItem as? AudioTrack }
 
     init(items: [AudioTrack]) {
         // This function calls the constructor for AVQueuePlayer, then sets up the nowPlayingIndex to 0 and saves the array that the player was generated from as itemsForPlayer
@@ -65,12 +67,22 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         // It should be noted that if the player is on its first item, this function will do nothing. It will
         // not restart the item or anything like that; if you want that functionality you can implement it
         // yourself fairly easily using the isAtBeginning method to test if the player is at its start.
-        var tempNowPlayingIndex: Int? = nil
-        if let currentItem = currentItem as? AudioTrack {
-            tempNowPlayingIndex = queuedAudioTracks.firstIndex(of: currentItem) ?? NSNotFound
+        guard
+            let currentAudioTrack = currentAudioTrack,
+            let tempNowPlayingIndex = queuedAudioTracks.firstIndex(of: currentAudioTrack)
+        else {
+            return
         }
 
-        if (tempNowPlayingIndex ?? 0) > 0 && tempNowPlayingIndex != NSNotFound {
+        if tempNowPlayingIndex == 0 {
+            let currentrate = rate
+            if currentrate != 0.0 {
+                pause()
+            }
+            seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+            // [self play];
+            rate = currentrate
+        } else if tempNowPlayingIndex > 0 {
             let currentrate = rate
             if currentrate != 0.0 {
                 pause()
@@ -85,14 +97,14 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
 
             var offset = 1
             while true {
-                let _it = tempPlaylist[(tempNowPlayingIndex ?? 0) - offset]
+                let _it = tempPlaylist[tempNowPlayingIndex - offset]
                 if _it.error != nil {
                     offset += 1
                 }
                 break
             }
 
-            for i in ((tempNowPlayingIndex ?? 0) - offset)..<(tempPlaylist.count) {
+            for i in (tempNowPlayingIndex - offset)..<(tempPlaylist.count) {
                 let item = tempPlaylist[i]
                 item.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
                 super.insert(item, after: nil)
@@ -101,14 +113,6 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
             // Not a typo; see above comment
             seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
 
-            // [self play];
-            rate = currentrate
-        } else if tempNowPlayingIndex == 0 {
-            let currentrate = rate
-            if currentrate != 0.0 {
-                pause()
-            }
-            seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
             // [self play];
             rate = currentrate
         }
@@ -141,18 +145,20 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
         // }
     }
+    
+    func replaceAllItems(with items: [AudioTrack]) {
+        removeAllItems()
+        appendItems(items)
+    }
 
-    func insertAllItems(_ itemsForPlayer: [AudioTrack], append: Bool) {
-        if !append {
-            removeAllItems();
-        }
-        for item in itemsForPlayer {
+    func appendItems(_ items: [AudioTrack]) {
+        for item in items {
             insert(item, after: nil)
         }
         
         let center = NotificationCenter.default
         center.post(name: NSNotification.Name(AVBidirectionalQueueAddedAllItems), object: self, userInfo: [
-            "items": itemsForPlayer
+            "items": items
         ])
     }
 /* The following methods of AVQueuePlayer are overridden by AVBidirectionalQueuePlayer:
@@ -165,8 +171,8 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
  */
     
     func currentIndex() -> Int? {
-        guard let currentItem = currentItem as? AudioTrack else { return nil }
-        return queuedAudioTracks.firstIndex(of: currentItem)
+        guard let currentAudioTrack = currentAudioTrack else { return nil }
+        return queuedAudioTracks.firstIndex(of: currentAudioTrack)
     }
 
     // OVERRIDDEN AVQUEUEPLAYER METHODS
