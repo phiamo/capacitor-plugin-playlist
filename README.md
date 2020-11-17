@@ -29,7 +29,6 @@ cordova, and here we wanna give back to the community our outcome, any help is a
 
 * Cannot mix audio; again the NativeAudio plugin is probably more appropriate. This is due to supporting the lock screen and command center controls: only an app in command of audio can do this, otherwise the controls have no meaning. I would like to add an option to do this, it should be fairly straightforward; at the cost of not supporting the OS-level controls for that invokation.
 
-* If you are running this on iOS 9.3, this plugin requires a promise polyfill for the JS layer.
 ## 3. Installation
 
 As with most capacitor plugins...
