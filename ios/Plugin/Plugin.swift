@@ -109,7 +109,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     }
     @objc func setPlaybackRate(_ call: CAPPluginCall) {
         let rate = call.getFloat("rate", 1)
-        audioPlayerImpl.setRate(rate!)
+        audioPlayerImpl.setPlaybackRate(rate!)
         call.resolve();
     }
     

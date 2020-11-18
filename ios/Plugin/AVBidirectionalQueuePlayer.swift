@@ -33,9 +33,11 @@ let AVBidirectionalQueueRemovedItem = "AVBidirectionalQueuePlayer.RemovedItem"
 let AVBidirectionalQueueCleared = "AVBidirectionalQueuePlayer.Cleared"
 
 class AVBidirectionalQueuePlayer: AVQueuePlayer {
-    private(set) var queuedAudioTracks: [AudioTrack] = []
+    var queuedAudioTracks: [AudioTrack] = []
     
-    var isPlaying: Bool { rate != 0 }
+    var isPlaying: Bool {
+        timeControlStatus == .playing
+    }
     
     var isAtBeginning: Bool {
         // This function simply returns whether or not the AVBidirectionalQueuePlayer is at the first item. This is
@@ -51,6 +53,9 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     
     var currentAudioTrack: AudioTrack? { currentItem as? AudioTrack }
 
+    override init() {
+        super.init()
+    }
     init(items: [AudioTrack]) {
         // This function calls the constructor for AVQueuePlayer, then sets up the nowPlayingIndex to 0 and saves the array that the player was generated from as itemsForPlayer
         super.init(items: items)
