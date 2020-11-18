@@ -8,11 +8,11 @@ A capacitor plugin for Android, iOS and Web with native support for audio playli
 
 1. [Background](#1-background)
 2. [Notes](#2-notes)
-2. [Installation](#2-installation)
-3. [Usage](#3-usage)
-4. [Todo](#4-todo)
-5. [Credits](#5-credits)
-6. [License](#6-license)
+3. [Installation](#3-installation)
+4. [Usage](#4-usage)
+5. [Todo](#5-todo)
+6. [Credits](#6-credits)
+7. [License](#7-license)
 
 ## 1. Background
 
@@ -29,21 +29,63 @@ cordova, and here we wanna give back to the community our outcome, any help is a
 
 * Cannot mix audio; again the NativeAudio plugin is probably more appropriate. This is due to supporting the lock screen and command center controls: only an app in command of audio can do this, otherwise the controls have no meaning. I would like to add an option to do this, it should be fairly straightforward; at the cost of not supporting the OS-level controls for that invokation.
 
-* If you are running this on iOS 9.3, this plugin requires a promise polyfill for the JS layer.
+## 3. Installation
 
-## 3. Usage
+As with most capacitor plugins...
+
+```
+npm i cordova-plugin-playlist
+npx cap sync
+```
+
+Add the following to your `AndroidManifest.xml` if you wish to support continuing to play audio in the background:
+
+### Android - inside `<platform name="android">`:
+```
+<config-file target="AndroidManifest.xml" parent="/*">
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+</config-file>
+```
+
+### iOS - inside `<platform name="ios">`:
+```
+<config-file target="*-Info.plist" parent="UIBackgroundModes">
+  <array>
+    <string>audio</string>
+  </array>
+</config-file>
+```
+
+Android normally will give you ~2-3 minutes of background playback before killing your audio. Adding the WAKE_LOCK permission allows the plugin to utilize additional permissions to continue playing.
+
+iOS will immediately stop playback when the app goes into the background if you do not include the `audio` `UIBackgroundMode`. iOS has an additional requirement that audio playback must never stop; when it does, the audio session will be terminated and playback cannot continue without user interaction.
+
+### Android notification icon
+To show a better notification icon in Android Lollipop (API 21) and above, create a transparent (silhouette) icon and name the file e.g. as "ic_notification.png".
+Then you can use the options like:
+
+``` 
+await Playlist.setOptions({
+  verbose: !environment.production,
+  options: {
+    icon: 'ic_notification'
+  },
+});
+```
+
+## 4. Usage
 
 Be sure to check out the examples folder, where you can find an Angular10/Ionic5 implementation of the Cordova plugin.
 Just drop into your project and go.
 Should be quite obvious howto adapt this for other frameworks, or just use in vanillaJS
 
-## 4. Todo
+## 5. Todo
 * [iOS] Write this plugin in Swift instead of Objective-C. I didn't have time to learn Swift when I needed this.
 * [iOS] Safely implement cover art for cover images displayed on the command/lock screen controls
 * [iOS] Utilize [AudioPlayer](https://github.com/delannoyk/AudioPlayer) instead of directly implementing AVQueuePlayer. `AudioPlayer` includes some smart network recovery features
 * [iOS, Android] Add a full example
 
-## 5. Credits
+## 6. Credits
 
 There are several plugins that are similar to this one, but all are focused on aspects of the media management experience. This plugin takes inspiration from:
 * [cordova-plugin-playlist](https://github.com/Rolamix/cordova-plugin-playlist)
@@ -53,7 +95,7 @@ There are several plugins that are similar to this one, but all are focused on a
 * [Bi-Directional AVQueuePlayer proof of concept](https://github.com/jrtaal/AVBidirectionalQueuePlayer)
 * [cordova-music-controls-plugin](https://github.com/homerours/cordova-music-controls-plugin)
 
-## 6. License
+## 7. License
 
 [The MIT License (MIT)](http://www.opensource.org/licenses/mit-license.html)
 
