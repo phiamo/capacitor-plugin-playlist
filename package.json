@@ -1,6 +1,6 @@
 {
   "name": "capacitor-plugin-playlist",
-  "version": "0.0.22",
+  "version": "0.0.3",
   "description": "Playlist ",
   "main": "dist/plugin.js",
   "module": "dist/esm/index.js",
@@ -25,7 +25,6 @@
     "@rollup/plugin-node-resolve": "^8.1.0",
     "prettier": "^2.0.5",
     "prettier-plugin-java": "^0.8.0",
-    "rimraf": "^3.0.0",
     "rollup": "^2.21.0",
     "swiftlint": "^1.0.1",
     "typescript": "~3.8.3"
@@ -62,6 +61,7 @@
     "url": "https://github.com/phiamo/issues"
   },
   "dependencies": {
-    "@types/hls.js": "^0.13.2"
+    "@types/hls.js": "^0.13.2",
+    "rimraf": "^3.0.2"
   }
 }

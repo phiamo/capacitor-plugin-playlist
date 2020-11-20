@@ -63,6 +63,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   }
 
    playTrackById(options: PlayByIdOptions): Promise<void> {
+    console.log("da")
     this.playlistItems.forEach(async (item) => {
       if(item.trackId === options.id) {
         await this.setCurrent(item);
@@ -116,20 +117,22 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   }
 
   selectTrackById(options: SelectByIdOptions): Promise<void> {
-    this.playlistItems.forEach(async (item) => {
+    for(const item of this.playlistItems) {
       if(item.trackId === options.id) {
         return this.setCurrent(item);
       }
-    })
+    }
     return Promise.reject();
   }
 
   selectTrackByIndex(options: SelectByIndexOptions): Promise<void> {
-    this.playlistItems.forEach(async (item, index) => {
+    let index = 0;
+    for(const item of this.playlistItems) {
       if(index === options.index) {
         return this.setCurrent(item);
       }
-    })
+      index++;
+    }
     return Promise.reject();
   }
 
@@ -153,7 +156,10 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
   setPlaylistItems(options: PlaylistOptions): Promise<void> {
     this.playlistItems = options.items;
-    return this.setCurrent(this.playlistItems[0], options.options?.playFromPosition || 0);
+    if(this.playlistItems.length > 0) {
+      return this.setCurrent(this.playlistItems[0], options.options?.playFromPosition || 0);
+    }
+    return Promise.resolve();
   }
 
   skipForward(): Promise<void> {
@@ -327,7 +333,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   // more internal methods
   protected async setCurrent(item: AudioTrack, position?: number) {
     let wasPlaying = false;
-    if(this.audio) {
+    if (this.audio) {
       wasPlaying = !this.audio.paused
       this.audio.pause();
       this.audio.src = "";
@@ -336,7 +342,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
     this.audio = document.createElement('video')
     this.currentTrack = item;
-    if(item.assetUrl.includes('.m3u8')) {
+    if (item.assetUrl.includes('.m3u8')) {
       await this.loadHlsJs();
 
       const hls = new Hls({
@@ -345,18 +351,16 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         enableWorker: true,
       });
       hls.attachMedia(this.audio);
-
       hls.on(Hls.Events.MEDIA_ATTACHED, () => {
         hls.loadSource(item.assetUrl);
       })
 
       //this.registerHlsListeners(hls, position);
-      await this.registerHtmlListeners(position);
-    }
-    else {
+    } else {
       this.audio.src = item.assetUrl;
-      await this.registerHtmlListeners(position);
     }
+
+    await this.registerHtmlListeners(position);
 
     if(wasPlaying) {
       this.audio.addEventListener('canplay', () => {
@@ -381,18 +385,22 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
       console.log(message, ...optionalParams)
     }
   }
-
+  private hlsLoaded = false;
   protected loadHlsJs() {
+    if(this.hlsLoaded) {
+      return Promise.resolve();
+    }
     return new Promise(
-      function(resolve, reject) {
+      (resolve, reject) => {
         var script = document.createElement('script');
         script.type = 'text/javascript';
         script.src = 'https://cdn.jsdelivr.net/npm/hls.js@0.9.1';
         document.getElementsByTagName('head')[0].appendChild(script);
-        script.onload = function() {
+        script.onload = () => {
+          this.hlsLoaded = true;
           resolve();
         }
-        script.onerror = function() {
+        script.onerror = () => {
           reject();
         }
       });

@@ -349,7 +349,7 @@ export class RmxAudioPlayer {
       this._hasError = false;
       this._hasLoaded = false;
       this._currentState = 'loading';
-      this._currentItem = (status.value as OnStatusTrackChangedData).currentItem;
+      this._currentItem = (status.value as OnStatusTrackChangedData)?.currentItem;
     }
 
     // The plugin's status changes only in response to specific events.
