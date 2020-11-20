@@ -714,7 +714,6 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func handleCurrentItemChanged(_ playerItem: AudioTrack?) {
-        print("Queue changed current item to: \(playerItem != nil ? "NOTNIL" : "NIL")")
         if let playerItem = playerItem {
             print("Queue changed current item to: \(playerItem.toDict() ?? [:])")
             // NSLog(@"New music name: %@", ((AVURLAsset*)playerItem.asset).URL.pathComponents.lastObject);
@@ -725,7 +724,7 @@ final class RmxAudioPlayer: NSObject {
             // Update the command center
             updateNowPlayingTrackInfo(playerItem, updateTrackData: true)
         } else if loop {
-           // return
+            return
         }
 
         var info: [String: Any] = [:]
@@ -742,7 +741,7 @@ final class RmxAudioPlayer: NSObject {
         let trackId = playerItem != nil ? playerItem?.trackId : "NONE"
         onStatus(.rmxstatus_TRACK_CHANGED, trackId: trackId, param: info)
 
-        if avQueuePlayer.isAtEnd && playerItem == nil {
+        if avQueuePlayer.isAtEnd && avQueuePlayer.currentItem == nil {
             if !loop {
                 avQueuePlayer.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
             }
