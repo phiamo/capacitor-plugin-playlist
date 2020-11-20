@@ -21,7 +21,6 @@ import java.util.*
  */
 class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrack>(application, MediaService::class.java), OnErrorListener {
     private val audioTracks: MutableList<AudioTrack> = ArrayList()
-    private var mediaServiceStarted = false
     private var volumeLeft = 1.0f
     private var volumeRight = 1.0f
     private var playbackSpeed = 1.0f
@@ -29,8 +28,6 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
         get
         set
     var isShouldStopPlaylist = false
-    private var previousInvoked = false
-    private var nextInvoked = false
     var currentErrorTrack: AudioTrack? = null
 
     // Really need a way to propagate the settings through the app
@@ -39,21 +36,6 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
     private var mediaControlsListener = WeakReference<MediaControlsListener?>(null)
     private var errorListener = WeakReference<OnErrorListener?>(null)
     private var currentMediaPlayer: WeakReference<MediaPlayerApi<AudioTrack>?>? = WeakReference(null)
-    fun onMediaServiceInit(hasInit: Boolean) {
-        mediaServiceStarted = hasInit // this now implies that this.getPlaylistHandler() is not null.
-    }
-
-    fun onMediaPlayerChanged(currentMediaPlayer: MediaPlayerApi<AudioTrack>?) {
-        if (this.currentMediaPlayer!!.get() != null) {
-            this.currentMediaPlayer!!.clear()
-            this.currentMediaPlayer = null
-        }
-        this.currentMediaPlayer = WeakReference(currentMediaPlayer)
-        if (mediaServiceStarted) {
-            setVolume(volumeLeft, volumeRight)
-            setPlaybackSpeed(playbackSpeed) // dunno bout this one. probably should be independent.
-        }
-    }
 
     fun setOnErrorListener(listener: OnErrorListener?) {
         errorListener = WeakReference(listener)

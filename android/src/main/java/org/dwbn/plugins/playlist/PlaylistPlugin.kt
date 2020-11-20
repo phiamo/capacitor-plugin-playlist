@@ -25,6 +25,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
         onStatus(RmxAudioStatusMessage.RMXSTATUS_REGISTER, "INIT", null)
         call.resolve()
         Log.i(TAG, "Initialized")
+        audioPlayerImpl!!.resume();
     }
     @PluginMethod
     fun setOptions(call: PluginCall) {
@@ -73,7 +74,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
         Log.i(TAG,"setPlaylistItems" + items.length().toString())
     }
-    
+
     @PluginMethod
     fun addItem(call: PluginCall) {
         val item: JSONObject = call.getObject("item")
@@ -122,7 +123,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
         Log.i(TAG,"removeItem")
     }
-    
+
     @PluginMethod
     fun removeItems(call: PluginCall) {
         val items: JSONArray = call.getArray("items")
@@ -142,14 +143,14 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
                 removed = removedTracks.size
             }
         }
-        
+
         val result = JSObject()
         result.put("removed", removed)
         call.resolve(result)
 
         Log.i(TAG,"removeItems")
     }
-    
+
     @PluginMethod
     fun clearAllItems(call: PluginCall) {
         audioPlayerImpl!!.playlistManager.clearItems()
@@ -159,7 +160,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
         Log.i(TAG,"clearAllItems")
     }
-    
+
     @PluginMethod
     fun play(call: PluginCall) {
         if (audioPlayerImpl!!.playlistManager.playlistHandler != null) {
@@ -173,7 +174,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
                 //audioPlayerImpl.getPlaylistManager().playlistHandler.seek(position)
             }
         }
-        
+
         call.resolve()
 
         Log.i(TAG,"play")
@@ -309,25 +310,8 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
         Log.i(TAG,"addItem")
     }
 
-    override fun handleOnPause() {
-        super.handleOnPause()
-        Log.d(TAG, "Plugin paused")
-        audioPlayerImpl!!.pause()
-    }
-
-    override fun handleOnResume() {
-        super.handleOnResume()
-        Log.d(TAG, "Plugin resumed")
-        audioPlayerImpl!!.resume()
-    }
-
-    override fun handleOnRestart() {
-        super.handleOnRestart()
-        Log.d(TAG, "Plugin reset")
-        destroyResources()
-    }
-
     override fun handleOnDestroy() {
+        Log.d(TAG, "Plugin destroy")
         super.handleOnDestroy()
         destroyResources()
     }
