@@ -27,7 +27,6 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
             extends DefaultPlaylistHandler<I, M> {
 
     private static final String TAG = "AudioPlaylistHandler";
-    private boolean didSeekCatchup = false;
 
     AudioPlaylistHandler(
             Context context,
@@ -52,7 +51,7 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
     public void onPrepared(@NotNull MediaPlayerApi<I> mediaPlayer) {
         super.onPrepared(mediaPlayer);
     }
-/*
+
     @Override
     public boolean onError(@NotNull MediaPlayerApi<I> mediaPlayer) {
         ((PlaylistManager)getPlaylistManager()).setCurrentErrorTrack((AudioTrack) getCurrentPlaylistItem());
@@ -75,13 +74,12 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
 
         return false;
     }
-*/
+
     @Override
     public void onSeekComplete(MediaPlayerApi<I> mediaPlayer) {
         Log.i(TAG, "onSeekComplete! " + mediaPlayer.getCurrentPosition());
         getCurrentMediaProgress().update(mediaPlayer.getCurrentPosition(), mediaPlayer.getBufferedPercent(), mediaPlayer.getDuration());
         super.onSeekComplete(mediaPlayer);
-        didSeekCatchup = false;
     }
 
     @Override
@@ -92,50 +90,6 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
         super.onCompletion(mediaPlayer);
     }
 
-/*
-    @Override
-    public void play() {
-        if (!didSeekCatchup) {
-            I track = getCurrentPlaylistItem();
-            // For streams, immediately seek to 0, which for a stream actually means
-            // "start at the current location in the stream when you play again"
-            // Without this, the stream buffer grows out of control, and worse, playback
-            // continues where you paused. Accidentally pause for 12 hours? Yeah, you just
-            // blew out the memory on your device (or forced the player to skip)
-            if (((PlaylistManager) getPlaylistManager()).getResetStreamOnPause()) {
-                if (track instanceof AudioTrack && ((AudioTrack) track).isStream()) {
-                    performSeek(0, false);
-                }
-            }
-        }
-
-        didSeekCatchup = true;
-        setPlayingBeforeSeek(true);
-        super.play();
-    }
-
-*/
-/*
-    @Override
-    public void pause(boolean temporary) {
-        super.pause(temporary);
-
-        if (!didSeekCatchup) {
-            I track = getCurrentPlaylistItem();
-            // For streams, immediately seek to 0, which for a stream actually means
-            // "start at the current location in the stream when you play again"
-            // Without this, the stream buffer grows out of control, and worse, playback
-            // continues where you paused. Accidentally pause for 12 hours? Yeah, you just
-            // blew out the memory on your device (or forced the player to skip)
-            if (((PlaylistManager) getPlaylistManager()).getResetStreamOnPause()) {
-                if (track instanceof AudioTrack && ((AudioTrack) track).isStream()) {
-                    performSeek(0, false);
-                }
-            }
-        }
-        didSeekCatchup = true;
-    }
-*/
     public static class Builder<I extends PlaylistItem, M extends BasePlaylistManager<I>> {
 
         Context context;
