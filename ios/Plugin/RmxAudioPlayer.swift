@@ -761,16 +761,19 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func handleTrackStatusEvent(_ playerItem: AudioTrack?) {
+        guard let playerItem = playerItem else {
+            return
+        }
         // NSString* name = ((AVURLAsset*)playerItem.asset).URL.pathComponents.lastObject;
-        let name = playerItem?.trackId
-        let status = playerItem?.status
+        let name = playerItem.trackId
+        let status = playerItem.status
 
         // Switch over the status
         switch status {
             case .readyToPlay:
                 print("PlayerItem status changed to AVPlayerItemStatusReadyToPlay [\(name ?? "")]")
                 let trackStatus = getStatusItem(playerItem)
-                onStatus(.rmxstatus_CANPLAY, trackId: playerItem?.trackId, param: trackStatus)
+                onStatus(.rmxstatus_CANPLAY, trackId: playerItem.trackId, param: trackStatus)
 
                 if isWaitingToStartPlayback {
                     isWaitingToStartPlayback = false
@@ -781,12 +784,12 @@ final class RmxAudioPlayer: NSObject {
                 // Failed. Examine AVPlayerItem.error
                 isWaitingToStartPlayback = false
                 var errorMsg = ""
-                if playerItem?.error != nil {
-                    errorMsg = "Error playing audio track: \((playerItem?.error as NSError?)?.localizedFailureReason ?? "")"
+                if playerItem.error != nil {
+                    errorMsg = "Error playing audio track: \((playerItem.error as NSError?)?.localizedFailureReason ?? "")"
                 }
                 print("AVPlayerItemStatusFailed: Error playing audio track: \(errorMsg)")
                 let errorParam = createError(withCode: .rmxerr_DECODE, message: errorMsg)
-                onStatus(.rmxstatus_ERROR, trackId: playerItem?.trackId, param: errorParam)
+                onStatus(.rmxstatus_ERROR, trackId: playerItem.trackId, param: errorParam)
             case .unknown:
                 isWaitingToStartPlayback = false
                 print("PlayerItem status changed to AVPlayerItemStatusUnknown [\(name ?? "")]")

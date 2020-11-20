@@ -23,9 +23,11 @@
     "@ionic/prettier-config": "^1.0.0",
     "@ionic/swiftlint-config": "^1.0.0",
     "@rollup/plugin-node-resolve": "^8.1.0",
+    "@types/hls.js": "^0.13.2",
     "prettier": "^2.0.5",
     "prettier-plugin-java": "^0.8.0",
     "rollup": "^2.21.0",
+    "rimraf": "^3.0.2",
     "swiftlint": "^1.0.1",
     "typescript": "~3.8.3"
   },
@@ -59,9 +61,5 @@
   },
   "bugs": {
     "url": "https://github.com/phiamo/issues"
-  },
-  "dependencies": {
-    "@types/hls.js": "^0.13.2",
-    "rimraf": "^3.0.2"
   }
 }
