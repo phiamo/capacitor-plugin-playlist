@@ -65,6 +65,13 @@ public class MainActivity extends BridgeActivity {
 }
 ```
 
+Add to your build.gradle
+```
+ext {
+    exoPlayerVersion = "2.9.6"
+    supportLibVersion = "28.0.0"
+}
+```
 Add the following to your `AndroidManifest.xml` if you wish to support continuing to play audio in the background:
 
 ### Android - inside `<platform name="android">`:
