@@ -34,8 +34,35 @@ cordova, and here we wanna give back to the community our outcome, any help is a
 As with most capacitor plugins...
 
 ```
-npm i cordova-plugin-playlist
+npm i capacitor-plugin-playlist
 npx cap sync
+```
+
+- On Android, register the plugin in your main activity:
+
+```java
+import org.dwbn.plugins.playlist.PlaylistPlugin;
+
+public class MainActivity extends BridgeActivity {
+
+  @Override
+  public void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+
+    // Initializes the Bridge
+    this.init(
+        savedInstanceState,
+        new ArrayList<Class<? extends Plugin>>() {
+
+          {
+            // Additional plugins you've installed go here
+            // Ex: add(TotallyAwesomePlugin.class);
+            add(PlaylistPlugin.class);
+          }
+        }
+      );
+  }
+}
 ```
 
 Add the following to your `AndroidManifest.xml` if you wish to support continuing to play audio in the background:
