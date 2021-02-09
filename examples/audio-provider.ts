@@ -56,7 +56,7 @@ export class AudioProvider {
     }
   }
 
-  async setAudioTracks(audioTracks: AudioTrack[], currentItem?: AudioTrack) {
+  async setPlaylistItems(audioTracks: AudioTrack[], currentItem?: AudioTrack) {
     let currentPosition = 0;
     let currentId = null;
 
@@ -73,7 +73,7 @@ export class AudioProvider {
       };
     }
 
-    return this.audioPlayer.setAudioTracks(audioTracks, options);
+    return this.audioPlayer.setPlaylistItems(audioTracks, options);
   }
 
   async addItem(audioTrack: AudioTrack) {
