@@ -73,21 +73,26 @@ ext {
 }
 ```
 Add the following to your `AndroidManifest.xml` if you wish to support continuing to play audio in the background:
-
-### Android - inside `<platform name="android">`:
-```
-<config-file target="AndroidManifest.xml" parent="/*">
-  <uses-permission android:name="android.permission.WAKE_LOCK" />
-</config-file>
 ```
 
-### iOS - inside `<platform name="ios">`:
+    <application
+        android:name="org.dwbn.plugins.playlist.App"
+    >
+
 ```
-<config-file target="*-Info.plist" parent="UIBackgroundModes">
-  <array>
-    <string>audio</string>
-  </array>
-</config-file>
+### Android - AndroidManifest.xml`:
+```
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+```
+
+### iOS - inside Info.plist:
+```
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>fetch</string>
+	</array>
 ```
 
 Android normally will give you ~2-3 minutes of background playback before killing your audio. Adding the WAKE_LOCK permission allows the plugin to utilize additional permissions to continue playing.

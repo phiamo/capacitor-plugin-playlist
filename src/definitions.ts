@@ -6,13 +6,7 @@ import {
   PlaylistStatusChangeCallback
 } from "./interfaces";
 
-import {PluginListenerHandle} from "@capacitor/core/dist/esm/definitions";
-
-declare module '@capacitor/core' {
-  interface PluginRegistry {
-    Playlist: PlaylistPlugin;
-  }
-}
+import {PluginListenerHandle} from "@capacitor/core";
 
 
 export interface PlaylistPlugin {
