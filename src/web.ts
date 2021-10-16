@@ -27,12 +27,6 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   protected options: AudioPlayerOptions = {};
   protected currentTrack: AudioTrack | null = null;
   protected lastState = "stopped";
-  constructor() {
-    super({
-      name: 'PlaylistPlugin',
-      platforms: ['web'],
-    });
-  }
   addAllItems(options: AddAllItemOptions): Promise<void> {
     this.playlistItems = this.playlistItems.concat(validateTracks(options.items))
     return Promise.resolve();
