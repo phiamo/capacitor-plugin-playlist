@@ -407,11 +407,3 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   }
 
 }
-
-const Playlist = new PlaylistWeb();
-
-export { Playlist };
-
-import { registerWebPlugin } from '@capacitor/core';
-import {RmxAudioStatusMessage} from "./Constants";
-registerWebPlugin(Playlist);
