@@ -18,7 +18,7 @@ import {
 } from './interfaces';
 
 import {validateTrack, validateTracks} from "./utils";
-import {Playlist} from "./index";
+import {Playlist} from "./plugin";
 /*!
  * Module dependencies.
  */
