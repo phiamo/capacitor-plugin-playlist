@@ -17,6 +17,7 @@ import {
 } from './definitions';
 import {AudioTrack, AudioPlayerOptions} from "./interfaces";
 import {validateTrack, validateTracks} from "./utils";
+import {RmxAudioStatusMessage} from "./Constants";
 declare var Hls: any;
 
 export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
@@ -26,12 +27,6 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
   protected options: AudioPlayerOptions = {};
   protected currentTrack: AudioTrack | null = null;
   protected lastState = "stopped";
-  constructor() {
-    super({
-      name: 'PlaylistPlugin',
-      platforms: ['web'],
-    });
-  }
   addAllItems(options: AddAllItemOptions): Promise<void> {
     this.playlistItems = this.playlistItems.concat(validateTracks(options.items))
     return Promise.resolve();
@@ -322,15 +317,8 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
       currentIndex: this.getCurrentIndex(),
       status: currentState,
       currentPosition: this.audio?.currentTime,
-      // android as well defines those:
-      // duration
-      // playbackPercent
-      // bufferPercent
-      // bufferStart
-      // bufferEnd
     }
   }
-  // more internal methods
   protected async setCurrent(item: AudioTrack, position?: number) {
     let wasPlaying = false;
     if (this.audio) {
@@ -405,13 +393,4 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         }
       });
   }
-
 }
-
-const Playlist = new PlaylistWeb();
-
-export { Playlist };
-
-import { registerWebPlugin } from '@capacitor/core';
-import {RmxAudioStatusMessage} from "./Constants";
-registerWebPlugin(Playlist);
