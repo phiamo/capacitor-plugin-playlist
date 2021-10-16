@@ -17,9 +17,9 @@ A capacitor plugin for Android, iOS and Web with native support for audio playli
 ## 1. Background
 
 I was using very successfuly cordova-plugin-playlist, many thanks to codinronan an all the contributors!!
-Due to upgrades and further development of the app, which used the plugin we decided to go for capacitor instead of 
+Due to upgrades and further development of the app, which used the plugin we decided to go for capacitor instead of
 cordova, and here we wanna give back to the community our outcome, any help is appreciated!
- 
+
 ## 2. Notes
 
 ### On *Android*, utilizes a wrapper over ExoPlayer called [ExoMedia](https://github.com/brianwernick/ExoMedia). ExoPlayer is a powerful, high-quality player for Android provided by Google
@@ -103,7 +103,7 @@ iOS will immediately stop playback when the app goes into the background if you 
 To show a better notification icon in Android Lollipop (API 21) and above, create a transparent (silhouette) icon and name the file e.g. as "ic_notification.png".
 Then you can use the options like:
 
-``` 
+```
 await Playlist.setOptions({
   verbose: !environment.production,
   options: {

@@ -317,15 +317,8 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
       currentIndex: this.getCurrentIndex(),
       status: currentState,
       currentPosition: this.audio?.currentTime,
-      // android as well defines those:
-      // duration
-      // playbackPercent
-      // bufferPercent
-      // bufferStart
-      // bufferEnd
     }
   }
-  // more internal methods
   protected async setCurrent(item: AudioTrack, position?: number) {
     let wasPlaying = false;
     if (this.audio) {
@@ -400,5 +393,4 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         }
       });
   }
-
 }
