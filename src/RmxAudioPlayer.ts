@@ -17,14 +17,12 @@ import {
   OnStatusCallbackData,
 } from './interfaces';
 
-import { PlaylistPlugin as PlaylistPluginInterface} from "./definitions";
 import {validateTrack, validateTracks} from "./utils";
+import {Playlist} from "./index";
 /*!
  * Module dependencies.
  */
 
-import {Plugins} from "@capacitor/core";
-const Playlist = Plugins.PlaylistPlugin as PlaylistPluginInterface;
 const log = console;
 
 const itemStatusChangeTypes = [
@@ -159,7 +157,7 @@ export class RmxAudioPlayer {
           }
         }
     );
-    
+
     Playlist.initialize()
         .then(() => {
           this._inititialized = true;
