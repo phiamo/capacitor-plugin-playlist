@@ -1,6 +1,6 @@
 import { registerPlugin } from '@capacitor/core'
 import type { PlaylistPlugin } from './definitions';
-const Playlist = registerPlugin<PlaylistWeb>('PlaylistPlugin', {
+const Playlist = registerPlugin<PlaylistPlugin>('PlaylistPlugin', {
   web: () => import('./web').then(m => new m.PlaylistWeb()),
 });
 

@@ -17,6 +17,7 @@ import {
 } from './definitions';
 import {AudioTrack, AudioPlayerOptions} from "./interfaces";
 import {validateTrack, validateTracks} from "./utils";
+import {RmxAudioStatusMessage} from "./Constants";
 declare var Hls: any;
 
 export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
