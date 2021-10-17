@@ -9,7 +9,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.*
 
-@CapacitorPlugin
+@CapacitorPlugin(name = "Playlist")
 class PlaylistPlugin : Plugin(), OnStatusReportListener {
     var TAG = "RmxAudioPlayer"
     private var statusCallback: OnStatusCallback? = null

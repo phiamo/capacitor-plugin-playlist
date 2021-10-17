@@ -1,6 +1,6 @@
 {
   "name": "capacitor-plugin-playlist",
-  "version": "0.1.1",
+  "version": "0.1.8",
   "description": "Playlist ",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
