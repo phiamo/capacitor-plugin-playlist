@@ -96,7 +96,6 @@ export interface AudioTrack {
   /**
    * The local or remote URL to an image asset to be shown for this track.
    * If this is null, the plugin's default image is used.
-   * This field is not used on iOS (yet)
    */
   albumArt?: string;
   /**

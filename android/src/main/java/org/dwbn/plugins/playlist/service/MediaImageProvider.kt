@@ -12,20 +12,22 @@ import org.dwbn.plugins.playlist.FakeR
 import org.dwbn.plugins.playlist.data.AudioTrack
 import org.dwbn.plugins.playlist.manager.Options
 
-class MediaImageProvider(context: Context, val onImageUpdated: OnImageUpdatedListener, options: Options) : ImageProvider<AudioTrack> {
+
+class MediaImageProvider(
+    context: Context,
+    val onImageUpdatedListener: OnImageUpdatedListener,
+    options: Options
+) : ImageProvider<AudioTrack> {
 
     interface OnImageUpdatedListener {
         fun onImageUpdated()
     }
 
     private var options: Options? = null
-    private val glide: RequestManager
-    private val fakeR: FakeR
-    private val notificationImageTarget = NotificationImageTarget()
+    private val glide: RequestManager = Glide.with(context.applicationContext)
+    private val fakeR: FakeR = FakeR(context.applicationContext)
     private val remoteViewImageTarget = RemoteViewImageTarget()
-    private val defaultNotificationImage: Bitmap
-    private val defaultArtworkImage: Bitmap
-    private var notificationImage: Bitmap? = null
+    private var defaultArtworkImage: Bitmap? = null
     private var artworkImage: Bitmap? = null
     private var notificationIconId = 0
     override val notificationIconRes: Int
@@ -35,14 +37,13 @@ class MediaImageProvider(context: Context, val onImageUpdated: OnImageUpdatedLis
         get() = mipmapIcon
 
     override val largeNotificationImage: Bitmap?
-        get() = if (notificationImage != null) notificationImage else defaultNotificationImage
+        get() = remoteViewArtwork
 
     override var remoteViewArtwork: Bitmap? = null
         get() = if (artworkImage != null) artworkImage else defaultArtworkImage
         private set
 
     override fun updateImages(playlistItem: AudioTrack) {
-        glide.asBitmap().load(playlistItem.thumbnailUrl).into(notificationImageTarget)
         glide.asBitmap().load(playlistItem.artworkUrl).into(remoteViewImageTarget)
     }
 
@@ -57,19 +58,6 @@ class MediaImageProvider(context: Context, val onImageUpdated: OnImageUpdatedLis
         }
 
     /**
-     * A class used to listen to the loading of the large notification images and perform
-     * the correct functionality to update the notification once it is loaded.
-     *
-     * **NOTE:** This is a Glide Image loader class
-     */
-    private inner class NotificationImageTarget : SimpleTarget<Bitmap>() {
-        override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-            notificationImage = resource
-            onImageUpdated
-        }
-    }
-
-    /**
      * A class used to listen to the loading of the large lock screen images and perform
      * the correct functionality to update the artwork once it is loaded.
      *
@@ -77,20 +65,15 @@ class MediaImageProvider(context: Context, val onImageUpdated: OnImageUpdatedLis
      */
     private inner class RemoteViewImageTarget : SimpleTarget<Bitmap>() {
         override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-            remoteViewArtwork = resource
-            onImageUpdated
+            artworkImage = resource
         }
     }
 
     init {
-        glide = Glide.with(context.applicationContext)
-        fakeR = FakeR(context.applicationContext)
         this.options = options
-        // R.drawable.img_playlist_notif_default
-        // R.drawable.img_playlist_artwork_default
-        //defaultNotificationImage = BitmapFactory.decodeResource(context.resources, fakeR.getId("drawable", "img_playlist_notif_default"))
-        //defaultArtworkImage = BitmapFactory.decodeResource(context.resources, fakeR.getId("drawable", "img_playlist_artwork_default"))
-        defaultNotificationImage = BitmapFactory.decodeResource(context.resources, fakeR.getId("drawable", "ic_notification_icon"))
-        defaultArtworkImage = BitmapFactory.decodeResource(context.resources, fakeR.getId("drawable", "ic_notification_icon"))
+        defaultArtworkImage = BitmapFactory.decodeResource(
+            context.resources,
+            fakeR.getId("drawable", options.icon)
+        )
     }
 }

@@ -19,9 +19,8 @@ class MediaService : BasePlaylistService<AudioTrack, PlaylistManager>() {
         super.onCreate()
         // Adds the audio player implementation, otherwise there's nothing to play media with
         val newAudio = AudioApi(applicationContext)
-        //newAudio.addErrorListener(playlistManager)
+        newAudio.addErrorListener(playlistManager)
         playlistManager.mediaPlayers.add(newAudio)
-        //playlistManager.onMediaServiceInit(true)
     }
 
     override fun onDestroy() {
@@ -38,28 +37,18 @@ class MediaService : BasePlaylistService<AudioTrack, PlaylistManager>() {
         get() = (applicationContext as App).playlistManager
 
     override fun newPlaylistHandler(): PlaylistHandler<AudioTrack> {
-        //val options = playlistManager.options
         val imageProvider = MediaImageProvider(applicationContext, object : OnImageUpdatedListener {
             override fun onImageUpdated() {
                 playlistHandler.updateMediaControls()
             }
         }, Options(applicationContext))
-       /* val listener: DefaultPlaylistHandler.Listener<AudioTrack> = object : DefaultPlaylistHandler.Listener<AudioTrack> {
-            override fun onMediaPlayerChanged(oldPlayer: MediaPlayerApi<AudioTrack>?, newPlayer: MediaPlayerApi<AudioTrack>?) {
-                playlistManager.onMediaPlayerChanged(newPlayer)
-            }
 
-            override fun onItemSkipped(item: AudioTrack) {
-                // We don't need to do anything with this right now
-                // The PluginManager receives notifications of the current item changes.
-            }
-        }*/
         return AudioPlaylistHandler.Builder(
-                applicationContext,
-                javaClass,
-                playlistManager,
-                imageProvider,
-                null
+            applicationContext,
+            javaClass,
+            playlistManager,
+            imageProvider,
+            null
         ).build()
     }
 }
