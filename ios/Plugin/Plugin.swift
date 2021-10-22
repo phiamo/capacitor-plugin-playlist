@@ -78,7 +78,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     }
     @objc func seekTo(_ call: CAPPluginCall) {
         let to = call.getFloat("position", 0.0)
-        audioPlayerImpl.seek(to: to!, isCommand: false)
+        audioPlayerImpl.seek(to: to, isCommand: false)
         call.resolve();
     }
     @objc func playTrackByIndex(_ call: CAPPluginCall) {
@@ -99,17 +99,17 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     }
     @objc func setPlaybackVolume(_ call: CAPPluginCall) {
         let volume = call.getFloat("volume", 1)
-        audioPlayerImpl.setPlaybackVolume(volume!)
+        audioPlayerImpl.setPlaybackVolume(volume)
         call.resolve();
     }
     @objc func setLoop(_ call: CAPPluginCall) {
         let loop = call.getBool("loop", true)
-        audioPlayerImpl.setLoopAll(loop!)
+        audioPlayerImpl.setLoopAll(loop)
         call.resolve();
     }
     @objc func setPlaybackRate(_ call: CAPPluginCall) {
         let rate = call.getFloat("rate", 1)
-        audioPlayerImpl.setPlaybackRate(rate!)
+        audioPlayerImpl.setPlaybackRate(rate)
         call.resolve();
     }
     
