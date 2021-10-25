@@ -72,12 +72,16 @@ ext {
     supportLibVersion = "28.0.0"
 }
 ```
-Add the following to your `AndroidManifest.xml` if you wish to support continuing to play audio in the background:
+Add  to your `AndroidManifest.xml` if you wish to support continuing to play audio in the background:
 ```
 
     <application
         android:name="org.dwbn.plugins.playlist.App"
     >
+        <service android:enabled="true" android:exported="false"
+                 android:name="org.dwbn.plugins.playlist.service.MediaService">
+        </service>
+    </application>
 
 ```
 ### Android - AndroidManifest.xml`:
