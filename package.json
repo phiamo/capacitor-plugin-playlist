@@ -1,17 +1,16 @@
 {
   "name": "capacitor-plugin-playlist",
-  "version": "0.1.9",
+  "version": "0.1.14",
   "description": "Playlist ",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
   "unpkg": "dist/plugin.js",
   "files": [
-    "android/src/main/",
-    "android/build.gradle",
     "dist/",
-    "ios/Plugin/",
-    "TestPlugin.podspec"
+    "ios/",
+    "android/",
+    "CapacitorPluginPlaylist.podspec"
   ],
   "scripts": {
     "verify": "npm run verify:ios && npm run verify:android && npm run verify:web",
@@ -55,12 +54,6 @@
   "eslintConfig": {
     "extends": "@ionic/eslint-config/recommended"
   },
-  "files": [
-    "dist/",
-    "ios/",
-    "android/",
-    "CapacitorPluginPlaylist.podspec"
-  ],
   "keywords": [
     "capacitor",
     "plugin",
