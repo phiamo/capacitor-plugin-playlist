@@ -3,6 +3,8 @@ Will probably be published as @dwbn/capacitor-playlist
 
 A capacitor plugin for Android, iOS and Web with native support for audio playlists, background support, and lock screen controls
 
+Capacitor 3 Version: > 0.1.0
+Capacitor 2 Version: < v0.1.0
 
 ## 0. Index
 
@@ -38,43 +40,18 @@ npm i capacitor-plugin-playlist
 npx cap sync
 ```
 
-- On Android, register the plugin in your main activity:
+### On Android:
 
-```java
-import org.dwbn.plugins.playlist.PlaylistPlugin;
-
-public class MainActivity extends BridgeActivity {
-
-  @Override
-  public void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-
-    // Initializes the Bridge
-    this.init(
-        savedInstanceState,
-        new ArrayList<Class<? extends Plugin>>() {
-
-          {
-            // Additional plugins you've installed go here
-            // Ex: add(TotallyAwesomePlugin.class);
-            add(PlaylistPlugin.class);
-          }
-        }
-      );
-  }
-}
-```
-
-Add to your build.gradle
+##### Add to your build.gradle
 ```
 ext {
     exoPlayerVersion = "2.9.6"
     supportLibVersion = "28.0.0"
 }
+##### AndroidManifest.xml`:
 ```
-Add  to your `AndroidManifest.xml` if you wish to support continuing to play audio in the background:
-```
-
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <application
         android:name="org.dwbn.plugins.playlist.App"
     >
@@ -84,13 +61,9 @@ Add  to your `AndroidManifest.xml` if you wish to support continuing to play aud
     </application>
 
 ```
-### Android - AndroidManifest.xml`:
-```
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-```
 
-### iOS - inside Info.plist:
+### iOS
+##### inside Info.plist:
 ```
 	<key>UIBackgroundModes</key>
 	<array>
@@ -118,9 +91,9 @@ await Playlist.setOptions({
 
 ## 4. Usage
 
-Be sure to check out the examples folder, where you can find an Angular10/Ionic5 implementation of the Cordova plugin.
+Be sure to check out the examples folder, where you can find an Angular10/Ionic5 implementation of the Capacitor plugin.
 Just drop into your project and go.
-Should be quite obvious howto adapt this for other frameworks, or just use in vanillaJS
+Should be quite obvious howto adapt this for other frameworks, or just vanillaJS
 
 ## 5. Todo
 * [iOS] Write this plugin in Swift instead of Objective-C. I didn't have time to learn Swift when I needed this.
