@@ -1,16 +1,18 @@
 //  Converted to Swift 5.3 by Swiftify v5.3.19197 - https://swiftify.com/
 //
 // RmxAudioPlayer.swift
-// Music Controls Cordova Plugin
+// Music Controls Capacitor Plugin
 //
 // Created by Juan Gonzalez on 12/16/16.
 //
 
 
 import AVFoundation
-import Cordova
+import Capacitor
 import MediaPlayer
 import UIKit
+
+extension String: Error {}
 
 final class RmxAudioPlayer: NSObject {
     
@@ -108,63 +110,67 @@ final class RmxAudioPlayer: NSObject {
         addTracks(items, startPosition: -1)
     }
 
-    func removeItems(_ command: CDVInvokedUrlCommand?) -> Int {
-        let items = command?.arguments[0] as? [AnyHashable]
-        print("RmxAudioPlayer.execute=removeItems, \(items ?? [])")
+    func removeItems(_ items: JSArray) -> Int {
+        print("RmxAudioPlayer.execute=removeItems, \(items)")
 
         var removed = 0
-        if items != nil || (items?.count ?? 0) > 0 {
-            for item in items ?? [] {
+        if items.count > 0 {
+            for item in items {
                 guard let item = item as? [String: String] else {
                     continue
                 }
-                let trackIndex = Int(item["trackIndex"]!)
-                let trackId = item["trackId"]
-
-                if removeItem(trackIndex: trackIndex, trackId: trackId) {
-                    removed += 1
+                if let id = item["trackId"] {
+                    do {
+                        try removeItem(id)
+                        removed += 1
+                    } catch {}
                 }
+                else if let index = Int(item["trackIndex"]!) {
+                    do {
+                        try removeItem(index)
+                        removed += 1
+                    } catch {}
+                }
+
             }
         }
         
         return removed
     }
 
-    func clearAllItems(_ command: CDVInvokedUrlCommand?) {
+    func clearAllItems() {
         print("RmxAudioPlayer.execute=clearAllItems")
         removeAllTracks(false)
     }
 
-    func playTrack(index: Int, positionTime: Float) -> (Bool, String?) {
+    func playTrack(index: Int, positionTime: Float?) throws {
         guard (0..<avQueuePlayer.queuedAudioTracks.count).contains(index) else {
-            return (false, "Provided index is out of bounds")
+            throw "Provided index is out of bounds"
         }
 
         avQueuePlayer.setCurrentIndex(index)
         playCommand(false)
 
-        seek(to: positionTime, isCommand: false)
-
-        return (true, nil)
+        if positionTime != nil {
+            seek(to: positionTime!, isCommand: false)
+        }
     }
 
-    func playTrack(_ trackId: String, positionTime: Float) -> (Bool, String?) {
+    func playTrack(_ trackId: String, positionTime: Float?) throws {
+        guard !avQueuePlayer.queuedAudioTracks.isEmpty else {
+            throw "The playlist is empty!"
+        }
         let result = findTrack(byId: trackId)
         let idx = result?["index"] as? Int ?? -1
-        // AudioTrack* track = result[@"track"];
+        guard idx >= 0 else {
+            throw "Track ID not found"
+        }
 
-        if !avQueuePlayer.queuedAudioTracks.isEmpty {
-            if idx >= 0 {
-                avQueuePlayer.setCurrentIndex(idx)
-                playCommand(false)
-                seek(to: positionTime, isCommand: false)
-
-                return (true, nil);
-            } else {
-                return (false, "Track ID not found")
-            }
-        } else {
-            return (false, "The playlist is empty!")
+        avQueuePlayer.setCurrentIndex(idx)
+        playCommand(false)
+        
+        if positionTime != nil {
+            seek(to: positionTime!, isCommand: false)
         }
     }
 
@@ -183,72 +189,56 @@ final class RmxAudioPlayer: NSObject {
         print("RmxAudioPlayer.execute=setLoopAll, \(loop)")
     }
 
-    // Cleanup
-    func release(_ command: CDVInvokedUrlCommand?) {
-        print("RmxAudioPlayer.execute=release")
-        isWaitingToStartPlayback = false
-        releaseResources()
-    }
 
-
-    // MARK: - Cordova interface
+    // MARK: - Capacitor interface
 
     ///
-    /// Cordova interface
+    /// Capacitor interface
     ///
     /// These are basically just passing through to the core functionality of the queue and this player.
     ///
     /// These functions don't really do anything interesting by themselves.
-    func selectTrack(index: Int?) -> Bool {
-        guard let index = index else { return false }
-        if index < 0 || index >= avQueuePlayer.queuedAudioTracks.count {
-            return false
-        } else {
-            avQueuePlayer.setCurrentIndex(index)
-            playCommand(false)
-            return true
+    func selectTrack(index: Int) throws {
+        guard index >= 0 || index < avQueuePlayer.queuedAudioTracks.count else {
+            throw "Index out of Playlist bounds"
         }
+        avQueuePlayer.setCurrentIndex(index)
     }
 
-    func selectTrack(trackId: String?) {
+    func selectTrack(trackId: String) throws {
+        guard !avQueuePlayer.queuedAudioTracks.isEmpty else {
+            throw "Queue is Empty"
+        }
         let result = findTrack(byId: trackId)
         let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
 
-        if !avQueuePlayer.queuedAudioTracks.isEmpty {
-            if idx >= 0 {
-                avQueuePlayer.setCurrentIndex(idx)
-            }
+        if idx >= 0 {
+            avQueuePlayer.setCurrentIndex(idx)
         }
     }
 
-
-    func removeItem(trackIndex: Int?, trackId: String?) -> Bool {
-        guard let trackIndex = trackIndex else { return false }
+    func removeItem(_ index: Int) throws {
+        guard index > -1 && index < avQueuePlayer.queuedAudioTracks.count else {
+            throw "Index not found"
+        }
+        let item = avQueuePlayer.queuedAudioTracks[index]
+        removeTrackObservers(item)
+        avQueuePlayer.remove(item)
+    }
+    
+    func removeItem(_ id: String) throws {
+        let result = findTrack(byId: id)
+        let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
+        let track = result?["track"] as? AudioTrack
         
-        if trackIndex > -1 && trackIndex < avQueuePlayer.queuedAudioTracks.count {
-            let item = avQueuePlayer.queuedAudioTracks[trackIndex]
-            removeTrackObservers(item)
-            avQueuePlayer.remove(item)
-            return true
-        } else if let trackId = trackId, !trackId.isEmpty {
-            let result = findTrack(byId: trackId)
-            let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
-            let track = result?["track"] as? AudioTrack
-
-            if idx >= 0 {
-                // AudioTrack* item = [self avQueuePlayer].itemsForPlayer[idx];
-                removeTrackObservers(track)
-                
-                if let track = track {
-                    avQueuePlayer.remove(track)
-                }
-                
-                return true
-            } else {
-                return false
-            }
-        } else {
-            return false
+        guard idx >= 0 else {
+            throw "Could not find trackId"
+        }
+        // AudioTrack* item = [self avQueuePlayer].itemsForPlayer[idx];
+        removeTrackObservers(track)
+        
+        if let track = track {
+            avQueuePlayer.remove(track)
         }
     }
 
@@ -542,7 +532,7 @@ final class RmxAudioPlayer: NSObject {
         print("observing \(String(describing: keyPath))")
         print("observing \(String(describing: change))")
         if (keyPath == "currentItem") {
-            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.2, context: self, action: { [self] in
+            DispatchQueue.main.throttle(interval: 0.2, context: self, action: { [self] in
                 let player = object as? AVBidirectionalQueuePlayer
                 let playerItem = player?.currentAudioTrack
                 handleCurrentItemChanged(playerItem)
@@ -551,7 +541,7 @@ final class RmxAudioPlayer: NSObject {
         }
 
         if (keyPath == "rate") {
-            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.2, context: self, action: { [self] in
+            DispatchQueue.main.throttle(interval: 0.2, context: self, action: { [self] in
                 let player = object as? AVBidirectionalQueuePlayer
                 
                 guard let playerItem = player?.currentAudioTrack else { return }
@@ -570,7 +560,7 @@ final class RmxAudioPlayer: NSObject {
         }
 
         if (keyPath == "status") {
-            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.2, context: self, action: { [self] in
+            DispatchQueue.main.throttle(interval: 0.2, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
                 handleTrackStatusEvent(playerItem)
             })
@@ -578,7 +568,7 @@ final class RmxAudioPlayer: NSObject {
         }
         
         if (keyPath == "timeControlStatus") {
-            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.2, context: self, action: { [self] in
+            DispatchQueue.main.throttle(interval: 0.2, context: self, action: { [self] in
                 let player = object as? AVBidirectionalQueuePlayer
                 
                 guard let playerItem = player?.currentAudioTrack else { return }
@@ -598,7 +588,7 @@ final class RmxAudioPlayer: NSObject {
         }
 
         if (keyPath == "duration") {
-            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.5, context: self, action: { [self] in
+            DispatchQueue.main.throttle(interval: 0.5, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
                 handleTrackDuration(playerItem)
             })
@@ -606,7 +596,7 @@ final class RmxAudioPlayer: NSObject {
         }
 
         if (keyPath == "loadedTimeRanges") {
-            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.2, context: self, action: { [self] in
+            DispatchQueue.main.throttle(interval: 0.2, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
                 handleTrackBuffering(playerItem)
             })
@@ -895,14 +885,14 @@ final class RmxAudioPlayer: NSObject {
             if avQueuePlayer.rate != 0 {
                 status = "playing"
 
-                if position <= 0 && (bufferInfo?["bufferPercent"] as? NSNumber)?.floatValue ?? 0.0 == 0 {
+                if position <= 0 && (bufferInfo?["bufferPercent"] as? NSNumber)?.floatValue ?? 0.0 == 0.0 {
                     status = "loading"
                 }
             } else {
                 status = "paused"
             }
         }
-
+        
         return [
             "trackId": currentItem.trackId ?? "",
             "isStream": currentItem.isStream ? NSNumber(value: 1) : NSNumber(value: 0),
@@ -1138,5 +1128,6 @@ final class RmxAudioPlayer: NSObject {
         removeAllTracks(false)
 
         playbackTimeObserver = nil
+        isWaitingToStartPlayback = false
     }
 }

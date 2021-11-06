@@ -45,19 +45,40 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         call.resolve();
     }
     @objc func addAllItems(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        let items = call.getArray("items", [String:Any].self)!
+        
+        let tracks = createTracks(items)
+        audioPlayerImpl.addAllItems(tracks)
         call.resolve();
     }
     @objc func removeItem(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        do {
+            if let id = call.getString("trackId"){
+                try audioPlayerImpl.removeItem(id)
+                return
+            }
+            guard let index = call.getString("trackIndex") else {
+                call.reject("Cannot remove")
+                return
+            }
+            try audioPlayerImpl.removeItem(index)
+        } catch let message {
+            call.reject(message as! String)
+        }
         call.resolve();
     }
     @objc func removeItems(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
-        call.resolve();
+        guard let items = call.getArray("items") else {
+            call.reject("No Items")
+            return
+        }
+        let count = audioPlayerImpl.removeItems(items)
+        call.resolve([
+            "removed": count
+        ]);
     }
     @objc func clearAllItems(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        audioPlayerImpl.clearAllItems()
         call.resolve();
     }
     @objc func play(_ call: CAPPluginCall) {
@@ -82,19 +103,61 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         call.resolve();
     }
     @objc func playTrackByIndex(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
-        call.resolve();
+        guard let index = call.getInt("index") else {
+            call.reject("Track index Invalid")
+            return
+        }
+        
+        do {
+            try audioPlayerImpl.playTrack(index: index, positionTime: call.getFloat("position"))
+            call.resolve();
+        }
+        catch let message {
+            call.reject(message as! String)
+        }
     }
     @objc func playTrackById(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        guard let id = call.getString("id") else {
+            call.reject("Track Id Invalid")
+            return
+        }
+        
+        do {
+            try audioPlayerImpl.playTrack(id, positionTime: call.getFloat("position"))
+            call.resolve();
+        }
+        catch let message {
+            call.reject(message as! String)
+        }
         call.resolve();
     }
     @objc func selectTrackByIndex(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
-        call.resolve();
+        guard let index = call.getInt("index") else {
+            call.reject("Track index Invalid")
+            return
+        }
+        
+        do {
+            try audioPlayerImpl.selectTrack(index: index)
+            call.resolve();
+        }
+        catch let message {
+            call.reject(message as! String)
+        }
     }
     @objc func selectTrackById(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
+        guard let id = call.getString("id") else {
+            call.reject("Track Id Invalid")
+            return
+        }
+        
+        do {
+            try audioPlayerImpl.selectTrack(trackId: id)
+            call.resolve();
+        }
+        catch let message {
+            call.reject(message as! String)
+        }
         call.resolve();
     }
     @objc func setPlaybackVolume(_ call: CAPPluginCall) {
@@ -114,6 +177,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     }
     
     // MARK: - StatusUpdater delegate
+    // todo: calls to notifyListeners should be throttled
     func onStatus(_ data: [String: Any]) {
         notifyListeners("status", data: data)
     }
