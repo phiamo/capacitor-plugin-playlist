@@ -540,64 +540,76 @@ final class RmxAudioPlayer: NSObject {
 
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         print("observing \(String(describing: keyPath))")
+        print("observing \(String(describing: change))")
         if (keyPath == "currentItem") {
-            let player = object as? AVBidirectionalQueuePlayer
-            let playerItem = player?.currentAudioTrack
-            handleCurrentItemChanged(playerItem)
+            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.2, context: self, action: { [self] in
+                let player = object as? AVBidirectionalQueuePlayer
+                let playerItem = player?.currentAudioTrack
+                handleCurrentItemChanged(playerItem)
+            })
             return
         }
 
         if (keyPath == "rate") {
-            let player = object as? AVBidirectionalQueuePlayer
-            
-            guard let playerItem = player?.currentAudioTrack else { return }
+            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.2, context: self, action: { [self] in
+                let player = object as? AVBidirectionalQueuePlayer
+                
+                guard let playerItem = player?.currentAudioTrack else { return }
 
-            let trackStatus = getStatusItem(playerItem)
-            print("Playback rate changed: \(1), is playing: \(player?.isPlaying ?? false)")
+                let trackStatus = getStatusItem(playerItem)
+                print("Playback rate changed: \(1), is playing: \(player?.isPlaying ?? false)")
 
-            if player?.isPlaying ?? false {
-                onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
-            } else {
-                onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
-            }
+                if player?.isPlaying ?? false {
+                    onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
+                } else {
+                    onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
+                }
+            })
             
             return
         }
 
         if (keyPath == "status") {
-            let playerItem = object as? AudioTrack
-            handleTrackStatusEvent(playerItem)
+            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.2, context: self, action: { [self] in
+                let playerItem = object as? AudioTrack
+                handleTrackStatusEvent(playerItem)
+            })
             return
         }
         
         if (keyPath == "timeControlStatus") {
-            let player = object as? AVBidirectionalQueuePlayer
-            
-            guard let playerItem = player?.currentAudioTrack else { return }
+            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.2, context: self, action: { [self] in
+                let player = object as? AVBidirectionalQueuePlayer
+                
+                guard let playerItem = player?.currentAudioTrack else { return }
 
-            let trackStatus = getStatusItem(playerItem)
-            print("Playback rate changed: \(1), is playing: \(player?.isPlaying ?? false)")
+                let trackStatus = getStatusItem(playerItem)
+                print("Playback rate changed: \(1), is playing: \(player?.isPlaying ?? false)")
 
-            if player?.timeControlStatus == .playing {
-                onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
-            } else if player?.timeControlStatus == .waitingToPlayAtSpecifiedRate {
-                onStatus(.rmxstatus_BUFFERING, trackId: playerItem.trackId, param: trackStatus)
-            } else {
-                onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
-            }
-            
+                if player?.timeControlStatus == .playing {
+                    onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
+                } else if player?.timeControlStatus == .waitingToPlayAtSpecifiedRate {
+                    onStatus(.rmxstatus_BUFFERING, trackId: playerItem.trackId, param: trackStatus)
+                } else {
+                    onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
+                }
+            })
             return
         }
 
         if (keyPath == "duration") {
-            let playerItem = object as? AudioTrack
-            handleTrackDuration(playerItem)
+            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.5, context: self, action: { [self] in
+                let playerItem = object as? AudioTrack
+                handleTrackDuration(playerItem)
+            })
             return
         }
 
         if (keyPath == "loadedTimeRanges") {
-            let playerItem = object as? AudioTrack
-            handleTrackBuffering(playerItem)
+            DispatchQueue.main.throttle(deadline: DispatchTime.now() + 0.2, context: self, action: { [self] in
+                let playerItem = object as? AudioTrack
+                handleTrackBuffering(playerItem)
+            })
             return
         }
 
