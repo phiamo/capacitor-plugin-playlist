@@ -31,6 +31,7 @@ export class AudioProvider {
     // dont forget to init the player to connect the events stream
     await this.audioPlayer.initialize();
     this.audioPlayer.on('status', (data: OnStatusCallbackData | OnStatusErrorCallbackData) => {
+      // run in zone, so e.g. change detection can act, since the event is triggered outside
       this.zone.run(() => {
         this.status$.next(data);
       });
