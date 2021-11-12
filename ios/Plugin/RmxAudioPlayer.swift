@@ -532,16 +532,14 @@ final class RmxAudioPlayer: NSObject {
         print("observing \(String(describing: keyPath))")
         print("observing \(String(describing: change))")
         if (keyPath == "currentItem") {
-            DispatchQueue.main.throttle(interval: 0.2, context: self, action: { [self] in
-                let player = object as? AVBidirectionalQueuePlayer
-                let playerItem = player?.currentAudioTrack
-                handleCurrentItemChanged(playerItem)
-            })
+            let player = object as? AVBidirectionalQueuePlayer
+            let playerItem = player?.currentAudioTrack
+            handleCurrentItemChanged(playerItem)
             return
         }
 
         if (keyPath == "rate") {
-            DispatchQueue.main.throttle(interval: 0.2, context: self, action: { [self] in
+            DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let player = object as? AVBidirectionalQueuePlayer
                 
                 guard let playerItem = player?.currentAudioTrack else { return }
@@ -560,7 +558,7 @@ final class RmxAudioPlayer: NSObject {
         }
 
         if (keyPath == "status") {
-            DispatchQueue.main.throttle(interval: 0.2, context: self, action: { [self] in
+            DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
                 handleTrackStatusEvent(playerItem)
             })
@@ -568,7 +566,7 @@ final class RmxAudioPlayer: NSObject {
         }
         
         if (keyPath == "timeControlStatus") {
-            DispatchQueue.main.throttle(interval: 0.2, context: self, action: { [self] in
+            DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let player = object as? AVBidirectionalQueuePlayer
                 
                 guard let playerItem = player?.currentAudioTrack else { return }
@@ -588,7 +586,7 @@ final class RmxAudioPlayer: NSObject {
         }
 
         if (keyPath == "duration") {
-            DispatchQueue.main.throttle(interval: 0.5, context: self, action: { [self] in
+            DispatchQueue.main.debounce(interval: 0.5, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
                 handleTrackDuration(playerItem)
             })
@@ -596,7 +594,7 @@ final class RmxAudioPlayer: NSObject {
         }
 
         if (keyPath == "loadedTimeRanges") {
-            DispatchQueue.main.throttle(interval: 0.2, context: self, action: { [self] in
+            DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
                 handleTrackBuffering(playerItem)
             })
