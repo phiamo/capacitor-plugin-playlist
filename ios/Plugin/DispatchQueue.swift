@@ -12,7 +12,7 @@ public extension DispatchQueue {
          - action: The closure to be executed
      Delays a closure execution and ensures no other executions are made during deadline
      */
-    public func debounce(deadline: DispatchTime, context: AnyHashable? = nil, action: @escaping () -> Void) {
+    public func throttle(deadline: DispatchTime, context: AnyHashable? = nil, action: @escaping () -> Void) {
         let worker = DispatchWorkItem {
             defer { throttleWorkItems.removeValue(forKey: context ?? nilContext) }
             action()
@@ -31,7 +31,7 @@ public extension DispatchQueue {
          - action: The closure to be executed
      Executes a closure and ensures no other executions will be made during the interval.
      */
-    public func throttle(interval: Double, context: AnyHashable? = nil, action: @escaping () -> Void) {
+    public func debounce(interval: Double, context: AnyHashable? = nil, action: @escaping () -> Void) {
         if let last = lastDebounceCallTimes[context ?? nilContext], last + interval > .now() {
             return
         }
@@ -40,7 +40,7 @@ public extension DispatchQueue {
         async(execute: action)
 
         // Cleanup & release context
-        debounce(deadline: .now() + interval) {
+        throttle(deadline: .now() + interval) {
             lastDebounceCallTimes.removeValue(forKey: context ?? nilContext)
         }
     }
