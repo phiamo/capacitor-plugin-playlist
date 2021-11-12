@@ -521,7 +521,6 @@ final class RmxAudioPlayer: NSObject {
             if avQueuePlayer.isPlaying {
                 let trackStatus = getStatusItem(playerItem)
                 onStatus(.rmxstatus_PLAYBACK_POSITION, trackId: playerItem.trackId, param: trackStatus)
-                // NSLog(@" . %.5f / %.5f sec (%.1f %%) [%@]", currentTime, duration, (currentTime / duration)*100.0, name);
             }
         }
 
@@ -529,16 +528,17 @@ final class RmxAudioPlayer: NSObject {
     }
 
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
-        print("observing \(String(describing: keyPath))")
-        print("observing \(String(describing: change))")
-        if (keyPath == "currentItem") {
+        if keyPath != "loadedTimeRanges" {
+            print("observing \(String(describing: keyPath))")
+            print("observing \(String(describing: change))")
+        }
+        
+        switch keyPath {
+        case "currentItem":
             let player = object as? AVBidirectionalQueuePlayer
             let playerItem = player?.currentAudioTrack
             handleCurrentItemChanged(playerItem)
-            return
-        }
-
-        if (keyPath == "rate") {
+        case "rate":
             DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let player = object as? AVBidirectionalQueuePlayer
                 
@@ -553,19 +553,12 @@ final class RmxAudioPlayer: NSObject {
                     onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
                 }
             })
-            
-            return
-        }
-
-        if (keyPath == "status") {
+        case "status":
             DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
                 handleTrackStatusEvent(playerItem)
             })
-            return
-        }
-        
-        if (keyPath == "timeControlStatus") {
+        case "timeControlStatus":
             DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let player = object as? AVBidirectionalQueuePlayer
                 
@@ -582,36 +575,28 @@ final class RmxAudioPlayer: NSObject {
                     onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
                 }
             })
-            return
-        }
-
-        if (keyPath == "duration") {
+        case "duration":
             DispatchQueue.main.debounce(interval: 0.5, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
                 handleTrackDuration(playerItem)
             })
-            return
-        }
-
-        if (keyPath == "loadedTimeRanges") {
+        case "loadedTimeRanges":
             DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
                 handleTrackBuffering(playerItem)
             })
-            return
+        default:
+            super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
         }
-
-        super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
-        return
     }
 
     func updateNowPlayingTrackInfo(_ playerItem: AudioTrack?, updateTrackData: Bool) {
+        
         let currentItem = playerItem ?? avQueuePlayer.currentAudioTrack
-
         let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
         if updatedNowPlayingInfo == nil {
             let nowPlayingInfo = nowPlayingInfoCenter.nowPlayingInfo
-            updatedNowPlayingInfo = nowPlayingInfo
+            updatedNowPlayingInfo = nowPlayingInfo ?? [:]
         }
 
         var currentTime: Float? = nil
@@ -627,70 +612,55 @@ final class RmxAudioPlayer: NSObject {
         }
 
         if updateTrackData {
-            updatedNowPlayingInfo?[MPMediaItemPropertyArtist] = currentItem?.artist
-            updatedNowPlayingInfo?[MPMediaItemPropertyTitle] = currentItem?.title
-            updatedNowPlayingInfo?[MPMediaItemPropertyAlbumTitle] = currentItem?.album
-            let mediaItemArtwork = createCoverArtwork(currentItem?.albumArt?.absoluteString)
+            updatedNowPlayingInfo![MPMediaItemPropertyArtist] = currentItem?.artist
+            updatedNowPlayingInfo![MPMediaItemPropertyTitle] = currentItem?.title
+            updatedNowPlayingInfo![MPMediaItemPropertyAlbumTitle] = currentItem?.album
 
-            if let mediaItemArtwork = mediaItemArtwork {
-                updatedNowPlayingInfo?[MPMediaItemPropertyArtwork] = mediaItemArtwork
+            if let mediaItemArtwork = createCoverArtwork(currentItem?.albumArt?.absoluteString) {
+                updatedNowPlayingInfo![MPMediaItemPropertyArtwork] = mediaItemArtwork
             }
         }
+        updatedNowPlayingInfo![MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration ?? 0.0)
+        updatedNowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: currentTime ?? 0.0)
+        updatedNowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: 1.0)
 
-        updatedNowPlayingInfo?[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration ?? 0.0)
-        updatedNowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: currentTime ?? 0.0)
-        updatedNowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: 1.0)
-
-        nowPlayingInfoCenter.nowPlayingInfo = updatedNowPlayingInfo
-
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = updatedNowPlayingInfo
+        print("noplaying \(String(describing: updatedNowPlayingInfo))")
         let commandCenter = MPRemoteCommandCenter.shared()
         commandCenter.nextTrackCommand.isEnabled = !avQueuePlayer.isAtEnd
         commandCenter.previousTrackCommand.isEnabled = !avQueuePlayer.isAtBeginning
     }
 
-    func createCoverArtwork(_ coverUri: String?) -> MPMediaItemArtwork? {
-        print("Creating cover art : \(String(describing: coverUri))")
-        var coverImage: UIImage? = nil
-        if coverUri == nil {
+    func createCoverArtwork(_ coverUriOrNil: String?) -> MPMediaItemArtwork? {
+        print("Creating cover art : \(String(describing: coverUriOrNil))")
+        guard let coverUri = coverUriOrNil else {
             return nil
         }
-
-        if coverUri?.lowercased().hasPrefix("file://") ?? false {
-            let fullCoverImagePath = coverUri?.replacingOccurrences(of: "file://", with: "")
-
-            if FileManager.default.fileExists(atPath: fullCoverImagePath ?? "") {
-                coverImage = UIImage(contentsOfFile: fullCoverImagePath ?? "")
-            }
-        } else if coverUri?.hasPrefix("http://") ?? false || coverUri?.hasPrefix("https://") ?? false {
-            let coverImageUrl = URL(string: coverUri ?? "")
+        
+        var coverImage: UIImage? = nil
+        if coverUri.hasPrefix("http://") || coverUri.hasPrefix("https://") {
+            let coverImageUrl = URL(string: coverUri)!
             
-            var coverImageData: Data? = nil
-            if let coverImageUrl = coverImageUrl {
-                do {
-                    coverImageData = try Data(contentsOf: coverImageUrl)
-                } catch {
-                    print("Error creating the coverImageData");
-                }
-            }
-            if let coverImageData = coverImageData {
+            do {
+                let coverImageData = try Data(contentsOf: coverImageUrl)
                 coverImage = UIImage(data: coverImageData)
-            }
-        } else if !(coverUri == "") {
-            let baseCoverImagePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).map(\.path)[0]
-            let fullCoverImagePath = "\(baseCoverImagePath)\(coverUri ?? "")"
-            if FileManager.default.fileExists(atPath: fullCoverImagePath) {
-                coverImage = UIImage(named: fullCoverImagePath)
+            } catch {
+                print("Error creating the coverImageData");
             }
         } else {
-            coverImage = UIImage(named: "none")
+            if FileManager.default.fileExists(atPath: coverUri) {
+                coverImage = UIImage(contentsOfFile: coverUri)
+            }
         }
-        if let coverImage = coverImage {
-            return isCoverImageValid(coverImage) ? MPMediaItemArtwork.init(boundsSize: coverImage.size, requestHandler: { (size) -> UIImage in
-                return coverImage
-            }): nil
-            
+        
+        if isCoverImageValid(coverImage) {
+            print("valid cover image \(String(describing: coverImage)) size \(coverImage!.size)")
+            return MPMediaItemArtwork.init(boundsSize: coverImage!.size, requestHandler: { (size) -> UIImage in
+                print("inted cover image \(String(describing: coverImage)) size \(coverImage!.size)")
+                return coverImage!
+            })
         }
-        return nil
+        return nil;
     }
     
     func downloadImage(url: URL, completion: @escaping ((_ image: UIImage?) -> Void)){
@@ -720,7 +690,7 @@ final class RmxAudioPlayer: NSObject {
             print("New item ID: \(playerItem.trackId ?? "")")
             print("Queue is at end: \(avQueuePlayer.isAtEnd ? "YES" : "NO")")
             // When an item starts, immediately scrub it back to the beginning
-            playerItem.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
+            //playerItem.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
             // Update the command center
             updateNowPlayingTrackInfo(playerItem, updateTrackData: true)
         } else if loop {
