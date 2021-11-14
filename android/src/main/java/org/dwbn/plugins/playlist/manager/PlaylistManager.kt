@@ -19,14 +19,13 @@ import java.util.*
  * A PlaylistManager that extends the [ListPlaylistManager] for use with the
  * [MediaService] which extends [com.devbrackets.android.playlistcore.service.BasePlaylistService].
  */
-class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrack>(application, MediaService::class.java), OnErrorListener {
+class PlaylistManager(application: Application) :
+    ListPlaylistManager<AudioTrack>(application, MediaService::class.java), OnErrorListener {
     private val audioTracks: MutableList<AudioTrack> = ArrayList()
     private var volumeLeft = 1.0f
     private var volumeRight = 1.0f
     private var playbackSpeed = 1.0f
     var loop = false
-        get
-        set
     var isShouldStopPlaylist = false
     var currentErrorTrack: AudioTrack? = null
 
@@ -35,7 +34,8 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
     var options: Options
     private var mediaControlsListener = WeakReference<MediaControlsListener?>(null)
     private var errorListener = WeakReference<OnErrorListener?>(null)
-    private var currentMediaPlayer: WeakReference<MediaPlayerApi<AudioTrack>?>? = WeakReference(null)
+    private var currentMediaPlayer: WeakReference<MediaPlayerApi<AudioTrack>?>? =
+        WeakReference(null)
 
     fun setOnErrorListener(listener: OnErrorListener?) {
         errorListener = WeakReference(listener)
@@ -56,28 +56,12 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
         return true
     }
 
-    /*
-     * isNextAvailable, getCurrentItem, and next() are overridden because there is
-     * a glaring bug in playlist core where when an item completes, isNextAvailable and
-     * getCurrentItem return wildly contradictory things, resulting in endless repeat
-     * of the last item in the playlist.
-     */
-    override val isNextAvailable: Boolean
-        get() {
-            val isAtEnd = currentPosition + 1 >= itemCount
-            val isConstrained = currentPosition + 1 in 0 until itemCount
-            return if (isAtEnd) {
-                loop
-            } else isConstrained
-        }
-
     override operator fun next(): AudioTrack? {
         if (isNextAvailable) {
             val isAtEnd = currentPosition + 1 >= itemCount
-            if(isAtEnd && loop) {
+            if (isAtEnd && loop) {
                 currentPosition = 0
-            }
-            else {
+            } else {
                 currentPosition = (currentPosition + 1).coerceAtMost(itemCount)
             }
         } else {
@@ -139,7 +123,7 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
         val countBefore = audioTracks.size;
         audioTracks.add(item)
         items = audioTracks
-        if(countBefore == 0) {
+        if (countBefore == 0) {
             currentPosition = 0
             beginPlayback(1, true)
         }
@@ -148,7 +132,8 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
     fun addAllItems(its: List<AudioTrack>?) {
         val currentItem = currentItem // may be null
         audioTracks.addAll(its!!)
-        items = audioTracks // not *strictly* needed since they share the reference, but for good measure..
+        items =
+            audioTracks // not *strictly* needed since they share the reference, but for good measure..
         currentPosition = audioTracks.indexOf(currentItem)
     }
 
@@ -158,7 +143,6 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
             playlistHandler!!.pause(true)
         }
         var currentPosition = currentPosition
-        val currentItem = currentItem // may be null
         var foundItem: AudioTrack? = null
         var removingCurrent = false
 
@@ -219,7 +203,7 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
         var resolvedPosition = -1
         if (trackIndex >= 0 && trackIndex < audioTracks.size) {
             resolvedPosition = trackIndex
-        } else if ( "" != trackId) {
+        } else if ("" != trackId) {
             val itemPos = getPositionForItem(trackId.hashCode().toLong())
             if (itemPos != INVALID_POSITION) {
                 resolvedPosition = itemPos
@@ -236,7 +220,10 @@ class  PlaylistManager(application: Application) : ListPlaylistManager<AudioTrac
         return volumeRight
     }
 
-    fun setVolume(@FloatRange(from = 0.0, to = 1.0) left: Float, @FloatRange(from = 0.0, to = 1.0) right: Float) {
+    fun setVolume(
+        @FloatRange(from = 0.0, to = 1.0) left: Float,
+        @FloatRange(from = 0.0, to = 1.0) right: Float
+    ) {
         volumeLeft = left
         volumeRight = right
         if (currentMediaPlayer != null && currentMediaPlayer!!.get() != null) {

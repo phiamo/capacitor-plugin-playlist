@@ -26,7 +26,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
         onStatus(RmxAudioStatusMessage.RMXSTATUS_REGISTER, "INIT", null)
         call.resolve()
         Log.i(TAG, "Initialized")
-        audioPlayerImpl!!.resume();
+        audioPlayerImpl!!.resume()
     }
     @PluginMethod
     fun setOptions(call: PluginCall) {
@@ -109,20 +109,16 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
     fun removeItem(call: PluginCall) {
         val trackIndex: Int = call.getInt("trackId", -1)!!
         val trackId: String = call.getString("trackIndex", "")!!
+        Log.i(TAG,"removeItem")
         val item = audioPlayerImpl!!.playlistManager.removeItem(trackIndex, trackId)
 
         if (item != null) {
             onStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, item.trackId, item.toDict())
-        }
-
-        if (item != null) {
             call.resolve()
         }
         else {
             call.reject("Could not find item!")
         }
-
-        Log.i(TAG,"removeItem")
     }
 
     @PluginMethod

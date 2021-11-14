@@ -4,7 +4,6 @@ import com.devbrackets.android.playlistcore.components.playlisthandler.PlaylistH
 import com.devbrackets.android.playlistcore.service.BasePlaylistService
 import org.dwbn.plugins.playlist.App
 import org.dwbn.plugins.playlist.data.AudioTrack
-import org.dwbn.plugins.playlist.manager.Options
 import org.dwbn.plugins.playlist.manager.PlaylistManager
 import org.dwbn.plugins.playlist.playlist.AudioApi
 import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler
@@ -41,7 +40,7 @@ class MediaService : BasePlaylistService<AudioTrack, PlaylistManager>() {
             override fun onImageUpdated() {
                 playlistHandler.updateMediaControls()
             }
-        }, Options(applicationContext))
+        }, playlistManager.options)
 
         return AudioPlaylistHandler.Builder(
             applicationContext,
