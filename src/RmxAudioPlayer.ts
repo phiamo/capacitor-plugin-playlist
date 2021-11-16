@@ -156,7 +156,7 @@ export class RmxAudioPlayer {
             await Playlist.initialize();
             this._inititialized = true;
             this._readyResolve();
-        } catch (args: any) {
+        } catch (args) {
             const message = 'Capacitor RMXAUDIOPLAYER: Error initializing:';
             console.warn(message, args);
             this._readyReject();
