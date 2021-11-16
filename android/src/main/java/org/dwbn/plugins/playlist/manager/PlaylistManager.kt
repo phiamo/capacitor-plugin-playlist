@@ -56,6 +56,24 @@ class PlaylistManager(application: Application) :
         return true
     }
 
+    /*
+     * isNextAvailable, getCurrentItem, and next() are overridden because there is
+     * a glaring bug in playlist core where when an item completes, isNextAvailable and
+     * getCurrentItem return wildly contradictory things, resulting in endless repeat
+     * of the last item in the playlist.
+     */
+    override val isNextAvailable: Boolean
+        get() {
+            if (itemCount == 1) {
+                return false;
+            }
+            val isAtEnd = currentPosition + 1 >= itemCount
+            val isConstrained = currentPosition + 1 in 0 until itemCount
+            return if (isAtEnd) {
+                loop
+            } else isConstrained
+        }
+
     override operator fun next(): AudioTrack? {
         if (isNextAvailable) {
             val isAtEnd = currentPosition + 1 >= itemCount

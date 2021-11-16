@@ -1,8 +1,8 @@
-import { registerPlugin } from '@capacitor/core';
+import {registerPlugin} from '@capacitor/core';
 
-import type { PlaylistPlugin } from './definitions';
+import type {PlaylistPlugin} from './definitions';
 
-
+// todo: find out why we get imported twice
 let playListWebInstance: PlaylistPlugin;
 const Playlist = registerPlugin<PlaylistPlugin>('Playlist', {
     web: () => import('./web').then(m => {
@@ -12,4 +12,4 @@ const Playlist = registerPlugin<PlaylistPlugin>('Playlist', {
         return playListWebInstance;
     }),
 });
-export { Playlist };
+export {Playlist};

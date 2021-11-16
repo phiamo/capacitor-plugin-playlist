@@ -226,7 +226,7 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
 
         AudioTrack currentItem = playlistManager.getCurrentItem();
         JSONObject trackStatus = getPlayerStatus(currentItem);
-        Log.i("AudioPlayerActiv/opsc", playbackState.toString() + ", " + trackStatus.toString() + ", " + currentItem);
+        Log.i("onPlaybackStateChanged", playbackState.toString() + ", " + trackStatus.toString() + ", " + currentItem);
 
         switch (playbackState) {
             case STOPPED:
