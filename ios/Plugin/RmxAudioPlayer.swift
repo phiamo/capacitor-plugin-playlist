@@ -140,7 +140,7 @@ final class RmxAudioPlayer: NSObject {
 
     func clearAllItems() {
         print("RmxAudioPlayer.execute=clearAllItems")
-        removeAllTracks(false)
+        removeAllTracks()
     }
 
     func playTrack(index: Int, positionTime: Float?) throws {
@@ -385,7 +385,7 @@ final class RmxAudioPlayer: NSObject {
         }
     }
 
-    func removeAllTracks(_ isCommand: Bool) {
+    func removeAllTracks() {
         for item in avQueuePlayer.queuedAudioTracks {
             removeTrackObservers(item)
         }
@@ -393,15 +393,6 @@ final class RmxAudioPlayer: NSObject {
         avQueuePlayer.removeAllItems()
         wasPlayingInterrupted = false
 
-        print("RmxAudioPlayer, removeAllTracks, ==> RMXSTATUS_PLAYLIST_CLEARED")
-        onStatus(.rmxstatus_PLAYLIST_CLEARED, trackId: "INVALID", param: nil)
-
-        // a.t.m there's no way for this to be triggered from within the plugin,
-        // but it might get added at some point.
-        if isCommand {
-            let action = "music-controls-clear"
-            print("\(action)")
-        }
     }
 
     // MARK: - remote control events
@@ -1093,7 +1084,7 @@ final class RmxAudioPlayer: NSObject {
         avQueuePlayer.removeObserver(self as NSObject, forKeyPath: "timeControlStatus")
         deregisterMusicControlsEventListener()
 
-        removeAllTracks(false)
+        removeAllTracks()
 
         playbackTimeObserver = nil
         isWaitingToStartPlayback = false
