@@ -40,7 +40,7 @@ export class RmxAudioPlayer {
     options: AudioPlayerOptions = {verbose: false, resetStreamOnPause: true};
 
     private _inititialized: boolean = false;
-    private _initPromise: Promise<void>;
+    private _initPromise: Promise<void> | undefined;
     private _readyResolve: (value?: any | PromiseLike<boolean>) => void = () => {
     };
     private _readyReject: (reason?: any) => void = () => {
@@ -120,10 +120,6 @@ export class RmxAudioPlayer {
      */
     constructor() {
         this.handlers = {};
-        this._initPromise = new Promise((resolve, reject) => {
-            this._readyResolve = resolve;
-            this._readyReject = reject;
-        });
         new Promise<void>((resolve) => {
             window.addEventListener('beforeunload', () => resolve(), {once: true});
         }).then(() => Playlist.release());
@@ -140,7 +136,12 @@ export class RmxAudioPlayer {
         return this._initPromise;
     };
 
+
     initialize = async () => {
+        this._initPromise = new Promise((resolve, reject) => {
+            this._readyResolve = resolve;
+            this._readyReject = reject;
+        });
         Playlist.addListener(
             'status',
             (data: { action: string, status: OnStatusCallbackData }) => {

@@ -26,7 +26,7 @@ import org.jetbrains.annotations.NotNull;
 public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylistManager<I>>
             extends DefaultPlaylistHandler<I, M> {
 
-    private static final String TAG = "AudioPlaylistHandler";
+    private static final String TAG = "PlaylistAudioPlaylistHandler";
 
     AudioPlaylistHandler(
             Context context,
@@ -45,6 +45,11 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
         // The default value is 30fps (e.g 33ms), which would overwhelm the Cordova webview with messages
         // Ideally we could make this configurable.
         getMediaProgressPoll().setProgressPollDelay(1000);
+    }
+
+    public void next() {
+        getPlaylistManager().next();
+        startItemPlayback(0, !this.isPlaying());
     }
 
     @Override
