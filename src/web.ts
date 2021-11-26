@@ -86,9 +86,9 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     removeItem(options: RemoveItemOptions): Promise<void> {
         this.playlistItems.forEach((item, index) => {
-            if (options.trackIndex && options.trackIndex === index) {
+            if (options.index && options.index === index) {
                 this.playlistItems.splice(index, 1);
-            } else if (options.trackId && options.trackId === item.trackId) {
+            } else if (options.id && options.id === item.trackId) {
                 this.playlistItems.splice(index, 1);
             }
         });

@@ -71,8 +71,8 @@ export interface AddAllItemOptions {
 }
 
 export interface RemoveItemOptions {
-    trackId?: string;
-    trackIndex?: number;
+    id?: string;
+    index?: number;
 }
 
 export interface RemoveItemsOptions {
@@ -85,22 +85,22 @@ export interface SeekToOptions {
 
 export interface PlayByIndexOptions {
     index: number;
-    position: number;
+    position?: number;
 }
 
 export interface PlayByIdOptions {
     id: string;
-    position: number;
+    position?: number;
 }
 
 export interface SelectByIndexOptions {
     index: number;
-    position: number;
+    position?: number;
 }
 
 export interface SelectByIdOptions {
     id: string;
-    position: number;
+    position?: number;
 }
 
 export interface SetPlaybackVolumeOptions {

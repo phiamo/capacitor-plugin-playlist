@@ -207,11 +207,11 @@ final class RmxAudioPlayer: NSObject {
         avQueuePlayer.setCurrentIndex(index)
     }
 
-    func selectTrack(trackId: String) throws {
+    func selectTrack(id: String) throws {
         guard !avQueuePlayer.queuedAudioTracks.isEmpty else {
             throw "Queue is Empty"
         }
-        let result = findTrack(byId: trackId)
+        let result = findTrack(byId: id)
         let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
 
         if idx >= 0 {
@@ -234,7 +234,7 @@ final class RmxAudioPlayer: NSObject {
         let track = result?["track"] as? AudioTrack
         
         guard idx >= 0 else {
-            throw "Could not find trackId"
+            throw "Could not find track by id" + id
         }
         // AudioTrack* item = [self avQueuePlayer].itemsForPlayer[idx];
         removeTrackObservers(track)
