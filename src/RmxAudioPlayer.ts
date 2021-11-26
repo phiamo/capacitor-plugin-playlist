@@ -219,7 +219,7 @@ export class RmxAudioPlayer {
         if (!removeItem.trackId && !removeItem.trackIndex) {
             new Error('Track removal spec is invalid');
         }
-        return Playlist.removeItem({trackId: removeItem.trackId!, trackIndex: removeItem.trackIndex!});
+        return Playlist.removeItem({id: removeItem.trackId!, index: removeItem.trackIndex!});
     };
 
     /**
