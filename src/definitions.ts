@@ -71,8 +71,8 @@ export interface AddAllItemOptions {
 }
 
 export interface RemoveItemOptions {
-    trackId: string;
-    trackIndex: number;
+    trackId?: string;
+    trackIndex?: number;
 }
 
 export interface RemoveItemsOptions {
