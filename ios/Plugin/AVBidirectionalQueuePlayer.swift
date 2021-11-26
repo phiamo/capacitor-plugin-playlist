@@ -122,6 +122,13 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
             rate = currentrate
         }
     }
+    open override func advanceToNextItem() {
+        if currentIndex() == nil || currentIndex()! < items().count - 1{
+            super.advanceToNextItem();
+        } else {
+            setCurrentIndex(0)
+        }
+    }
     
     func setCurrentIndex(_ currentIndex: Int) {
         setCurrentIndex(currentIndex, completionHandler: { _ in })
@@ -152,7 +159,8 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     }
     
     func replaceAllItems(with items: [AudioTrack]) {
-        removeAllItems()
+        print("AVBI, replaceAllItems")
+        removeAllItemsSilently()
         appendItems(items)
     }
 
@@ -189,13 +197,19 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
 
         super.play()
     }
-
+    // This does the same thing as the normal AVQueuePlayer removeAllItems, but clears our collection copy
     override func removeAllItems() {
-        // This does the same thing as the normal AVQueuePlayer removeAllItems, but clears our collection copy
+        print("removeAllItems")
         super.removeAllItems()
         queuedAudioTracks.removeAll()
-
+        
         NotificationCenter.default.post(name: NSNotification.Name(AVBidirectionalQueueCleared), object: self, userInfo: nil)
+    }
+    
+    func removeAllItemsSilently() {
+        print("removeAllItemsSilently")
+        super.removeAllItems()
+        queuedAudioTracks.removeAll()
     }
 
     func remove(_ item: AudioTrack) {

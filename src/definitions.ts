@@ -1,12 +1,8 @@
+import { PluginListenerHandle } from '@capacitor/core';
 import {
-    AudioPlayerOptions,
-    AudioTrackRemoval,
-    PlaylistItemOptions,
-    AudioTrack,
-    PlaylistStatusChangeCallback
+    AudioPlayerOptions, AudioTrack, PlaylistItemOptions, PlaylistStatusChangeCallback
 } from './interfaces';
 
-import {PluginListenerHandle} from '@capacitor/core';
 
 
 export interface PlaylistPlugin {
@@ -75,11 +71,12 @@ export interface AddAllItemOptions {
 }
 
 export interface RemoveItemOptions {
-    item: AudioTrackRemoval
+    id?: string;
+    index?: number;
 }
 
 export interface RemoveItemsOptions {
-    items: Array<AudioTrackRemoval>
+    items: Array<RemoveItemOptions>
 }
 
 export interface SeekToOptions {
@@ -88,22 +85,22 @@ export interface SeekToOptions {
 
 export interface PlayByIndexOptions {
     index: number;
-    position: number;
+    position?: number;
 }
 
 export interface PlayByIdOptions {
     id: string;
-    position: number;
+    position?: number;
 }
 
 export interface SelectByIndexOptions {
     index: number;
-    position: number;
+    position?: number;
 }
 
 export interface SelectByIdOptions {
     id: string;
-    position: number;
+    position?: number;
 }
 
 export interface SetPlaybackVolumeOptions {

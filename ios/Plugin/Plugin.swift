@@ -53,11 +53,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     }
     @objc func removeItem(_ call: CAPPluginCall) {
         do {
-            if let id = call.getString("trackId"){
+            if let id = call.getString("id"){
                 try audioPlayerImpl.removeItem(id)
                 return
             }
-            guard let index = call.getString("trackIndex") else {
+            guard let index = call.getString("index") else {
                 call.reject("Cannot remove")
                 return
             }
@@ -152,7 +152,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         }
         
         do {
-            try audioPlayerImpl.selectTrack(trackId: id)
+            try audioPlayerImpl.selectTrack(id: id)
             call.resolve();
         }
         catch let message {

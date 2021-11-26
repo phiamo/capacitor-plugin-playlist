@@ -108,7 +108,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
     @PluginMethod
     fun removeItem(call: PluginCall) {
         val trackIndex: Int = call.getInt("trackIndex", -1)!!
-        val trackId: String = call.getString("trackId", "")!!
+        val trackId: String = call.getString("tracktrackId", "")!!
         Log.i(TAG,"removeItem")
         val item = audioPlayerImpl!!.playlistManager.removeItem(trackIndex, trackId)
 

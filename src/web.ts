@@ -1,4 +1,5 @@
-import {WebPlugin} from '@capacitor/core';
+import { WebPlugin } from '@capacitor/core';
+import { RmxAudioStatusMessage } from './Constants';
 import {
     AddAllItemOptions,
     AddItemOptions,
@@ -11,13 +12,10 @@ import {
     SeekToOptions,
     SelectByIdOptions,
     SelectByIndexOptions,
-    SetLoopOptions,
-    SetPlaybackVolumeOptions,
-    SetPlaybackRateOptions
+    SetLoopOptions, SetPlaybackRateOptions, SetPlaybackVolumeOptions
 } from './definitions';
-import {AudioTrack, AudioPlayerOptions} from './interfaces';
-import {validateTrack, validateTracks} from './utils';
-import {RmxAudioStatusMessage} from './Constants';
+import { AudioPlayerOptions, AudioTrack } from './interfaces';
+import { validateTrack, validateTracks } from './utils';
 
 declare var Hls: any;
 
@@ -88,9 +86,9 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     removeItem(options: RemoveItemOptions): Promise<void> {
         this.playlistItems.forEach((item, index) => {
-            if (options.item.trackIndex && options.item.trackIndex === index) {
+            if (options.index && options.index === index) {
                 this.playlistItems.splice(index, 1);
-            } else if (options.item.trackId && options.item.trackId === item.trackId) {
+            } else if (options.id && options.id === item.trackId) {
                 this.playlistItems.splice(index, 1);
             }
         });
@@ -99,7 +97,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     removeItems(options: RemoveItemsOptions): Promise<void> {
         options.items.forEach((item) => {
-            this.removeItem({item});
+            this.removeItem(item);
         });
         return Promise.resolve();
     }

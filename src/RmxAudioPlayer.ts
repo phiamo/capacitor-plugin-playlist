@@ -1,8 +1,10 @@
 import {
     RmxAudioStatusMessage,
-    RmxAudioStatusMessageDescriptions,
+    RmxAudioStatusMessageDescriptions
 } from './Constants';
-
+import {
+    RemoveItemOptions
+} from './definitions';
 import {
     AudioPlayerEventHandler,
     AudioPlayerEventHandlers,
@@ -10,15 +12,16 @@ import {
     AudioTrack,
     AudioTrackRemoval,
     OnStatusCallback,
-    PlaylistItemOptions,
-    OnStatusCallbackUpdateData,
-    OnStatusTrackChangedData,
-    OnStatusErrorCallbackData,
     OnStatusCallbackData,
+    OnStatusCallbackUpdateData,
+    OnStatusErrorCallbackData,
+    OnStatusTrackChangedData,
+    PlaylistItemOptions
 } from './interfaces';
+import { Playlist } from './plugin';
+import { validateTrack, validateTracks } from './utils';
 
-import {validateTrack, validateTracks} from './utils';
-import {Playlist} from './plugin';
+
 /*!
  * Module dependencies.
  */
@@ -217,7 +220,7 @@ export class RmxAudioPlayer {
         if (!removeItem.trackId && !removeItem.trackIndex) {
             new Error('Track removal spec is invalid');
         }
-        return Playlist.removeItem({item: removeItem});
+        return Playlist.removeItem({id: removeItem.trackId!, index: removeItem.trackIndex!});
     };
 
     /**
@@ -225,7 +228,7 @@ export class RmxAudioPlayer {
      * include the currently playing item, the next available item will automatically begin playing.
      */
     removeItems = (items: AudioTrackRemoval[]) => {
-        return Playlist.removeItems({items});
+        return Playlist.removeItems({items: items as RemoveItemOptions[]});
     };
 
     /**

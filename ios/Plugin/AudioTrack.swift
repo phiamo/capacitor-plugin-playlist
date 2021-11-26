@@ -25,7 +25,6 @@ final class AudioTrack: AVPlayerItem {
         else {
             return nil
         }
-        
         let track = AudioTrack(url: assetUrl)
         track.canUseNetworkResourcesForLiveStreamingWhilePaused = true
 
