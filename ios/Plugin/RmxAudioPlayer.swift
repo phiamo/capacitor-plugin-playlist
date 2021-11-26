@@ -29,6 +29,8 @@ final class RmxAudioPlayer: NSObject {
 
     private let avQueuePlayer = AVBidirectionalQueuePlayer(items: [])
 
+    private var lastTrackId: String? = nil
+    private var lastRate: Float? = nil
     override init() {
         super.init()
 
@@ -445,7 +447,6 @@ final class RmxAudioPlayer: NSObject {
         let trackStatus = getStatusItem(playerItem)
         
         onStatus(.rmxstatus_STALLED, trackId: playerItem?.trackId, param: trackStatus)
-        onStatus(.rmxstatus_PAUSE, trackId: playerItem?.trackId, param: trackStatus)
     }
 
     @objc func playerItemDidReachEnd(_ notification: Notification?) {
@@ -519,31 +520,37 @@ final class RmxAudioPlayer: NSObject {
     }
 
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
-        if keyPath != "loadedTimeRanges" {
-            print("observing \(String(describing: keyPath))")
-            print("observing \(String(describing: change))")
+        guard let change = change else {
+            return
         }
         
         switch keyPath {
         case "currentItem":
+            // only fire on real change!
             let player = object as? AVBidirectionalQueuePlayer
             let playerItem = player?.currentAudioTrack
+            guard lastTrackId != playerItem?.trackId else {
+                return // todo should call super instead or?
+            }
+            lastTrackId = playerItem?.trackId
             handleCurrentItemChanged(playerItem)
         case "rate":
-            DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
-                let player = object as? AVBidirectionalQueuePlayer
-                
-                guard let playerItem = player?.currentAudioTrack else { return }
+            guard lastRate != change[.newKey] as? Float else {
+                return // todo should call super instead or?
+            }
+            self.lastRate = change[.newKey] as? Float
+            let player = object as? AVBidirectionalQueuePlayer
+            
+            guard let playerItem = player?.currentAudioTrack else { return }
 
-                let trackStatus = getStatusItem(playerItem)
-                print("Playback rate changed: \(1), is playing: \(player?.isPlaying ?? false)")
+            let trackStatus = getStatusItem(playerItem)
+            print("Playback rate changed: \(String(describing: change[.newKey])), is playing: \(player?.isPlaying ?? false)")
 
-                if player?.isPlaying ?? false {
-                    onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
-                } else {
-                    onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
-                }
-            })
+            if player?.isPlaying ?? false {
+                onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
+            } else {
+                onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
+            }
         case "status":
             DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
@@ -553,10 +560,15 @@ final class RmxAudioPlayer: NSObject {
             DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let player = object as? AVBidirectionalQueuePlayer
                 
-                guard let playerItem = player?.currentAudioTrack else { return }
+                guard let playerItem = player?.currentAudioTrack else {
+                    return
+                }
+                guard lastTrackId != playerItem.trackId else {
+                    return // todo should call super instead or?
+                }
 
                 let trackStatus = getStatusItem(playerItem)
-                print("Playback rate changed: \(1), is playing: \(player?.isPlaying ?? false)")
+                print("TCSPlayback rate changed: \(String(describing: change[.newKey])), is playing: \(player?.isPlaying ?? false)")
 
                 if player?.timeControlStatus == .playing {
                     onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
@@ -611,19 +623,18 @@ final class RmxAudioPlayer: NSObject {
                 updatedNowPlayingInfo![MPMediaItemPropertyArtwork] = mediaItemArtwork
             }
         }
-        updatedNowPlayingInfo![MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration ?? 0.0)
-        updatedNowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: currentTime ?? 0.0)
-        updatedNowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: 1.0)
+        updatedNowPlayingInfo![MPMediaItemPropertyPlaybackDuration] = duration ?? 0.0
+        updatedNowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime ?? 0.0
+        updatedNowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] = 1.0
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = updatedNowPlayingInfo
-        print("noplaying \(String(describing: updatedNowPlayingInfo))")
+        
         let commandCenter = MPRemoteCommandCenter.shared()
         commandCenter.nextTrackCommand.isEnabled = !avQueuePlayer.isAtEnd
         commandCenter.previousTrackCommand.isEnabled = !avQueuePlayer.isAtBeginning
     }
 
     func createCoverArtwork(_ coverUriOrNil: String?) -> MPMediaItemArtwork? {
-        print("Creating cover art : \(String(describing: coverUriOrNil))")
         guard let coverUri = coverUriOrNil else {
             return nil
         }
@@ -645,9 +656,7 @@ final class RmxAudioPlayer: NSObject {
         }
         
         if isCoverImageValid(coverImage) {
-            print("valid cover image \(String(describing: coverImage)) size \(coverImage!.size)")
             return MPMediaItemArtwork.init(boundsSize: coverImage!.size, requestHandler: { (size) -> UIImage in
-                print("inted cover image \(String(describing: coverImage)) size \(coverImage!.size)")
                 return coverImage!
             })
         }
@@ -841,7 +850,7 @@ final class RmxAudioPlayer: NSObject {
         }
 
         if avQueuePlayer.currentItem == currentItem {
-            if avQueuePlayer.rate != 0 {
+            if avQueuePlayer.rate != 0.0 {
                 status = "playing"
 
                 if position <= 0 && (bufferInfo?["bufferPercent"] as? NSNumber)?.floatValue ?? 0.0 == 0.0 {
@@ -971,7 +980,6 @@ final class RmxAudioPlayer: NSObject {
         listener.addObserver(self, selector: #selector(itemStalledPlaying(_:)), name: .AVPlayerItemPlaybackStalled, object: playerItem)
 
         onStatus(.rmxstatus_ITEM_ADDED, trackId: playerItem?.trackId, param: playerItem?.toDict())
-        onStatus(.rmxstatus_LOADING, trackId: playerItem?.trackId, param: nil)
     }
 
     @objc func queueCleared(_ notification: Notification?) {
