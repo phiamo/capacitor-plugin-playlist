@@ -12,6 +12,11 @@ import 'capacitor-plugin-playlist';
 import {environment} from '@env/environment';
 
 
+/**
+ * This is meant as an example for usage in angular 2+
+ * Adopt it to your own needs, most probably use another interface than AudioTrack to fulfil contracts with your app,
+ * e.g. add a service for offline playback, which can deliver a different url depending if the file is local or not
+ */
 @Injectable({
   providedIn: 'root'
 })
@@ -47,23 +52,21 @@ export class AudioProvider {
     await this.audioPlayer.setLoop( true);
   }
 
-  async setCurrent(audioTrack: AudioTrack) {
+  async setCurrent(audioTrack: AudioTrack, currentPosition: number) {
     const wasPlaying = this.isPlaying;
 
     if (wasPlaying) {
-      await this.audioPlayer.playTrackById(audioTrack.trackId, audioTrack.viewedUntil);
+      await this.audioPlayer.playTrackById(audioTrack.trackId, currentPosition);
     } else {
-      await this.audioPlayer.selectTrackById(audioTrack.trackId, audioTrack.viewedUntil);
+      await this.audioPlayer.selectTrackById(audioTrack.trackId, currentPosition);
     }
   }
 
-  async setPlaylistItems(audioTracks: AudioTrack[], currentItem?: AudioTrack) {
-    let currentPosition = 0;
+  async setPlaylistItems(audioTracks: AudioTrack[], currentItem?: AudioTrack, currentPosition= 0) {
     let currentId = null;
 
     let options: AudioTrackOptions = {};
     if (currentItem) {
-      currentPosition = Math.floor(currentItem.viewedUntil);
       currentId = currentItem.trackId;
       const startPaused = !this.isPlaying;
       options = {

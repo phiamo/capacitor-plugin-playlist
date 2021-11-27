@@ -42,8 +42,7 @@ export class RmxAudioPlayer {
     handlers: AudioPlayerEventHandlers = {};
     options: AudioPlayerOptions = {verbose: false, resetStreamOnPause: true};
 
-    private _inititialized: boolean = false;
-    private _initPromise: Promise<void>;
+    private readonly _initPromise: Promise<void>;
     private _readyResolve: (value?: any | PromiseLike<boolean>) => void = () => {
     };
     private _readyReject: (reason?: any) => void = () => {
@@ -61,13 +60,6 @@ export class RmxAudioPlayer {
      */
     get currentState() {
         return this._currentState;
-    }
-
-    /**
-     * True if the plugin has been initialized. You'll likely never see this state; it is handled internally.
-     */
-    get isInitialized() {
-        return this._inititialized;
     }
 
     get currentTrack(): AudioTrack | null {
@@ -123,13 +115,13 @@ export class RmxAudioPlayer {
      */
     constructor() {
         this.handlers = {};
+        new Promise<void>((resolve) => {
+            window.addEventListener('beforeunload', () => resolve(), {once: true});
+        }).then(() => Playlist.release());
         this._initPromise = new Promise((resolve, reject) => {
             this._readyResolve = resolve;
             this._readyReject = reject;
         });
-        new Promise<void>((resolve) => {
-            window.addEventListener('beforeunload', () => resolve(), {once: true});
-        }).then(() => Playlist.release());
     }
 
     /**
@@ -142,6 +134,7 @@ export class RmxAudioPlayer {
     ready = () => {
         return this._initPromise;
     };
+
 
     initialize = async () => {
         Playlist.addListener(
@@ -157,15 +150,12 @@ export class RmxAudioPlayer {
 
         try {
             await Playlist.initialize();
-            this._inititialized = true;
             this._readyResolve();
         } catch (args) {
             const message = 'Capacitor RMXAUDIOPLAYER: Error initializing:';
             console.warn(message, args);
             this._readyReject();
         }
-
-        return this._initPromise;
     };
 
     /**

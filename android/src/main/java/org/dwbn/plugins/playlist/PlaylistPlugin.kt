@@ -11,7 +11,7 @@ import java.util.*
 
 @CapacitorPlugin(name = "Playlist")
 class PlaylistPlugin : Plugin(), OnStatusReportListener {
-    var TAG = "RmxAudioPlayer"
+    var TAG = "PlaylistPlugin"
     private var statusCallback: OnStatusCallback? = null
     private var audioPlayerImpl: RmxAudioPlayer? = null
     private var resetStreamOnPause = true
@@ -24,9 +24,9 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
     fun initialize(call: PluginCall) {
         statusCallback = OnStatusCallback(this)
         onStatus(RmxAudioStatusMessage.RMXSTATUS_REGISTER, "INIT", null)
-        call.resolve()
-        Log.i(TAG, "Initialized")
+        Log.i(TAG, "Initialized...")
         audioPlayerImpl!!.resume()
+        call.resolve()
     }
     @PluginMethod
     fun setOptions(call: PluginCall) {
@@ -107,9 +107,9 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     @PluginMethod
     fun removeItem(call: PluginCall) {
-        val trackIndex: Int = call.getInt("trackIndex", -1)!!
-        val trackId: String = call.getString("tracktrackId", "")!!
-        Log.i(TAG,"removeItem")
+        val trackIndex: Int = call.getInt("index", -1)!!
+        val trackId: String = call.getString("id", "")!!
+        Log.i(TAG,"removeItem trackIn" )
         val item = audioPlayerImpl!!.playlistManager.removeItem(trackIndex, trackId)
 
         if (item != null) {
@@ -278,7 +278,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
         val isPlaying: Boolean? = audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer?.isPlaying
         audioPlayerImpl!!.playlistManager.playlistHandler?.seek(seekPosition)
-        if (!isPlaying!!) {
+        if (isPlaying === null || !isPlaying) {
             audioPlayerImpl!!.playlistManager.playlistHandler?.pause(false)
         }
 
@@ -294,7 +294,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
         call.resolve()
 
-        Log.i(TAG,"addItem")
+        Log.i(TAG,"setPlaybackRate")
     }
 
     @PluginMethod
@@ -321,7 +321,7 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
         onStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, trackId, errorObj)
     }
 
-    override fun onStatus(what: RmxAudioStatusMessage?, trackId: String?, param: JSONObject?) {
+    override fun onStatus(what: RmxAudioStatusMessage, trackId: String?, param: JSONObject?) {
         if (statusCallback == null) {
             return
         }
@@ -355,6 +355,6 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
     }
 
     fun emit(name: String, data: JSObject) {
-        this.notifyListeners(name, data)
+        this.notifyListeners(name, data, true)
     }
 }

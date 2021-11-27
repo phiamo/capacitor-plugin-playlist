@@ -29,7 +29,7 @@ import org.json.JSONObject;
 public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
         PlaylistListener<AudioTrack>, ProgressListener, OnErrorListener, MediaControlsListener {
 
-    public static String TAG = "RmxAudioPlayer";
+    public static String TAG = "PlaylistRmxAudioPlayer";
 
     // PlaylistCore requires this but we don't use it
     // It would be used to switch between playlists. I guess we could
@@ -68,7 +68,7 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
 
     public boolean getResetStreamOnPause() {
         return resetStreamOnPause;
-    }
+    } 
 
     public void setResetStreamOnPause(boolean val) {
         resetStreamOnPause = val;

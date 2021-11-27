@@ -48,7 +48,8 @@ ext {
     exoPlayerVersion = "2.9.6"
     supportLibVersion = "28.0.0"
 }
-##### AndroidManifest.xml`:
+```
+##### AndroidManifest.xml:
 ```
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -59,8 +60,20 @@ ext {
                  android:name="org.dwbn.plugins.playlist.service.MediaService">
         </service>
     </application>
-
 ```
+
+##### Glide image loading for notifiction center
+To be able to use glide you need to create a file MyAppGlideModule.java:
+```
+package org.your.package.namespace;
+
+import com.bumptech.glide.annotation.GlideModule;
+import com.bumptech.glide.module.AppGlideModule;
+
+@GlideModule
+public final class MyAppGlideModule extends AppGlideModule {}
+```
+also see https://guides.codepath.com/android/Displaying-Images-with-the-Glide-Library
 
 ### iOS
 ##### inside Info.plist:
@@ -95,6 +108,17 @@ Be sure to check out the examples folder, where you can find an Angular10/Ionic5
 Just drop into your project and go.
 Should be quite obvious howto adapt this for other frameworks, or just vanillaJS
 
+### Migrating from cordova-plugin-playlist
+
+See the Example RmxAudioPlayer.ts
+
+Its a meant as a drop in replacement
+
+in the best case you only change your import. :D
+
+### API
+
+- TODO!
 ## 5. Todo
 * [iOS] Write this plugin in Swift instead of Objective-C. I didn't have time to learn Swift when I needed this.
 * [iOS] Safely implement cover art for cover images displayed on the command/lock screen controls
