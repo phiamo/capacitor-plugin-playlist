@@ -105,20 +105,32 @@ Be sure to check out the examples folder, where you can find an Angular10/Ionic5
 Just drop into your project and go.
 Should be quite obvious howto adapt this for other frameworks, or just vanillaJS
 
+### API
+Example:
+@see definition.ts
+```
+import {Playlist, AudioTrack} from 'capacitor-plugin-playlist'
+
+const item: AudioTrack = {
+    trackId: 1,
+    assetUrl: 'http://your_audio',
+    albumArt: 'http://some_image'
+}
+await Playlist.addItem({item})
+```
+
+- TODO!
+
 ### Migrating from cordova-plugin-playlist
 
-See the Example RmxAudioPlayer.ts
+See the use the shipped RmxAudioPlayer.ts
 
 Its a meant as a drop in replacement
 
 in the best case you only change your import. :D
 
-### API
 
-- TODO!
 ## 5. Todo
-* [iOS] Write this plugin in Swift instead of Objective-C. I didn't have time to learn Swift when I needed this.
-* [iOS] Safely implement cover art for cover images displayed on the command/lock screen controls
 * [iOS] Utilize [AudioPlayer](https://github.com/delannoyk/AudioPlayer) instead of directly implementing AVQueuePlayer. `AudioPlayer` includes some smart network recovery features
 * [iOS, Android] Add a full example
 
