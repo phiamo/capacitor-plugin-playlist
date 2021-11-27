@@ -192,10 +192,10 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     @PluginMethod
     fun playTrackById(call: PluginCall) {
-        val trackId: String = call.getString("id")!!
-        if ("" != trackId) {
+        val id: String = call.getString("id")!!
+        if ("" != id) {
             // alternatively we could search for the item and set the current index to that item.
-            val code = trackId.hashCode()
+            val code = id.hashCode()
             val seekPosition = (call.getInt("position", 0)!! * 1000.0).toLong()
             audioPlayerImpl!!.playlistManager.setCurrentItem(code.toLong())
             audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, false)
@@ -224,10 +224,10 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     @PluginMethod
     fun selectTrackById(call: PluginCall) {
-        val trackId: String = call.getString("id")!!
-        if ("" != trackId) {
+        val id: String = call.getString("id")!!
+        if ("" != id) {
             // alternatively we could search for the item and set the current index to that item.
-            val code = trackId.hashCode()
+            val code = id.hashCode()
             audioPlayerImpl!!.playlistManager.setCurrentItem(code.toLong())
 
             val seekPosition = (call.getInt("position", 0)!! * 1000.0).toLong()
