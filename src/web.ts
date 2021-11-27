@@ -1,5 +1,5 @@
-import { WebPlugin } from '@capacitor/core';
-import { RmxAudioStatusMessage } from './Constants';
+import {WebPlugin} from '@capacitor/core';
+import {RmxAudioStatusMessage} from './Constants';
 import {
     AddAllItemOptions,
     AddItemOptions,
@@ -14,8 +14,8 @@ import {
     SelectByIndexOptions,
     SetLoopOptions, SetPlaybackRateOptions, SetPlaybackVolumeOptions
 } from './definitions';
-import { AudioPlayerOptions, AudioTrack } from './interfaces';
-import { validateTrack, validateTracks } from './utils';
+import {AudioPlayerOptions, AudioTrack} from './interfaces';
+import {validateTrack, validateTracks} from './utils';
 
 declare var Hls: any;
 
@@ -55,26 +55,30 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async play(): Promise<void> {
-        return this.audio?.play();
+        await this.audio?.play();
     }
 
-    playTrackById(options: PlayByIdOptions): Promise<void> {
-        this.playlistItems.forEach(async (item) => {
-            if (item.trackId === options.id) {
-                await this.setCurrent(item);
+    async playTrackById(options: PlayByIdOptions): Promise<void> {
+        for (let track of this.playlistItems) {
+            if (track.trackId === options.id) {
+                if (track !== this.currentTrack) {
+                    await this.setCurrent(track);
+                }
                 return this.play();
             }
-        });
+        }
         return Promise.reject();
     }
 
-    playTrackByIndex(options: PlayByIndexOptions): Promise<void> {
-        this.playlistItems.forEach(async (item, index) => {
+    async playTrackByIndex(options: PlayByIndexOptions): Promise<void> {
+        for (let {index, item} of this.playlistItems.map((item, index) => ({ index, item }))) {
             if (index === options.index) {
-                await this.setCurrent(item);
+                if (item !== this.currentTrack) {
+                    await this.setCurrent(item);
+                }
                 return this.play();
             }
-        });
+        }
         return Promise.reject();
     }
 
@@ -226,7 +230,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                 status: {
                     msgType: RmxAudioStatusMessage.RMXSTATUS_CANPLAY,
                     trackId: this.getCurrentTrackId(),
-                    value: this.getCurrentTrackStatus('loading'),
+                    value: this.getCurrentTrackStatus('paused'),
                 }
             });
             if (position) {

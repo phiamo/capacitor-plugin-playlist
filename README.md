@@ -1,10 +1,7 @@
 # capacitor-plugin-playlist
 Will probably be published as @dwbn/capacitor-playlist
 
-A capacitor plugin for Android, iOS and Web with native support for audio playlists, background support, and lock screen controls
-
-Capacitor 3 Version: > 0.1.0
-Capacitor 2 Version: < v0.1.0
+A capacitor 3. 0 plugin for Android, iOS and Web with native support for audio playlists, background support, and lock screen controls
 
 ## 0. Index
 
