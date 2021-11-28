@@ -98,10 +98,10 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             if (options.index && options.index === index) {
                 const removedTrack = this.playlistItems.splice(index, 1);
 
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED, removedTrack[0], removedTrack[0].trackId);
+                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, removedTrack[0], removedTrack[0].trackId);
             } else if (options.id && options.id === item.trackId) {
                 const removedTrack = this.playlistItems.splice(index, 1);
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED, removedTrack[0], removedTrack[0].trackId);
+                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, removedTrack[0], removedTrack[0].trackId);
             }
         });
         return Promise.resolve();
