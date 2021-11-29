@@ -163,7 +163,11 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     setPlaylistItems(options: PlaylistOptions): Promise<void> {
         this.playlistItems = options.items;
         if (this.playlistItems.length > 0) {
-            return this.setCurrent(this.playlistItems[0], options.options?.playFromPosition || 0);
+            let currentItem = this.playlistItems.filter(i => i.trackId === options.options?.playFromId)[0];
+            if (!currentItem) {
+                currentItem = this.playlistItems[0];
+            }
+            return this.setCurrent(currentItem, options.options?.playFromPosition || 0);
         }
         return Promise.resolve();
     }
