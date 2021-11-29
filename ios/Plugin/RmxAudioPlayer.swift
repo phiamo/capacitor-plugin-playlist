@@ -15,9 +15,9 @@ import UIKit
 extension String: Error {}
 
 final class RmxAudioPlayer: NSObject {
-    
+
     var statusUpdater: StatusUpdater? = nil
-    
+
     private var playbackTimeObserver: Any?
     private var wasPlayingInterrupted = false
     private var commandCenterRegistered = false
@@ -37,11 +37,11 @@ final class RmxAudioPlayer: NSObject {
         activateAudioSession()
         observeLifeCycle()
     }
-    
+
     deinit {
         releaseResources()
     }
-    
+
     func setOptions(_ options: [String:Any]) {
         print("RmxAudioPlayer.execute=setOptions, \(options)")
         resetStreamOnPause = (options["resetStreamOnPause"] as? NSNumber)?.boolValue ?? false
@@ -49,20 +49,20 @@ final class RmxAudioPlayer: NSObject {
 
     func initialize() {
         print("RmxAudioPlayer.execute=initialize")
-        
+
         avQueuePlayer.actionAtItemEnd = .advance
         avQueuePlayer.addObserver(self, forKeyPath: "currentItem", options: .new, context: nil)
         avQueuePlayer.addObserver(self, forKeyPath: "rate", options: .new, context: nil)
         avQueuePlayer.addObserver(self, forKeyPath: "timeControlStatus", options: .new, context: nil)
-        
+
         let interval = CMTimeMakeWithSeconds(Float64(1.0), preferredTimescale: Int32(Double(NSEC_PER_SEC)))
         playbackTimeObserver = avQueuePlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] time in
             self?.executePeriodicUpdate(time)
         })
-        
+
         onStatus(.rmxstatus_REGISTER, trackId: "INIT", param: nil)
     }
-    
+
     func setPlaylistItems(_ items: [AudioTrack], options: [String:Any]) {
         print("RmxAudioPlayer.execute=setPlaylistItems, \(options), \(items)")
 
@@ -89,7 +89,7 @@ final class RmxAudioPlayer: NSObject {
                 avQueuePlayer.setCurrentIndex(idx)
             }
         }
-        
+
         // This will wait for the AVPlayerItemStatusReadyToPlay status change, and then trigger playback.
         isWaitingToStartPlayback = !startPaused
         if isWaitingToStartPlayback {
@@ -136,7 +136,7 @@ final class RmxAudioPlayer: NSObject {
 
             }
         }
-        
+
         return removed
     }
 
@@ -170,7 +170,7 @@ final class RmxAudioPlayer: NSObject {
 
         avQueuePlayer.setCurrentIndex(idx)
         playCommand(false)
-        
+
         if positionTime != nil {
             seek(to: positionTime!, isCommand: false)
         }
@@ -187,7 +187,7 @@ final class RmxAudioPlayer: NSObject {
 
     func setLoopAll(_ loop: Bool) {
         self.loop = loop
-         
+
         print("RmxAudioPlayer.execute=setLoopAll, \(loop)")
     }
 
@@ -227,18 +227,18 @@ final class RmxAudioPlayer: NSObject {
         removeTrackObservers(item)
         avQueuePlayer.remove(item)
     }
-    
+
     func removeItem(_ id: String) throws {
         let result = findTrack(byId: id)
         let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
         let track = result?["track"] as? AudioTrack
-        
+
         guard idx >= 0 else {
             throw "Could not find track by id" + id
         }
         // AudioTrack* item = [self avQueuePlayer].itemsForPlayer[idx];
         removeTrackObservers(track)
-        
+
         if let track = track {
             avQueuePlayer.remove(track)
         }
@@ -284,7 +284,7 @@ final class RmxAudioPlayer: NSObject {
             avQueuePlayer.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero)
             currentTrack.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
         }
-		
+
         if isCommand {
             let action = "music-controls-pause"
             print("\(action)")
@@ -316,7 +316,7 @@ final class RmxAudioPlayer: NSObject {
     func playNext(_ isCommand: Bool) {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
-        
+
         avQueuePlayer.advanceToNextItem()
 
         if isCommand {
@@ -353,18 +353,18 @@ final class RmxAudioPlayer: NSObject {
             ])
         }
     }
-    
+
     func setVolume(_ volume: Float) {
         avQueuePlayer.volume = volume
     }
-    
+
     func addTracks(_ tracks: [AudioTrack], startPosition: Float) {
         for playerItem in tracks {
             addTrackObservers(playerItem)
         }
 
         avQueuePlayer.appendItems(tracks)
-        
+
         if startPosition > 0 {
             seek(to: startPosition, isCommand: false)
         }
@@ -445,7 +445,7 @@ final class RmxAudioPlayer: NSObject {
         // This happens when the network is insufficient to continue playback.
         let playerItem = avQueuePlayer.currentAudioTrack
         let trackStatus = getStatusItem(playerItem)
-        
+
         onStatus(.rmxstatus_STALLED, trackId: playerItem?.trackId, param: trackStatus)
     }
 
@@ -474,7 +474,7 @@ final class RmxAudioPlayer: NSObject {
                       interruptionNotification?.userInfo?[AVAudioSessionInterruptionTypeKey] as Any)
               return
         }
-        
+
         switch interruptionType {
         case AVAudioSession.InterruptionType.began:
             let suspended = (interruptionNotification?.userInfo?[AVAudioSessionInterruptionWasSuspendedKey] as? NSNumber)?.boolValue ?? false
@@ -523,7 +523,7 @@ final class RmxAudioPlayer: NSObject {
         guard let change = change else {
             return
         }
-        
+
         switch keyPath {
         case "currentItem":
             // only fire on real change!
@@ -540,7 +540,7 @@ final class RmxAudioPlayer: NSObject {
             }
             self.lastRate = change[.newKey] as? Float
             let player = object as? AVBidirectionalQueuePlayer
-            
+
             guard let playerItem = player?.currentAudioTrack else { return }
 
             let trackStatus = getStatusItem(playerItem)
@@ -559,7 +559,7 @@ final class RmxAudioPlayer: NSObject {
         case "timeControlStatus":
             DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
                 let player = object as? AVBidirectionalQueuePlayer
-                
+
                 guard let playerItem = player?.currentAudioTrack else {
                     return
                 }
@@ -594,7 +594,7 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func updateNowPlayingTrackInfo(_ playerItem: AudioTrack?, updateTrackData: Bool) {
-        
+
         let currentItem = playerItem ?? avQueuePlayer.currentAudioTrack
         let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
         if updatedNowPlayingInfo == nil {
@@ -628,7 +628,7 @@ final class RmxAudioPlayer: NSObject {
         updatedNowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] = 1.0
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = updatedNowPlayingInfo
-        
+
         let commandCenter = MPRemoteCommandCenter.shared()
         commandCenter.nextTrackCommand.isEnabled = !avQueuePlayer.isAtEnd
         commandCenter.previousTrackCommand.isEnabled = !avQueuePlayer.isAtBeginning
@@ -638,11 +638,11 @@ final class RmxAudioPlayer: NSObject {
         guard let coverUri = coverUriOrNil else {
             return nil
         }
-        
+
         var coverImage: UIImage? = nil
         if coverUri.hasPrefix("http://") || coverUri.hasPrefix("https://") {
             let coverImageUrl = URL(string: coverUri)!
-            
+
             do {
                 let coverImageData = try Data(contentsOf: coverImageUrl)
                 coverImage = UIImage(data: coverImageData)
@@ -654,7 +654,7 @@ final class RmxAudioPlayer: NSObject {
                 coverImage = UIImage(contentsOfFile: coverUri)
             }
         }
-        
+
         if isCoverImageValid(coverImage) {
             return MPMediaItemArtwork.init(boundsSize: coverImage!.size, requestHandler: { (size) -> UIImage in
                 return coverImage!
@@ -662,7 +662,7 @@ final class RmxAudioPlayer: NSObject {
         }
         return nil;
     }
-    
+
     func downloadImage(url: URL, completion: @escaping ((_ image: UIImage?) -> Void)){
         print("Started downloading \"\(url.deletingPathExtension().lastPathComponent)\".")
         self.getImageDataFromUrl(url) { (_ data: Data?) in
@@ -773,9 +773,9 @@ final class RmxAudioPlayer: NSObject {
         // It doesn't always fire, and it is not needed because the queue's periodic update can also
         // deliver this info.
         //NSString* name = ((AVURLAsset*)playerItem.asset).URL.pathComponents.lastObject;
-        
+
         guard let playerItem = playerItem else { return }
-        
+
         if !CMTIME_IS_INDEFINITE(playerItem.duration) {
             let duration = CMTimeGetSeconds(playerItem.duration)
             print("The track duration was changed [\(playerItem.trackId ?? "")]: \(duration)")
@@ -860,7 +860,7 @@ final class RmxAudioPlayer: NSObject {
                 status = "paused"
             }
         }
-        
+
         return [
             "trackId": currentItem.trackId ?? "",
             "isStream": currentItem.isStream ? NSNumber(value: 1) : NSNumber(value: 0),
@@ -896,10 +896,10 @@ final class RmxAudioPlayer: NSObject {
                 "duration": NSNumber(value: 0.0)
             ]
         }
-        
+
         let duration = Float(CMTimeGetSeconds(playerItem.duration))
         let timeRanges = playerItem.loadedTimeRanges
-        
+
         guard !timeRanges.isEmpty else {
             return [
                 "start": NSNumber(value: 0.0),
@@ -908,7 +908,7 @@ final class RmxAudioPlayer: NSObject {
                 "duration": NSNumber(value: duration)
             ]
         }
-        
+
         let timerange = timeRanges[0].timeRangeValue
         let start = Float(CMTimeGetSeconds(timerange.start))
         let rangeEnd = Float(CMTimeGetSeconds(timerange.duration))
@@ -959,7 +959,7 @@ final class RmxAudioPlayer: NSObject {
         else {
             return nil
         }
-    
+
         return [
             "track": track,
             "index": NSNumber(value: index)
@@ -1076,7 +1076,7 @@ final class RmxAudioPlayer: NSObject {
 
         commandCenterRegistered = false
     }
-    
+
     func onReset() {
         // Override to cancel any long-running requests when the WebView navigates or refreshes.
         //super.onReset()
