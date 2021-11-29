@@ -89,6 +89,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     async release(): Promise<void> {
         await this.pause();
+        this.audio!.src = "";
         this.audio = undefined;
         return Promise.resolve();
     }
@@ -319,6 +320,11 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             this.audio.load();
         }
         this.audio = document.createElement('video');
+        if (wasPlaying) {
+            this.audio.addEventListener('canplay', () => {
+                this.play();
+            });
+        }
         this.currentTrack = item;
         if (item.assetUrl.includes('.m3u8')) {
             await this.loadHlsJs();
@@ -339,12 +345,6 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         }
 
         await this.registerHtmlListeners(position);
-
-        if (wasPlaying) {
-            this.audio.addEventListener('canplay', () => {
-                this.play();
-            });
-        }
 
         this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_TRACK_CHANGED, {
             currentItem: item
