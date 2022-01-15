@@ -36,6 +36,24 @@ As with most capacitor plugins...
 npm i capacitor-plugin-playlist
 npx cap sync
 ```
+### For web
+include hlsjs in your build 
+
+#### E.G. for Angular 2+: 
+```
+npm i hls.js
+```
+
+then add to angular.json:
+architect => build => options:
+
+```
+    "scripts": [
+      {
+        "input": "node_modules/hls.js/dist/hls.min.js"
+      }
+    ]
+```
 
 ### On Android:
 

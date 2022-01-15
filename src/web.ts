@@ -89,7 +89,6 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     async release(): Promise<void> {
         await this.pause();
-        this.audio!.src = "";
         this.audio = undefined;
         return Promise.resolve();
     }
@@ -364,11 +363,12 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     private hlsLoaded = false;
 
     protected loadHlsJs() {
-        if (this.hlsLoaded) {
+        if (window.Hls !== undefined || this.hlsLoaded) {
             return Promise.resolve();
         }
         return new Promise(
             (resolve, reject) => {
+                console.log("LOADING HLS FROM CDN");
                 const script = document.createElement('script');
                 script.type = 'text/javascript';
                 script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.1.1';
