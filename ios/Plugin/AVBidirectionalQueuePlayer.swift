@@ -123,7 +123,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         }
     }
     open override func advanceToNextItem() {
-        if currentIndex() == nil || currentIndex()! < items().count - 1{
+        if currentIndex() == nil || currentIndex()! < queuedAudioTracks.count - 1{
             super.advanceToNextItem();
         } else {
             setCurrentIndex(0)
@@ -135,9 +135,6 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     }
     
     func setCurrentIndex(_ newCurrentIndex: Int, completionHandler: @escaping (Bool) -> Void) {
-        // NSUInteger tempNowPlayingIndex = [_itemsForPlayer indexOfObject: self.currentItem];
-
-        // if (tempNowPlayingIndex != NSNotFound){
         let currentrate = rate
         if currentrate > 0 {
             pause()
@@ -155,7 +152,6 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         }
         // Not a typo; see above comment
         seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
-        // }
     }
     
     func replaceAllItems(with items: [AudioTrack]) {
@@ -235,7 +231,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         
         if afterItem != nil && queuedAudioTracks.contains(afterItem!) {
             // AfterItem is non-nil
-            if (queuedAudioTracks.firstIndex(of: afterItem!) ?? NSNotFound) < (queuedAudioTracks.count ) - 1 {
+            if (queuedAudioTracks.firstIndex(of: afterItem!) ?? NSNotFound) < (queuedAudioTracks.count - 1) {
                 queuedAudioTracks.insert(item, at: (queuedAudioTracks.firstIndex(of: afterItem!) ?? NSNotFound) + 1)
             } else {
                 queuedAudioTracks.append(item)

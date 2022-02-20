@@ -149,8 +149,10 @@ final class RmxAudioPlayer: NSObject {
         guard (0..<avQueuePlayer.queuedAudioTracks.count).contains(index) else {
             throw "Provided index is out of bounds"
         }
-
-        avQueuePlayer.setCurrentIndex(index)
+        
+        if avQueuePlayer.currentIndex() != index {
+            avQueuePlayer.setCurrentIndex(index)
+        }
         playCommand(false)
 
         if positionTime != nil {
@@ -162,13 +164,15 @@ final class RmxAudioPlayer: NSObject {
         guard !avQueuePlayer.queuedAudioTracks.isEmpty else {
             throw "The playlist is empty!"
         }
-        let result = findTrack(byId: trackId)
-        let idx = result?["index"] as? Int ?? -1
-        guard idx >= 0 else {
-            throw "Track ID not found"
+        
+        if avQueuePlayer.currentAudioTrack?.trackId != trackId {
+            let result = findTrack(byId: trackId)
+            let idx = result?["index"] as? Int ?? -1
+            guard idx >= 0 else {
+                throw "Track ID not found"
+            }
+            avQueuePlayer.setCurrentIndex(idx)
         }
-
-        avQueuePlayer.setCurrentIndex(idx)
         playCommand(false)
 
         if positionTime != nil {
@@ -257,14 +261,13 @@ final class RmxAudioPlayer: NSObject {
         if resetStreamOnPause,
            let currentTrack = avQueuePlayer.currentAudioTrack,
            currentTrack.isStream {
+            print( "music-stream-play")
             avQueuePlayer.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero)
             currentTrack.seek(to: .positiveInfinity, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
         }
 
-        if isCommand {
-            let action = "music-controls-play"
-            print("\(action)")
-        }
+            print( "music-controls-play ")
+        
         avQueuePlayer.play()
     }
 
@@ -529,11 +532,15 @@ final class RmxAudioPlayer: NSObject {
             // only fire on real change!
             let player = object as? AVBidirectionalQueuePlayer
             let playerItem = player?.currentAudioTrack
-            guard lastTrackId != playerItem?.trackId else {
+            if playerItem != nil {
+            guard self.lastTrackId != playerItem?.trackId else {
                 return // todo should call super instead or?
             }
-            lastTrackId = playerItem?.trackId
+            print("observe change currentItem: lastTrackId \(self.lastTrackId) playerItem: \(playerItem?.trackId)")
+            self.lastTrackId = playerItem?.trackId
             handleCurrentItemChanged(playerItem)
+            }
+            
         case "rate":
             guard lastRate != change[.newKey] as? Float else {
                 return // todo should call super instead or?
@@ -594,7 +601,6 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func updateNowPlayingTrackInfo(_ playerItem: AudioTrack?, updateTrackData: Bool) {
-
         let currentItem = playerItem ?? avQueuePlayer.currentAudioTrack
         let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
         if updatedNowPlayingInfo == nil {
@@ -638,7 +644,6 @@ final class RmxAudioPlayer: NSObject {
         guard let coverUri = coverUriOrNil else {
             return nil
         }
-
         var coverImage: UIImage? = nil
         if coverUri.hasPrefix("http://") || coverUri.hasPrefix("https://") {
             let coverImageUrl = URL(string: coverUri)!
@@ -754,9 +759,10 @@ final class RmxAudioPlayer: NSObject {
                 isWaitingToStartPlayback = false
                 var errorMsg = ""
                 if playerItem.error != nil {
+                    print("\(playerItem.error)")
                     errorMsg = "Error playing audio track: \((playerItem.error as NSError?)?.localizedFailureReason ?? "")"
                 }
-                print("AVPlayerItemStatusFailed: Error playing audio track: \(errorMsg)")
+                print("AVPlayerItemStatusFailed: \(errorMsg)")
                 let errorParam = createError(withCode: .rmxerr_DECODE, message: errorMsg)
                 onStatus(.rmxstatus_ERROR, trackId: playerItem.trackId, param: errorParam)
             case .unknown:
@@ -989,9 +995,6 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func removeTrackObservers(_ playerItem: AudioTrack?) {
-        playerItem?.removeObserver(self, forKeyPath: "status")
-        playerItem?.removeObserver(self, forKeyPath: "duration")
-        playerItem?.removeObserver(self, forKeyPath: "loadedTimeRanges")
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemPlaybackStalled, object: playerItem)
 
@@ -1023,10 +1026,6 @@ final class RmxAudioPlayer: NSObject {
     /// Register the listener for pause and resume events.
     func observeLifeCycle() {
         let listener = NotificationCenter.default
-
-        // These aren't really needed. the AVQueuePlayer handles this for us.
-        // [listener addObserver:self selector:@selector(handleEnterBackground) name:UIApplicationDidEnterBackgroundNotification object:nil];
-        // [listener addObserver:self selector:@selector(handleEnterForeground) name:UIApplicationWillEnterForegroundNotification object:nil];
 
         // We do need these.
         listener.addObserver(self, selector: #selector(handleAudioSessionInterruption(_:)), name: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance())
@@ -1060,11 +1059,6 @@ final class RmxAudioPlayer: NSObject {
 
     /// Cleanup
     func deregisterMusicControlsEventListener() {
-        // We don't use the remote control, and no need to remove observer on
-        // NSNotificationCenter, that is done automatically
-        // [[UIApplication sharedApplication] endReceivingRemoteControlEvents];
-        // [[NSNotificationCenter defaultCenter] removeObserver:self name:@"receivedEvent" object:nil];
-
         let commandCenter = MPRemoteCommandCenter.shared()
         commandCenter.playCommand.removeTarget(self)
         commandCenter.pauseCommand.removeTarget(self)
@@ -1079,7 +1073,6 @@ final class RmxAudioPlayer: NSObject {
 
     func onReset() {
         // Override to cancel any long-running requests when the WebView navigates or refreshes.
-        //super.onReset()
         releaseResources()
     }
 
@@ -1087,9 +1080,6 @@ final class RmxAudioPlayer: NSObject {
         if let playbackTimeObserver = playbackTimeObserver {
             avQueuePlayer.removeTimeObserver(playbackTimeObserver)
         }
-        avQueuePlayer.removeObserver(self as NSObject, forKeyPath: "currentItem")
-        avQueuePlayer.removeObserver(self as NSObject, forKeyPath: "rate")
-        avQueuePlayer.removeObserver(self as NSObject, forKeyPath: "timeControlStatus")
         deregisterMusicControlsEventListener()
 
         removeAllTracks()
