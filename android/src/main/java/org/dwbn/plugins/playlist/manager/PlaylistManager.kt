@@ -104,14 +104,12 @@ class PlaylistManager(application: Application) :
         currentPosition = 0
         // If the options said to start from a specific position, do so.
         var seekStart: Long = 0
-        if (options.retainPosition) {
-            if (options.playFromPosition > 0) {
-                seekStart = options.playFromPosition
-            } else {
-                val progress = currentProgress
-                if (progress != null) {
-                    seekStart = progress.position
-                }
+        if (options.playFromPosition > 0) {
+            seekStart = options.playFromPosition
+        } else if (options.retainPosition) {
+            val progress = currentProgress
+            if (progress != null) {
+              seekStart = progress.position
             }
         }
 
