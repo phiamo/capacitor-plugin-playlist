@@ -74,11 +74,11 @@ final class RmxAudioPlayer: NSObject {
 
         let startPaused = options["startPaused"] != nil ? (options["startPaused"] as? Bool) ?? false : true
 
-        if retainPosition {
+        if playFromPosition > 0.0 {
+            seekToPosition = playFromPosition
+        }
+        else if retainPosition {
             seekToPosition = getTrackCurrentTime(nil)
-            if playFromPosition > 0.0 {
-                seekToPosition = playFromPosition
-            }
         }
 
         let result = findTrack(byId: playFromId)
