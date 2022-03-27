@@ -45,11 +45,11 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         // the queue (such as restarting the item).
         currentIndex() == 0
     }
-    
+    /*
     var isAtEnd: Bool {
         guard let currentIndex = currentIndex() else { return true }
         return currentIndex >= (queuedAudioTracks.endIndex - 1)
-    }
+    }*/
     
     var currentAudioTrack: AudioTrack? { currentItem as? AudioTrack }
 
@@ -185,6 +185,8 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     }
 
     // OVERRIDDEN AVQUEUEPLAYER METHODS
+    /*
+    resolving #9 and 11 and taking this out remove code after stabilize
     override func play() {
         if isAtEnd {
             // we could add a flag here to indicate looping
@@ -192,7 +194,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         }
 
         super.play()
-    }
+    }*/
     // This does the same thing as the normal AVQueuePlayer removeAllItems, but clears our collection copy
     override func removeAllItems() {
         print("removeAllItems")
