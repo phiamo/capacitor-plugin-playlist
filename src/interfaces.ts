@@ -23,6 +23,13 @@ export interface PlaylistStatusChangeCallbackArg {
     status: OnStatusCallbackData;
 }
 
+export interface AudioTrackOptions {
+    playFromPosition: number;
+    startPaused: boolean;
+    retainPosition: boolean;
+    playFromId: string;
+}
+
 /**
  * Options governing the overall behavior of the audio player plugin
  */
