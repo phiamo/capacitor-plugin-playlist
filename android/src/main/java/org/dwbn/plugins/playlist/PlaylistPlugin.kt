@@ -30,15 +30,11 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
     }
     @PluginMethod
     fun setOptions(call: PluginCall) {
-        val options: JSObject = call.getObject("options")
+        val options: JSObject = call.getObject("options") ?: JSObject()
         resetStreamOnPause = options.optBoolean("resetStreamOnPause", this.resetStreamOnPause)
-        var jsonOptions = options.optJSONObject("options")
-        if (jsonOptions == null) {
-            jsonOptions = JSONObject()
-        }
-        Log.i("AudioPlayerOptions", jsonOptions.toString())
+        Log.i("AudioPlayerOptions", options.toString())
         audioPlayerImpl!!.resetStreamOnPause = resetStreamOnPause
-        audioPlayerImpl!!.setOptions(jsonOptions)
+        audioPlayerImpl!!.setOptions(options)
         call.resolve()
     }
 
