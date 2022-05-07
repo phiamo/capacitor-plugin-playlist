@@ -306,6 +306,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             currentIndex: this.getCurrentIndex(),
             status: currentState,
             currentPosition: this.audio?.currentTime || 0,
+            duration: this.audio?.duration || 0,
         };
     }
 
