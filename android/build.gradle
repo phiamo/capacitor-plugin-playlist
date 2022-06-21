@@ -7,7 +7,7 @@ ext {
 }
 
 buildscript {
-    ext.kotlin_version = '1.4.32'
+    ext.kotlin_version = '1.6.0'
     repositories {
         google()
         jcenter()
@@ -69,6 +69,6 @@ dependencies {
     annotationProcessor 'com.github.bumptech.glide:compiler:4.6.1'
 
     // Playlist support
-    implementation 'com.devbrackets.android:playlistcore:2.0.1'
+    implementation 'com.devbrackets.android:playlistcore:2.1.0'
 
 }
