@@ -27,6 +27,7 @@
     "clean": "rimraf ./dist",
     "watch": "tsc --watch",
     "prepublishOnly": "npm run build"
+    "prepare": "npm run build"
   },
   "author": "phiamo",
   "license": "MIT",
