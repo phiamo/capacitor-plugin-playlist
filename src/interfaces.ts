@@ -151,7 +151,7 @@ export interface OnStatusCallbackData {
     /**
      * The type of status update
      */
-    msgType: RmxAudioStatusMessage;
+    type: RmxAudioStatusMessage;
     /**
      * The status payload. For all updates except ERROR, the data package is described by OnStatusCallbackUpdateData.
      * For Errors, the data is shaped as OnStatusErrorCallbackData
