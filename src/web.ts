@@ -277,6 +277,10 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                     lastPosition = status.currentPosition;
                 }
             });
+
+            this.audio.addEventListener('durationchange', () => {
+                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_DURATION, this.getCurrentTrackStatus(this.lastState))
+            });
         }
     }
 
