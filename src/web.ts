@@ -265,7 +265,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             });
 
             this.audio.addEventListener('ended', () => {
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_STOPPED, this.getCurrentTrackStatus('stopped'));
+                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_COMPLETED, this.getCurrentTrackStatus('stopped'));
             });
 
             let lastTrackId: any, lastPosition: any;
