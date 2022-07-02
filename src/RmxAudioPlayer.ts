@@ -141,7 +141,7 @@ export class RmxAudioPlayer {
             'status',
             (data: { action: string, status: OnStatusCallbackData }) => {
                 if (data.action === 'status') {
-                    this.onStatus(data.status.trackId, data.status.msgType, data.status.value);
+                    this.onStatus(data.status.trackId, data.status.type, data.status.value);
                 } else {
                     console.warn('Unknown audio player onStatus message:', data);
                 }
