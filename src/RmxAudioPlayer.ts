@@ -330,12 +330,12 @@ export class RmxAudioPlayer {
      * Internal use only, to raise events received from the native interface.
      */
     protected onStatus(trackId: string, type: RmxAudioStatusMessage, value: OnStatusCallbackUpdateData | OnStatusTrackChangedData | OnStatusErrorCallbackData) {
-        const status = {type: type, trackId: trackId, value: value};
+        const status = <OnStatusCallbackData> {msgType: type, trackId: trackId, value: value};
         if (this.options.verbose) {
             console.debug(`RmxAudioPlayer.onStatus: ${RmxAudioStatusMessageDescriptions[type]}(${type}) [${trackId}]: `, value);
         }
 
-        if (status.type === RmxAudioStatusMessage.RMXSTATUS_TRACK_CHANGED) {
+        if (status.msgType === RmxAudioStatusMessage.RMXSTATUS_TRACK_CHANGED) {
             this._hasError = false;
             this._hasLoaded = false;
             this._currentState = 'loading';
@@ -343,7 +343,7 @@ export class RmxAudioPlayer {
         }
 
         // The plugin's status changes only in response to specific events.
-        if (itemStatusChangeTypes.indexOf(status.type) >= 0) {
+        if (itemStatusChangeTypes.indexOf(status.msgType) >= 0) {
             // Only change the plugin's *current status* if the event being raised is for the current active track.
             if (this._currentItem && this._currentItem.trackId === trackId) {
 
@@ -351,11 +351,11 @@ export class RmxAudioPlayer {
                     this._currentState = (<any> status.value).status;
                 }
 
-                if (status.type === RmxAudioStatusMessage.RMXSTATUS_CANPLAY) {
+                if (status.msgType === RmxAudioStatusMessage.RMXSTATUS_CANPLAY) {
                     this._hasLoaded = true;
                 }
 
-                if (status.type === RmxAudioStatusMessage.RMXSTATUS_ERROR) {
+                if (status.msgType === RmxAudioStatusMessage.RMXSTATUS_ERROR) {
                     this._hasError = true;
                 }
             }
