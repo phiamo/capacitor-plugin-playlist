@@ -564,37 +564,33 @@ final class RmxAudioPlayer: NSObject {
                 handleTrackStatusEvent(playerItem)
             })
         case "timeControlStatus":
-            DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
-                let player = object as? AVBidirectionalQueuePlayer
+            let player = object as? AVBidirectionalQueuePlayer
 
-                guard let playerItem = player?.currentAudioTrack else {
-                    return
-                }
-                guard lastTrackId != playerItem.trackId else {
-                    return // todo should call super instead or?
-                }
+            guard let playerItem = player?.currentAudioTrack else {
+                return
+            }
+            guard lastTrackId != playerItem.trackId || player?.isAtBeginning ?? false else {
+                return // todo should call super instead or?
+            }
 
-                let trackStatus = getStatusItem(playerItem)
-                print("TCSPlayback rate changed: \(String(describing: change[.newKey])), is playing: \(player?.isPlaying ?? false)")
+            let trackStatus = getStatusItem(playerItem)
+            print("TCSPlayback rate changed: \(String(describing: change[.newKey])), is playing: \(player?.isPlaying ?? false)")
 
-                if player?.timeControlStatus == .playing {
-                    onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
-                } else if player?.timeControlStatus == .waitingToPlayAtSpecifiedRate {
-                    onStatus(.rmxstatus_BUFFERING, trackId: playerItem.trackId, param: trackStatus)
-                } else {
-                    onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
-                }
-            })
+            if player?.timeControlStatus == .playing {
+                onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
+            } else if player?.timeControlStatus == .waitingToPlayAtSpecifiedRate {
+                onStatus(.rmxstatus_BUFFERING, trackId: playerItem.trackId, param: trackStatus)
+            } else {
+                onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
+            }
         case "duration":
             DispatchQueue.main.debounce(interval: 0.5, context: self, action: { [self] in
                 let playerItem = object as? AudioTrack
                 handleTrackDuration(playerItem)
             })
         case "loadedTimeRanges":
-            DispatchQueue.main.debounce(interval: 0.2, context: self, action: { [self] in
-                let playerItem = object as? AudioTrack
-                handleTrackBuffering(playerItem)
-            })
+            let playerItem = object as? AudioTrack
+            handleTrackBuffering(playerItem)
         default:
             super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
         }
