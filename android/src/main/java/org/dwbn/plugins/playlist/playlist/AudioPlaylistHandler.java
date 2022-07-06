@@ -17,6 +17,7 @@ import com.devbrackets.android.playlistcore.components.mediasession.DefaultMedia
 import com.devbrackets.android.playlistcore.components.mediasession.MediaSessionProvider;
 import com.devbrackets.android.playlistcore.components.playlisthandler.DefaultPlaylistHandler;
 import com.devbrackets.android.playlistcore.manager.BasePlaylistManager;
+import org.dwbn.plugins.playlist.RmxAudioPlayer;
 import org.dwbn.plugins.playlist.data.AudioTrack;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
 import org.dwbn.plugins.playlist.notification.PlaylistNotificationProvider;
