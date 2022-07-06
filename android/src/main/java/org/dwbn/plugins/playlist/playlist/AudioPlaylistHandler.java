@@ -90,6 +90,7 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
 
     @Override
     public void onCompletion(@NotNull MediaPlayerApi<I> mediaPlayer) {
+        ((RmxAudioPlayer)super.getPlaylistManager().getPlaybackStatusListener()).onCompletion((AudioTrack) getCurrentPlaylistItem());
         Log.i("AudioPlaylistHandler", "onCompletion");
         // This is called when a single item completes playback.
         // For now, the superclass does the right thing, but we may need to override.
