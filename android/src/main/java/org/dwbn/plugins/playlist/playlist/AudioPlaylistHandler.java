@@ -48,8 +48,9 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
     }
 
     public void next() {
-        getPlaylistManager().next();
-        startItemPlayback(0, !this.isPlaying());
+        if (getPlaylistManager().next() != null) {
+            startItemPlayback(0, !this.isPlaying());
+        }
     }
 
     @Override
