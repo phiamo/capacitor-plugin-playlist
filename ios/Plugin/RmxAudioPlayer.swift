@@ -464,6 +464,9 @@ final class RmxAudioPlayer: NSObject {
 
         let trackStatus = getStatusItem(playerItem)
         onStatus(.rmxstatus_COMPLETED, trackId: playerItem?.trackId, param: trackStatus)
+        if (avQueuePlayer.isAtEnd) {
+            onStatus(.rmxstatus_PLAYLIST_COMPLETED, trackId: "INVALID", param: nil)
+        }
     }
 
     @objc func handleAudioSessionInterruption(_ interruptionNotification: Notification?) {
