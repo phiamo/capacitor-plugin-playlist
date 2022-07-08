@@ -101,6 +101,13 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
         playlistManager.setVolume(left, right);
     }
 
+    public void onCompletion(AudioTrack item) {
+        if (item != null) {
+            String trackId = item.getTrackId();
+            JSONObject trackStatus = getPlayerStatus(item);
+            onStatus(RmxAudioStatusMessage.RMXSTATUS_COMPLETED, trackId, trackStatus);
+        }
+    }
 
     @Override
     public void onPrevious(AudioTrack currentItem, int currentIndex) {
@@ -181,7 +188,7 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
         if (item != null) {
             String trackId = item.getTrackId();
             JSONObject trackStatus = getPlayerStatus(item);
-            onStatus(RmxAudioStatusMessage.RMXSTATUS_COMPLETED, trackId, trackStatus);
+            onStatus(RmxAudioStatusMessage.RMXSTATUS_STOPPED, trackId, trackStatus);
         }
 
         if (nextItem == null) { // if (!playlistManager.isNextAvailable()) {

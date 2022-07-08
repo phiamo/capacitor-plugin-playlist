@@ -17,6 +17,7 @@ import com.devbrackets.android.playlistcore.components.mediasession.DefaultMedia
 import com.devbrackets.android.playlistcore.components.mediasession.MediaSessionProvider;
 import com.devbrackets.android.playlistcore.components.playlisthandler.DefaultPlaylistHandler;
 import com.devbrackets.android.playlistcore.manager.BasePlaylistManager;
+import org.dwbn.plugins.playlist.RmxAudioPlayer;
 import org.dwbn.plugins.playlist.data.AudioTrack;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
 import org.dwbn.plugins.playlist.notification.PlaylistNotificationProvider;
@@ -90,6 +91,7 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
 
     @Override
     public void onCompletion(@NotNull MediaPlayerApi<I> mediaPlayer) {
+        ((RmxAudioPlayer)super.getPlaylistManager().getPlaybackStatusListener()).onCompletion((AudioTrack) getCurrentPlaylistItem());
         Log.i("AudioPlaylistHandler", "onCompletion");
         // This is called when a single item completes playback.
         // For now, the superclass does the right thing, but we may need to override.
