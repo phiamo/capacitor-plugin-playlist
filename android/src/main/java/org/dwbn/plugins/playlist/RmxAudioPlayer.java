@@ -54,6 +54,7 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
         this.statusListener = statusListener;
         this.app = context;
 
+        app.resetPlaylistManager();
         getPlaylistManager();
         playlistManager.setId(PLAYLIST_ID);
         playlistManager.setPlaybackStatusListener(this);

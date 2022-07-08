@@ -14,7 +14,12 @@ import okhttp3.OkHttpClient
 import java.io.File
 
 class App : Application() {
-    val playlistManager: PlaylistManager by lazy { PlaylistManager(this) }
+    private lateinit var _playlistManager: PlaylistManager;
+    val playlistManager get() = _playlistManager
+
+    fun resetPlaylistManager() {
+        _playlistManager = PlaylistManager(this)
+    }
 
     override fun onCreate() {
         super.onCreate()
