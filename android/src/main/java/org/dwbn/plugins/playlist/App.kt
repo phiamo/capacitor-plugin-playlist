@@ -22,6 +22,7 @@ class App : Application() {
     }
 
     override fun onCreate() {
+        resetPlaylistManager()
         super.onCreate()
 
         configureExoMedia()
@@ -33,14 +34,25 @@ class App : Application() {
         ExoMedia.setDataSourceFactoryProvider(object : ExoMedia.DataSourceFactoryProvider {
             private var instance: CacheDataSourceFactory? = null
 
-            override fun provide(userAgent: String, listener: TransferListener?): DataSource.Factory {
+            override fun provide(
+                userAgent: String,
+                listener: TransferListener?
+            ): DataSource.Factory {
                 if (instance == null) {
                     // Updates the network data source to use the OKHttp implementation
-                    val upstreamFactory = OkHttpDataSourceFactory(OkHttpClient(), userAgent, listener)
+                    val upstreamFactory =
+                        OkHttpDataSourceFactory(OkHttpClient(), userAgent, listener)
 
                     // Adds a cache around the upstreamFactory
-                    val cache = SimpleCache(File(cacheDir, "ExoMediaCache"), LeastRecentlyUsedCacheEvictor((50 * 1024 * 1024).toLong()))
-                    instance = CacheDataSourceFactory(cache, upstreamFactory, CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+                    val cache = SimpleCache(
+                        File(cacheDir, "ExoMediaCache"),
+                        LeastRecentlyUsedCacheEvictor((50 * 1024 * 1024).toLong())
+                    )
+                    instance = CacheDataSourceFactory(
+                        cache,
+                        upstreamFactory,
+                        CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
+                    )
                 }
 
                 return instance!!
