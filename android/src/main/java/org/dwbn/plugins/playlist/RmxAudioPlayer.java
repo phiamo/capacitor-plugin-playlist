@@ -107,6 +107,10 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
             JSONObject trackStatus = getPlayerStatus(item);
             onStatus(RmxAudioStatusMessage.RMXSTATUS_COMPLETED, trackId, trackStatus);
         }
+
+        if (!playlistManager.isNextAvailable()) {
+            onStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED, "INVALID", null);
+        }
     }
 
     @Override
@@ -179,20 +183,10 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
 
     @Override
     public void onItemPlaybackEnded(AudioTrack item) {
-        AudioTrack nextItem = playlistManager.getCurrentItem();
-        // String title = item != null ? item.getTitle() : "(null)";
-        // String currTitle = nextItem != null ? nextItem.getTitle() : "(null)";
-        // String currTrackId = nextItem != null ? nextItem.getTrackId() : null;
-        // Log.i(TAG, "onItemPlaybackEnded: ==> " + title + "," + trackId + " ==> next item: " + currTitle + "," + currTrackId);
-
         if (item != null) {
             String trackId = item.getTrackId();
             JSONObject trackStatus = getPlayerStatus(item);
             onStatus(RmxAudioStatusMessage.RMXSTATUS_STOPPED, trackId, trackStatus);
-        }
-
-        if (nextItem == null) { // if (!playlistManager.isNextAvailable()) {
-            onStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED, "INVALID", null);
         }
     }
 
