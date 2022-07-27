@@ -152,7 +152,6 @@ class PlaylistManager(application: Application) :
         items =
             audioTracks // not *strictly* needed since they share the reference, but for good measure..
         currentPosition = audioTracks.indexOf(currentItem)
-        this.playlistHandler!!.updateMediaControls()
     }
 
     fun removeItem(index: Int, itemId: String): AudioTrack? {
@@ -206,7 +205,6 @@ class PlaylistManager(application: Application) :
         items = audioTracks
         currentPosition = if (removingCurrent) currentPosition else audioTracks.indexOf(currentItem)
         beginPlayback(currentPosition.toLong(), !wasPlaying)
-        this.playlistHandler!!.updateMediaControls()
         return removedTracks
     }
 
