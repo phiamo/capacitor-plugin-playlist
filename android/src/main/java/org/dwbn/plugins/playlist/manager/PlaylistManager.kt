@@ -143,6 +143,7 @@ class PlaylistManager(application: Application) :
             currentPosition = 0
             beginPlayback(1, true)
         }
+        this.playlistHandler!!.updateMediaControls()
     }
 
     fun addAllItems(its: List<AudioTrack>?) {
@@ -177,6 +178,7 @@ class PlaylistManager(application: Application) :
         items = audioTracks
         currentPosition = if (removingCurrent) currentPosition else audioTracks.indexOf(currentItem)
         beginPlayback(currentPosition.toLong(), !wasPlaying)
+        this.playlistHandler!!.updateMediaControls()
         return foundItem
     }
 
