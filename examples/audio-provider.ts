@@ -5,7 +5,7 @@ import {
   AudioTrackRemoval,
   OnStatusCallbackData,
   OnStatusErrorCallbackData,
-  AudioTrackOptions,
+  PlaylistItemOptions,
   RmxAudioPlayer,
 } from 'capacitor-plugin-playlist';
 import 'capacitor-plugin-playlist';
@@ -65,7 +65,7 @@ export class AudioProvider {
   async setPlaylistItems(audioTracks: AudioTrack[], currentItem?: AudioTrack, currentPosition= 0) {
     let currentId = null;
 
-    let options: AudioTrackOptions = {};
+    let options: PlaylistItemOptions = {};
     if (currentItem) {
       currentId = currentItem.trackId;
       const startPaused = !this.isPlaying;
