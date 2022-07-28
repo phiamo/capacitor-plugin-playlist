@@ -64,7 +64,7 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func setPlaylistItems(_ items: [AudioTrack], options: [String:Any]) {
-        print("RmxAudioPlayer.execute=setPlaylistItems, \(options), \(items)")
+        print("RmxAudioPlayer.execute=setPlaylistItems, \(options), \(items.count)")
 
         var seekToPosition: Float = 0.0
         let retainPosition = options["retainPosition"] != nil ? (options["retainPosition"] as? Bool) ?? false : false
@@ -84,19 +84,14 @@ final class RmxAudioPlayer: NSObject {
         let result = findTrack(byId: playFromId)
         let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
 
-        if !avQueuePlayer.queuedAudioTracks.isEmpty {
-            if idx >= 0 {
-                avQueuePlayer.setCurrentIndex(idx)
-            }
-        }
-
+        setTracks(items, startIndex: idx, startPosition: seekToPosition)
+        
         // This will wait for the AVPlayerItemStatusReadyToPlay status change, and then trigger playback.
         isWaitingToStartPlayback = !startPaused
         if isWaitingToStartPlayback {
             print("RmxAudioPlayer[setPlaylistItems] will wait for ready event to begin playback")
         }
 
-        setTracks(items, startPosition: seekToPosition)
         if isWaitingToStartPlayback {
             playCommand(false) // but we will try to preempt it to avoid the button blinking paused.
         }
@@ -230,6 +225,7 @@ final class RmxAudioPlayer: NSObject {
         let item = avQueuePlayer.queuedAudioTracks[index]
         removeTrackObservers(item)
         avQueuePlayer.remove(item)
+        onStatus(.rmxstatus_ITEM_REMOVED, trackId: item.trackId, param: item.toDict())
     }
 
     func removeItem(_ id: String) throws {
@@ -246,6 +242,7 @@ final class RmxAudioPlayer: NSObject {
         if let track = track {
             avQueuePlayer.remove(track)
         }
+        onStatus(.rmxstatus_ITEM_REMOVED, trackId: track?.trackId, param: track?.toDict())
     }
 
     // MARK: - player actions
@@ -373,18 +370,26 @@ final class RmxAudioPlayer: NSObject {
         }
     }
 
-    func setTracks(_ tracks: [AudioTrack], startPosition: Float) {
-        for item in avQueuePlayer.queuedAudioTracks {
-            removeTrackObservers(item)
-        }
-
+    func setTracks(_ tracks: [AudioTrack], startIndex: Int, startPosition: Float) {
+        avQueuePlayer.removeAllTrackObservers()
+        
+        isReplacingItems = true
+        print("RmxAudioPlayer[setTracks] replacing tracks ")
+        avQueuePlayer.replaceAllItems(with: tracks)
+        
+        print("RmxAudioPlayer[setTracks] replacing finished ")
         for playerItem in tracks {
             addTrackObservers(playerItem)
         }
-
-        isReplacingItems = true
-        avQueuePlayer.replaceAllItems(with: tracks)
-
+        
+        isReplacingItems = false
+        print("RmxAudioPlayer[setTracks] added track observers ")
+        if !avQueuePlayer.queuedAudioTracks.isEmpty {
+            if startIndex >= 0 {
+                avQueuePlayer.setCurrentIndex(startIndex)
+            }
+        }
+        
         if startPosition > 0 {
             seek(to: startPosition, isCommand: false)
         }
@@ -393,6 +398,7 @@ final class RmxAudioPlayer: NSObject {
     func removeAllTracks() {
         for item in avQueuePlayer.queuedAudioTracks {
             removeTrackObservers(item)
+            onStatus(.rmxstatus_ITEM_REMOVED, trackId: item.trackId, param: item.toDict())
         }
 
         avQueuePlayer.removeAllItems()
@@ -536,8 +542,8 @@ final class RmxAudioPlayer: NSObject {
             let player = object as? AVBidirectionalQueuePlayer
             let playerItem = player?.currentAudioTrack
             if playerItem != nil {
-            guard self.lastTrackId != playerItem?.trackId else {
-                return // todo should call super instead or?
+            guard !isReplacingItems && self.lastTrackId != playerItem?.trackId else {
+                return
             }
             print("observe change currentItem: lastTrackId \(self.lastTrackId) playerItem: \(playerItem?.trackId)")
             self.lastTrackId = playerItem?.trackId
@@ -689,7 +695,7 @@ final class RmxAudioPlayer: NSObject {
 
     func handleCurrentItemChanged(_ playerItem: AudioTrack?) {
         if let playerItem = playerItem {
-            print("Queue changed current item to: \(playerItem.toDict() ?? [:])")
+            print("Queue changed current item to: \(playerItem.trackId)")
             // NSLog(@"New music name: %@", ((AVURLAsset*)playerItem.asset).URL.pathComponents.lastObject);
             print("New item ID: \(playerItem.trackId ?? "")")
             print("Queue is at end: \(avQueuePlayer.isAtEnd ? "YES" : "NO")")
@@ -713,6 +719,8 @@ final class RmxAudioPlayer: NSObject {
             ]
         }
         let trackId = playerItem != nil ? playerItem?.trackId : "NONE"
+        
+        print("Update Track changed: \(info)")
         onStatus(.rmxstatus_TRACK_CHANGED, trackId: trackId, param: info)
 
         if avQueuePlayer.isAtEnd && avQueuePlayer.currentItem == nil {
@@ -988,16 +996,13 @@ final class RmxAudioPlayer: NSObject {
     }
 
     @objc func queueCleared(_ notification: Notification?) {
-        isReplacingItems = false
+        isReplacingItems = false // is this necessary ?
         print("RmxAudioPlayer, queuePlayerCleared")
         onStatus(.rmxstatus_PLAYLIST_CLEARED, trackId: "INVALID", param: nil)
     }
 
     func removeTrackObservers(_ playerItem: AudioTrack?) {
-        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
-        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemPlaybackStalled, object: playerItem)
-
-        onStatus(.rmxstatus_ITEM_REMOVED, trackId: playerItem?.trackId, param: playerItem?.toDict())
+        avQueuePlayer.removeTrackObservers(playerItem)
     }
 
     func activateAudioSession() {
