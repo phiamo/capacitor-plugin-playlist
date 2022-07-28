@@ -74,5 +74,8 @@
   },
   "bugs": {
     "url": "https://github.com/phiamo/capacitor-plugin-playlist/issues"
+  },
+  "publishConfig": {
+    "@phiamo:registry": "https://npm.pkg.github.com"
   }
 }
