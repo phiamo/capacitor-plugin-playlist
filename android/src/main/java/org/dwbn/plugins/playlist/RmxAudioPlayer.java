@@ -39,7 +39,7 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
     private final OnStatusReportListener statusListener;
 
     private int lastBufferPercent = 0;
-    private boolean trackDuration = false;
+    private long lastDuration = 0;
     private boolean trackLoaded = false;
     private boolean resetStreamOnPause = true;
     private final App app;
@@ -211,8 +211,8 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
             Log.e(TAG, "Error creating onPlaylistItemChanged message: " + e.toString());
         }
 
+        lastDuration = 0;
         lastBufferPercent = 0;
-        trackDuration = false;
         trackLoaded = false;
 
         onStatus(RmxAudioStatusMessage.RMXSTATUS_TRACK_CHANGED, trackId, info);
@@ -307,13 +307,13 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
                     trackLoaded = true;
                 }
 
-                if (!trackDuration && progress.getDuration() > 0) {
-                    onStatus(RmxAudioStatusMessage.RMXSTATUS_DURATION, currentItem.getTrackId(), trackStatus);
-                    trackDuration = true;
-                }
-
                 onStatus(RmxAudioStatusMessage.RMXSTATUS_BUFFERING, currentItem.getTrackId(), trackStatus);
                 lastBufferPercent = progress.getBufferPercent();
+            }
+
+            if (lastDuration != progress.getDuration() && progress.getDuration() > 0) {
+                onStatus(RmxAudioStatusMessage.RMXSTATUS_DURATION, currentItem.getTrackId(), trackStatus);
+                lastDuration = progress.getDuration();
             }
 
             // dont send on prepare, if null
