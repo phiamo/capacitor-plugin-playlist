@@ -115,10 +115,8 @@ class PlaylistManager(application: Application) :
 
         // If the options said to start from a specific id, do so.
         var idStart: String? = null
-        if (options.retainPosition) {
-            if (options.playFromId != null) {
-                idStart = options.playFromId
-            }
+        if (options.playFromId != null) {
+            idStart = options.playFromId
         }
         if (idStart != null && "" != idStart) {
             val code = idStart.hashCode()
