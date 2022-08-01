@@ -542,12 +542,14 @@ final class RmxAudioPlayer: NSObject {
             let player = object as? AVBidirectionalQueuePlayer
             let playerItem = player?.currentAudioTrack
             if playerItem != nil {
-            guard !isReplacingItems && self.lastTrackId != playerItem?.trackId else {
-                return
-            }
-            print("observe change currentItem: lastTrackId \(self.lastTrackId) playerItem: \(playerItem?.trackId)")
-            self.lastTrackId = playerItem?.trackId
-            handleCurrentItemChanged(playerItem)
+                guard !isReplacingItems && self.lastTrackId != playerItem?.trackId else {
+                    return
+                }
+                print("observe change currentItem: lastTrackId \(self.lastTrackId) playerItem: \(playerItem?.trackId)")
+                self.lastTrackId = playerItem?.trackId
+                handleCurrentItemChanged(playerItem)
+            }  else {
+                self.lastTrackId = nil
             }
             
         case "rate":
