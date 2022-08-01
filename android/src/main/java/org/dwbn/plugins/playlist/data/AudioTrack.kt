@@ -19,7 +19,7 @@ class AudioTrack (private val config: JSONObject) : PlaylistItem {
         }
     var duration: Long = 0
         set(dur) {
-            field = Math.max(duration, dur)
+            field = Math.max(0, dur)
         }
 
     fun toDict(): JSONObject {
