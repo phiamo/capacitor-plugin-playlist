@@ -167,7 +167,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             if (!currentItem) {
                 currentItem = this.playlistItems[0];
             }
-            await this.setCurrent(currentItem, options.options?.retainPosition ? options.options?.playFromPosition : 0);
+            await this.setCurrent(currentItem, options.options?.playFromPosition ?? 0);
             if (!options.options?.startPaused) {
                 await this.play();
             }
