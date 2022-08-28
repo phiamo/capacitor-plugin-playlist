@@ -81,7 +81,8 @@ final class RmxAudioPlayer: NSObject {
             seekToPosition = getTrackCurrentTime(nil)
         }
 
-        let result = findTrack(byId: playFromId)
+        // Index needs to come from new tracks, so we find it in 'items'
+        let result = findTrackIndex(byId: playFromId, items)
         let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
 
         setTracks(items, startIndex: idx, startPosition: seekToPosition)
