@@ -962,6 +962,26 @@ final class RmxAudioPlayer: NSObject {
         }
     }
 
+    func findTrackIndex(byId trackId: String?, _ tracks: [AudioTrack]) -> [String: Any]? {
+        let trackInformation: (Int, AudioTrack)? = tracks
+            .enumerated()
+            .first(where: { _, track in
+                track.trackId == trackId
+            })
+
+        guard
+            let index = trackInformation?.0,
+            let track = trackInformation?.1
+        else {
+            return nil
+        }
+
+        return [
+            "track": track,
+            "index": NSNumber(value: index)
+        ]
+    }
+
     func findTrack(byId trackId: String?) -> [String: Any]? {
         let trackInformation: (Int, AudioTrack)? = avQueuePlayer.queuedAudioTracks
             .enumerated()
