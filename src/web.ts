@@ -160,14 +160,17 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         return Promise.reject();
     }
 
-    setPlaylistItems(options: PlaylistOptions): Promise<void> {
+    async setPlaylistItems(options: PlaylistOptions): Promise<void> {
         this.playlistItems = options.items;
         if (this.playlistItems.length > 0) {
             let currentItem = this.playlistItems.filter(i => i.trackId === options.options?.playFromId)[0];
             if (!currentItem) {
                 currentItem = this.playlistItems[0];
             }
-            return this.setCurrent(currentItem, options.options?.retainPosition ? options.options?.playFromPosition : 0);
+            await this.setCurrent(currentItem, options.options?.playFromPosition ?? 0);
+            if (!options.options?.startPaused) {
+                await this.play();
+            }
         }
         return Promise.resolve();
     }
@@ -269,6 +272,8 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                 const currentTrackIndex = this.playlistItems.findIndex(i => i.trackId === this.getCurrentTrackId());
                 if (currentTrackIndex === this.playlistItems.length -1) {
                     this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED, this.getCurrentTrackStatus('stopped'));
+                } else {
+                    this.setCurrent(this.playlistItems[currentTrackIndex + 1], undefined, true);
                 }
             });
 
@@ -318,7 +323,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         };
     }
 
-    protected async setCurrent(item: AudioTrack, position?: number) {
+    protected async setCurrent(item: AudioTrack, position?: number, forceAutoplay: boolean = false) {
         let wasPlaying = false;
         if (this.audio) {
             wasPlaying = !this.audio.paused;
@@ -328,7 +333,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             this.audio.load();
         }
         this.audio = document.createElement('video');
-        if (wasPlaying) {
+        if (wasPlaying || forceAutoplay) {
             this.audio.addEventListener('canplay', () => {
                 this.play();
             });
