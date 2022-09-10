@@ -23,6 +23,7 @@ final class RmxAudioPlayer: NSObject {
     private var commandCenterRegistered = false
     private var resetStreamOnPause = false
     private var updatedNowPlayingInfo: [String : Any]?
+    private let nowPlayingInfoQueue = DispatchQueue(label: "RMXAudioPlayerNowPlayingQueue")
     private var isReplacingItems = false
     private var isWaitingToStartPlayback = false
     private var loop = false
@@ -611,9 +612,11 @@ final class RmxAudioPlayer: NSObject {
     func updateNowPlayingTrackInfo(_ playerItem: AudioTrack?, updateTrackData: Bool) {
         let currentItem = playerItem ?? avQueuePlayer.currentAudioTrack
         let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
-        if updatedNowPlayingInfo == nil {
-            let nowPlayingInfo = nowPlayingInfoCenter.nowPlayingInfo
-            updatedNowPlayingInfo = nowPlayingInfo ?? [:]
+        self.nowPlayingInfoQueue.sync {
+            if updatedNowPlayingInfo == nil {
+                let nowPlayingInfo = nowPlayingInfoCenter.nowPlayingInfo
+                updatedNowPlayingInfo = nowPlayingInfo ?? [:]
+            }
         }
 
         var currentTime: Float? = nil
@@ -628,20 +631,22 @@ final class RmxAudioPlayer: NSObject {
             duration = 0
         }
 
-        if updateTrackData {
-            updatedNowPlayingInfo![MPMediaItemPropertyArtist] = currentItem?.artist
-            updatedNowPlayingInfo![MPMediaItemPropertyTitle] = currentItem?.title
-            updatedNowPlayingInfo![MPMediaItemPropertyAlbumTitle] = currentItem?.album
+        self.nowPlayingInfoQueue.sync {
+            if updateTrackData {
+                updatedNowPlayingInfo![MPMediaItemPropertyArtist] = currentItem?.artist
+                updatedNowPlayingInfo![MPMediaItemPropertyTitle] = currentItem?.title
+                updatedNowPlayingInfo![MPMediaItemPropertyAlbumTitle] = currentItem?.album
 
-            if let mediaItemArtwork = createCoverArtwork(currentItem?.albumArt?.absoluteString) {
-                updatedNowPlayingInfo![MPMediaItemPropertyArtwork] = mediaItemArtwork
+                if let mediaItemArtwork = createCoverArtwork(currentItem?.albumArt?.absoluteString) {
+                    updatedNowPlayingInfo![MPMediaItemPropertyArtwork] = mediaItemArtwork
+                }
             }
-        }
-        updatedNowPlayingInfo![MPMediaItemPropertyPlaybackDuration] = duration ?? 0.0
-        updatedNowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime ?? 0.0
-        updatedNowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] = 1.0
+            updatedNowPlayingInfo![MPMediaItemPropertyPlaybackDuration] = duration ?? 0.0
+            updatedNowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime ?? 0.0
+            updatedNowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] = 1.0
 
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = updatedNowPlayingInfo
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = updatedNowPlayingInfo
+        }
 
         let commandCenter = MPRemoteCommandCenter.shared()
         commandCenter.nextTrackCommand.isEnabled = !avQueuePlayer.isAtEnd
