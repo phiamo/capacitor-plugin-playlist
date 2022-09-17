@@ -68,6 +68,9 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             if (track.trackId === options.id) {
                 if (track !== this.currentTrack) {
                     await this.setCurrent(track);
+                    if (options.position > 0) {
+                        this.audio.currentTime = options.position;
+                    }
                 }
                 return this.play();
             }
@@ -80,6 +83,9 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             if (index === options.index) {
                 if (item !== this.currentTrack) {
                     await this.setCurrent(item);
+                    if (options.position > 0) {
+                        this.audio.currentTime = options.position;
+                    }
                 }
                 return this.play();
             }
