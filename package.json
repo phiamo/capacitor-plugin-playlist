@@ -32,10 +32,10 @@
   "author": "phiamo",
   "license": "MIT",
   "devDependencies": {
-    "@capacitor/android": "^3.2.5",
-    "@capacitor/core": "^3.2.5",
+    "@capacitor/android": "^4.2.0",
+    "@capacitor/core": "^4.2.0",
     "@capacitor/docgen": "^0.0.10",
-    "@capacitor/ios": "^3.2.5",
+    "@capacitor/ios": "^4.2.0",
     "@ionic/prettier-config": "^1.0.1",
     "@ionic/swiftlint-config": "^1.1.2",
     "@types/hls.js": "^0.13.2",
@@ -48,7 +48,7 @@
     "typescript": "~3.8.3"
   },
   "peerDependencies": {
-    "@capacitor/core": "^3.0.0"
+    "@capacitor/core": "^4.2.0"
   },
   "prettier": "@ionic/prettier-config",
   "swiftlint": "@ionic/swiftlint-config",
