@@ -18,7 +18,7 @@ public class PlaylistItemOptions {
     }
 
     this.retainPosition = this.options.optBoolean("retainPosition", false);
-    this.startPaused = this.options.optBoolean("startPaused", true);
+    this.startPaused = this.options.optBoolean("startPaused", false);
     this.playFromId = this.options.optString("playFromId", null);
 
     try {
