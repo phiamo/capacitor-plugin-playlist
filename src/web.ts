@@ -277,7 +277,11 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_COMPLETED, this.getCurrentTrackStatus('stopped'));
                 const currentTrackIndex = this.playlistItems.findIndex(i => i.trackId === this.getCurrentTrackId());
                 if (currentTrackIndex === this.playlistItems.length -1) {
-                    this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED, this.getCurrentTrackStatus('stopped'));
+                    if (this.loop) {
+                        this.setCurrent(this.playlistItems[0], undefined, true);
+                    } else {
+                        this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED, this.getCurrentTrackStatus('stopped'));
+                    }
                 } else {
                     this.setCurrent(this.playlistItems[currentTrackIndex + 1], undefined, true);
                 }
