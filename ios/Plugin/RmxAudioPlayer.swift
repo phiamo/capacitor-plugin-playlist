@@ -475,6 +475,12 @@ final class RmxAudioPlayer: NSObject {
         if (avQueuePlayer.isAtEnd) {
             onStatus(.rmxstatus_PLAYLIST_COMPLETED, trackId: "INVALID", param: nil)
         }
+        
+        if loop && avQueuePlayer.isAtEnd {
+            print("Last music in playlist play ended, loop back.")
+            avQueuePlayer.setCurrentIndex(0)
+            avQueuePlayer.play()
+        }
     }
 
     @objc func handleAudioSessionInterruption(_ interruptionNotification: Notification?) {
