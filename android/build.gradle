@@ -7,7 +7,7 @@ ext {
 }
 
 buildscript {
-    ext.kotlin_version = '1.6.0'
+    ext.kotlin_version = '1.6.20'
     repositories {
         google()
         jcenter()
@@ -70,5 +70,6 @@ dependencies {
 
     // Playlist support
     implementation 'com.devbrackets.android:playlistcore:2.1.0'
+    implementation 'androidx.work:work-runtime-ktx:2.7.1'
 
 }
