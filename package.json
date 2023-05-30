@@ -1,6 +1,6 @@
 {
   "name": "capacitor-plugin-playlist",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "description": "Playlist ",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
@@ -48,7 +48,7 @@
     "typescript": "~3.8.3"
   },
   "peerDependencies": {
-    "@capacitor/core": "^4.2.0"
+    "@capacitor/core": "^3.0.0 || ^4.0.0"
   },
   "prettier": "@ionic/prettier-config",
   "swiftlint": "@ionic/swiftlint-config",
