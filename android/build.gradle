@@ -7,10 +7,11 @@ ext {
 }
 
 buildscript {
-    ext.kotlin_version = project.hasProperty("kotlin_version") ? rootProject.ext.kotlin_version : '1.8.20'
+    ext.kotlin_version = project.hasProperty("kotlin_version") ? rootProject.ext.kotlin_version : '1.8.22'
     repositories {
         google()
         jcenter()
+        mavenCentral()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.0.0'
@@ -67,9 +68,9 @@ dependencies {
 
     // Image Exomedia
     implementation 'com.devbrackets.android:exomedia:4.3.0'
-    implementation "com.android.support:appcompat-v7:$rootProject.ext.supportLibVersion"
-    implementation "com.android.support:support-media-compat:$rootProject.ext.supportLibVersion"
-    implementation "com.google.android.exoplayer:extension-okhttp:$rootProject.ext.exoPlayerVersion"
+    implementation "com.android.support:appcompat-v7:$supportLibVersion"
+    implementation "com.android.support:support-media-compat:$supportLibVersion"
+    implementation "com.google.android.exoplayer:extension-okhttp:$exoPlayerVersion"
 
     // Image Loading
     implementation 'com.github.bumptech.glide:glide:4.6.1'
