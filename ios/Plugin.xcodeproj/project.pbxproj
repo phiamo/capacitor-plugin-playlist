@@ -15,6 +15,11 @@
 		50ADFFA42020D75100D50D53 /* Capacitor.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50ADFFA52020D75100D50D53 /* Capacitor.framework */; };
 		50ADFFA82020EE4F00D50D53 /* Plugin.m in Sources */ = {isa = PBXBuildFile; fileRef = 50ADFFA72020EE4F00D50D53 /* Plugin.m */; };
 		50E1A94820377CB70090CE1A /* Plugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E1A94720377CB70090CE1A /* Plugin.swift */; };
+		513CD8672A5D16D300BDE4DE /* DispatchQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 513CD8622A5D16D300BDE4DE /* DispatchQueue.swift */; };
+		513CD8682A5D16D300BDE4DE /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 513CD8632A5D16D300BDE4DE /* Constants.swift */; };
+		513CD8692A5D16D300BDE4DE /* AVBidirectionalQueuePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 513CD8642A5D16D300BDE4DE /* AVBidirectionalQueuePlayer.swift */; };
+		513CD86A2A5D16D300BDE4DE /* RmxAudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 513CD8652A5D16D300BDE4DE /* RmxAudioPlayer.swift */; };
+		513CD86B2A5D16D300BDE4DE /* AudioTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 513CD8662A5D16D300BDE4DE /* AudioTrack.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,6 +43,11 @@
 		50ADFFA52020D75100D50D53 /* Capacitor.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Capacitor.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		50ADFFA72020EE4F00D50D53 /* Plugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Plugin.m; sourceTree = "<group>"; };
 		50E1A94720377CB70090CE1A /* Plugin.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Plugin.swift; sourceTree = "<group>"; };
+		513CD8622A5D16D300BDE4DE /* DispatchQueue.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DispatchQueue.swift; sourceTree = "<group>"; };
+		513CD8632A5D16D300BDE4DE /* Constants.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		513CD8642A5D16D300BDE4DE /* AVBidirectionalQueuePlayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AVBidirectionalQueuePlayer.swift; sourceTree = "<group>"; };
+		513CD8652A5D16D300BDE4DE /* RmxAudioPlayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RmxAudioPlayer.swift; sourceTree = "<group>"; };
+		513CD8662A5D16D300BDE4DE /* AudioTrack.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AudioTrack.swift; sourceTree = "<group>"; };
 		5E23F77F099397094342571A /* Pods-Plugin.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Plugin.debug.xcconfig"; path = "Pods/Target Support Files/Pods-Plugin/Pods-Plugin.debug.xcconfig"; sourceTree = "<group>"; };
 		91781294A431A2A7CC6EB714 /* Pods-Plugin.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Plugin.release.xcconfig"; path = "Pods/Target Support Files/Pods-Plugin/Pods-Plugin.release.xcconfig"; sourceTree = "<group>"; };
 		96ED1B6440D6672E406C8D19 /* Pods-PluginTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-PluginTests.debug.xcconfig"; path = "Pods/Target Support Files/Pods-PluginTests/Pods-PluginTests.debug.xcconfig"; sourceTree = "<group>"; };
@@ -91,6 +101,11 @@
 			isa = PBXGroup;
 			children = (
 				50E1A94720377CB70090CE1A /* Plugin.swift */,
+				513CD8662A5D16D300BDE4DE /* AudioTrack.swift */,
+				513CD8642A5D16D300BDE4DE /* AVBidirectionalQueuePlayer.swift */,
+				513CD8632A5D16D300BDE4DE /* Constants.swift */,
+				513CD8622A5D16D300BDE4DE /* DispatchQueue.swift */,
+				513CD8652A5D16D300BDE4DE /* RmxAudioPlayer.swift */,
 				50ADFF8B201F53D600D50D53 /* Plugin.h */,
 				50ADFFA72020EE4F00D50D53 /* Plugin.m */,
 				50ADFF8C201F53D600D50D53 /* Info.plist */,
@@ -302,8 +317,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				513CD8692A5D16D300BDE4DE /* AVBidirectionalQueuePlayer.swift in Sources */,
 				50E1A94820377CB70090CE1A /* Plugin.swift in Sources */,
 				50ADFFA82020EE4F00D50D53 /* Plugin.m in Sources */,
+				513CD86A2A5D16D300BDE4DE /* RmxAudioPlayer.swift in Sources */,
+				513CD8672A5D16D300BDE4DE /* DispatchQueue.swift in Sources */,
+				513CD86B2A5D16D300BDE4DE /* AudioTrack.swift in Sources */,
+				513CD8682A5D16D300BDE4DE /* Constants.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -452,7 +472,7 @@
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
 				INFOPLIST_FILE = Plugin/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 11.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks $(FRAMEWORK_SEARCH_PATHS)\n$(FRAMEWORK_SEARCH_PATHS)\n$(FRAMEWORK_SEARCH_PATHS)";
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.getcapacitor.Plugin;
@@ -477,7 +497,7 @@
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
 				INFOPLIST_FILE = Plugin/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks $(FRAMEWORK_SEARCH_PATHS)";
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.getcapacitor.Plugin;
