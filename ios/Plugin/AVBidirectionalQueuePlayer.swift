@@ -26,6 +26,7 @@
 //
 
 import AVFoundation
+import MediaPlayer
 
 let AVBidirectionalQueueAddedItem = "AVBidirectionalQueuePlayer.AddedItem"
 let AVBidirectionalQueueAddedAllItems = "AVBidirectionalQueuePlayer.AddedAllItems"
@@ -199,6 +200,8 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         super.removeAllItems()
         queuedAudioTracks.removeAll()
 
+        MPNowPlayingInfoCenter.default().nowPlayingInfo?.removeAll()
+
         NotificationCenter.default.post(name: NSNotification.Name(AVBidirectionalQueueCleared), object: self, userInfo: nil)
     }
 
@@ -207,7 +210,7 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
             removeTrackObservers(item)
         }
     }
-    
+
     func removeTrackObservers(_ playerItem: AudioTrack?) {
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemPlaybackStalled, object: playerItem)
