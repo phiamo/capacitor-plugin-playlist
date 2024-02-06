@@ -440,6 +440,18 @@ final class RmxAudioPlayer: NSObject {
         playNext(true)
         return .success
     }
+    
+    @objc func rewindTrackEvent(_ event: MPRemoteCommandEvent?) -> MPRemoteCommandHandlerStatus {
+        let time = getTrackCurrentTime(nil)
+        seek(to: time - 15, isCommand: true)
+        return .success
+    }
+
+    @objc func fastForwardTrackEvent(_ event: MPRemoteCommandEvent?) -> MPRemoteCommandHandlerStatus {
+        let time = getTrackCurrentTime(nil)
+        seek(to: time + 30, isCommand: true)
+        return .success
+    }
 
     @objc func changedThumbSlider(onLockScreen event: MPChangePlaybackPositionCommandEvent?) -> MPRemoteCommandHandlerStatus {
         seek(to: Float(event?.positionTime ?? 0.0), isCommand: true)
@@ -654,9 +666,9 @@ final class RmxAudioPlayer: NSObject {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = updatedNowPlayingInfo
         }
 
-        let commandCenter = MPRemoteCommandCenter.shared()
-        commandCenter.nextTrackCommand.isEnabled = !avQueuePlayer.isAtEnd
-        commandCenter.previousTrackCommand.isEnabled = !avQueuePlayer.isAtBeginning
+//        let commandCenter = MPRemoteCommandCenter.shared()
+//        commandCenter.nextTrackCommand.isEnabled = !avQueuePlayer.isAtEnd
+//        commandCenter.previousTrackCommand.isEnabled = !avQueuePlayer.isAtBeginning
     }
 
     func createCoverArtwork(_ coverUriOrNil: String?) -> MPMediaItemArtwork? {
@@ -960,10 +972,12 @@ final class RmxAudioPlayer: NSObject {
             commandCenter.playCommand.addTarget(self, action: #selector(play(_:)))
             commandCenter.pauseCommand.isEnabled = true
             commandCenter.pauseCommand.addTarget(self, action: #selector(pause(_:)))
-            commandCenter.nextTrackCommand.isEnabled = true
-            commandCenter.nextTrackCommand.addTarget(self, action: #selector(nextTrackEvent(_:)))
-            commandCenter.previousTrackCommand.isEnabled = true
-            commandCenter.previousTrackCommand.addTarget(self, action: #selector(prevTrackEvent(_:)))
+            commandCenter.skipBackwardCommand.isEnabled = true
+            commandCenter.skipBackwardCommand.addTarget(self, action: #selector(rewindTrackEvent(_:)))
+            commandCenter.skipBackwardCommand.preferredIntervals = [15]
+            commandCenter.skipForwardCommand.isEnabled = true
+            commandCenter.skipForwardCommand.addTarget(self, action: #selector(fastForwardTrackEvent(_:)))
+            commandCenter.skipForwardCommand.preferredIntervals = [30]
             commandCenter.togglePlayPauseCommand.isEnabled = true
             commandCenter.togglePlayPauseCommand.addTarget(self, action: #selector(togglePlayPauseTrackEvent(_:)))
             commandCenter.changePlaybackPositionCommand.isEnabled = true
@@ -1100,8 +1114,10 @@ final class RmxAudioPlayer: NSObject {
         let commandCenter = MPRemoteCommandCenter.shared()
         commandCenter.playCommand.removeTarget(self)
         commandCenter.pauseCommand.removeTarget(self)
-        commandCenter.nextTrackCommand.removeTarget(self)
-        commandCenter.previousTrackCommand.removeTarget(self)
+//        commandCenter.nextTrackCommand.removeTarget(self)
+//        commandCenter.previousTrackCommand.removeTarget(self)
+        commandCenter.skipBackwardCommand.removeTarget(self)
+        commandCenter.skipForwardCommand.removeTarget(self)
         commandCenter.togglePlayPauseCommand.removeTarget(self)
         commandCenter.changePlaybackPositionCommand.isEnabled = false
         commandCenter.changePlaybackPositionCommand.removeTarget(self, action: nil)
