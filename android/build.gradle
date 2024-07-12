@@ -3,7 +3,6 @@ ext {
     androidxJunitVersion = project.hasProperty('androidxJunitVersion') ? rootProject.ext.androidxJunitVersion : '1.1.5'
     androidxEspressoCoreVersion = project.hasProperty('androidxEspressoCoreVersion') ? rootProject.ext.androidxEspressoCoreVersion : '3.5.1'
     exoPlayerVersion = project.hasProperty('exoPlayerVersion') ? rootProject.ext.exoPlayerVersion : "2.9.6"
-    supportLibVersion = project.hasProperty('supportLibVersion') ? rootProject.ext.supportLibVersion : "28.0.0"
 }
 
 buildscript {
@@ -51,6 +50,7 @@ android {
 
 repositories {
     google()
+    jcenter()
     mavenCentral()
 }
 
@@ -66,8 +66,6 @@ dependencies {
 
     // Image Exomedia
     implementation 'com.devbrackets.android:exomedia:4.3.0'
-    implementation "com.android.support:appcompat-v7:$supportLibVersion"
-    implementation "com.android.support:support-media-compat:$supportLibVersion"
     implementation "com.google.android.exoplayer:extension-okhttp:$exoPlayerVersion"
 
     // Image Loading
