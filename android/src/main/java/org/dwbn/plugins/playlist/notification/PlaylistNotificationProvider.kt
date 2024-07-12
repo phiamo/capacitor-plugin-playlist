@@ -3,6 +3,7 @@ package org.dwbn.plugins.playlist.notification
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.app.PendingIntent.FLAG_UPDATE_CURRENT
+import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.content.Context
 import android.content.Intent
 import com.devbrackets.android.playlistcore.components.notification.DefaultPlaylistNotificationProvider
@@ -19,7 +20,7 @@ class PlaylistNotificationProvider(context: Context?) : DefaultPlaylistNotificat
             intent!!.addFlags(
                     Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             return PendingIntent.getActivity(this.context,
-                    0, intent, FLAG_UPDATE_CURRENT
+                    0, intent, FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE
             )
         }
 }
