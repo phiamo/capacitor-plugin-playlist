@@ -10,7 +10,6 @@ buildscript {
     ext.kotlin_version = project.hasProperty("kotlin_version") ? rootProject.ext.kotlin_version : '1.8.20'
     repositories {
         google()
-        jcenter()
         mavenCentral()
     }
     dependencies {
@@ -52,7 +51,6 @@ android {
 
 repositories {
     google()
-    jcenter()
     mavenCentral()
 }
 
