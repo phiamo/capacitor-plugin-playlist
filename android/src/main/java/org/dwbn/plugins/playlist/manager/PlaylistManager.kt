@@ -265,6 +265,7 @@ class PlaylistManager(application: Application) :
     }
 
     fun beginPlayback(@IntRange(from = 0) seekPosition: Long, startPaused: Boolean) {
+        currentItem ?: return
         super.play(seekPosition, startPaused)
         try {
             setVolume(volumeLeft, volumeRight)
@@ -279,7 +280,7 @@ class PlaylistManager(application: Application) :
     }
 
     init {
-        setParameters(audioTracks, -1)
+        setParameters(audioTracks, 0)
         options = Options(application.baseContext)
     }
 }
