@@ -64,7 +64,7 @@ class PlaylistManager(application: Application) :
      */
     override val isNextAvailable: Boolean
         get() {
-            if (itemCount == 1) {
+            if (itemCount <= 1) {
                 return false;
             }
             val isAtEnd = currentPosition + 1 >= itemCount
