@@ -2,7 +2,6 @@ ext {
     junitVersion = project.hasProperty('junitVersion') ? rootProject.ext.junitVersion : '4.13.2'
     androidxJunitVersion = project.hasProperty('androidxJunitVersion') ? rootProject.ext.androidxJunitVersion : '1.1.5'
     androidxEspressoCoreVersion = project.hasProperty('androidxEspressoCoreVersion') ? rootProject.ext.androidxEspressoCoreVersion : '3.5.1'
-    exoPlayerVersion = project.hasProperty('exoPlayerVersion') ? rootProject.ext.exoPlayerVersion : "2.9.6"
 }
 
 buildscript {
@@ -66,7 +65,6 @@ dependencies {
 
     // Image Exomedia
     implementation 'com.devbrackets.android:exomedia:5.1.0'
-    implementation "com.google.android.exoplayer:extension-okhttp:$exoPlayerVersion"
 
     // Image Loading
     implementation 'com.github.bumptech.glide:glide:4.6.1'
