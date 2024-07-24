@@ -25,6 +25,10 @@ abstract class BaseMediaApi : MediaPlayerApi<AudioTrack>, OnPreparedListener, On
         statusListener?.onSeekComplete(this)
     }
 
+    override fun onError(e: Exception?): Boolean {
+        return statusListener?.onError(this) == true
+    }
+
     override fun onBufferingUpdate(percent: Int) {
         bufferPercent = percent
         statusListener?.onBufferingUpdate(this, percent)

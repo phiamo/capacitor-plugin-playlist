@@ -2,11 +2,8 @@ package org.dwbn.plugins.playlist.playlist;
 
 import android.app.Service;
 import android.content.Context;
-import android.support.v4.media.MediaMetadataCompat;
-import android.support.v4.media.session.PlaybackStateCompat;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.devbrackets.android.playlistcore.api.MediaPlayerApi;
@@ -19,9 +16,8 @@ import com.devbrackets.android.playlistcore.components.mediacontrols.MediaContro
 import com.devbrackets.android.playlistcore.components.mediasession.DefaultMediaSessionProvider;
 import com.devbrackets.android.playlistcore.components.mediasession.MediaSessionProvider;
 import com.devbrackets.android.playlistcore.components.playlisthandler.DefaultPlaylistHandler;
-import com.devbrackets.android.playlistcore.data.MediaInfo;
-import com.devbrackets.android.playlistcore.data.MediaProgress;
 import com.devbrackets.android.playlistcore.manager.BasePlaylistManager;
+
 import org.dwbn.plugins.playlist.RmxAudioPlayer;
 import org.dwbn.plugins.playlist.data.AudioTrack;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
@@ -113,47 +109,6 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
         super.onCompletion(mediaPlayer);
     }
 
-    /**
-     * A workaround to set current position into MediaControls session.
-     *
-     * @deprecated Can be delete after PlaylistCore updated.
-     */
-    @Override
-    public boolean onProgressUpdated(@NonNull MediaProgress mediaProgress) {
-        MediaPlayerApi<I> currentMediaPlayer = getCurrentMediaPlayer();
-
-        long pos = currentMediaPlayer != null ? currentMediaPlayer.getCurrentPosition() : PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN;
-
-        PlaybackStateCompat.Builder playbackStateBuilder = new PlaybackStateCompat.Builder();
-        playbackStateBuilder.setState(
-                isPlaying() ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_CONNECTING,
-                pos,
-                1.0f
-        );
-        getMediaSessionProvider().get().setPlaybackState(playbackStateBuilder.build());
-
-        return super.onProgressUpdated(mediaProgress);
-    }
-
-    /**
-     * A workaround to set duration into MediaControls metadata.
-     *
-     * @deprecated Can be delete after PlaylistCore updated.
-     */
-    @Override
-    public void updateMediaControls() {
-        super.updateMediaControls();
-
-        MediaPlayerApi<I> currentMediaPlayer = getCurrentMediaPlayer();
-
-        long duration = currentMediaPlayer != null ? currentMediaPlayer.getDuration() : -1;
-
-        // Set duration to Media Controls.
-        MediaMetadataCompat.Builder metaDataBuilder = new MediaMetadataCompat.Builder();
-        metaDataBuilder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration);
-
-        getMediaSessionProvider().get().setMetadata(metaDataBuilder.build());
-    }
 
     public static class Builder<I extends PlaylistItem, M extends BasePlaylistManager<I>> {
 
