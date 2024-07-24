@@ -11,24 +11,16 @@ abstract class BaseMediaApi : MediaPlayerApi<AudioTrack>, OnPreparedListener, On
     protected var bufferPercent: Int = 0
 
     protected var statusListener: MediaStatusListener<AudioTrack>? = null
-
     override fun setMediaStatusListener(listener: MediaStatusListener<AudioTrack>) {
         statusListener = listener
     }
-
     override fun onCompletion() {
         statusListener?.onCompletion(this)
     }
-
-    override fun onError(e: Exception): Boolean {
-        return statusListener?.onError(this) == true
-    }
-
     override fun onPrepared() {
         prepared = true
         statusListener?.onPrepared(this)
     }
-
     override fun onSeekComplete() {
         statusListener?.onSeekComplete(this)
     }

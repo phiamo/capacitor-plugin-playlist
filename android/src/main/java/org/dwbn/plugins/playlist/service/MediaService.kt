@@ -1,5 +1,8 @@
 package org.dwbn.plugins.playlist.service
 
+import android.app.Notification
+import android.content.pm.ServiceInfo
+import android.os.Build
 import com.devbrackets.android.playlistcore.components.playlisthandler.PlaylistHandler
 import com.devbrackets.android.playlistcore.service.BasePlaylistService
 import org.dwbn.plugins.playlist.App
@@ -30,6 +33,20 @@ class MediaService : BasePlaylistService<AudioTrack, PlaylistManager>() {
             player.release()
         }
         playlistManager.mediaPlayers.clear()
+    }
+
+    override fun runAsForeground(notificationId: Int, notification: Notification) {
+        if (inForeground) {
+            return
+        }
+
+        inForeground = true
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            startForeground(notificationId, notification)
+        } else {
+            startForeground(notificationId, notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        }
     }
 
     override val playlistManager: PlaylistManager

@@ -48,9 +48,10 @@ class PlaylistManager(application: Application) :
     val isPlaying: Boolean
         get() = playlistHandler != null && playlistHandler!!.currentMediaPlayer != null && playlistHandler!!.currentMediaPlayer!!.isPlaying
 
-    override fun onError(e: Exception): Boolean {
-        Log.i(TAG, "onError: $e")
-        if (errorListener.get() != null) {
+    override fun onError(e: Exception?): Boolean {
+
+        if (e != null && errorListener.get() != null) {
+            Log.i(TAG, "onError: $e")
             errorListener.get()!!.onError(e)
         }
         return true
@@ -77,10 +78,10 @@ class PlaylistManager(application: Application) :
     override operator fun next(): AudioTrack? {
         if (isNextAvailable) {
             val isAtEnd = currentPosition + 1 >= itemCount
-            if (isAtEnd && loop) {
-                currentPosition = 0
+            currentPosition = if (isAtEnd && loop) {
+                0
             } else {
-                currentPosition = (currentPosition + 1).coerceAtMost(itemCount)
+                (currentPosition + 1).coerceAtMost(itemCount)
             }
         } else {
             if (loop) {
@@ -283,4 +284,5 @@ class PlaylistManager(application: Application) :
         setParameters(audioTracks, 0)
         options = Options(application.baseContext)
     }
+
 }

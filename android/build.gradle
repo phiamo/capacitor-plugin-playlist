@@ -65,7 +65,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 
     // Image Exomedia
-    implementation 'com.devbrackets.android:exomedia:4.3.0'
+    implementation 'com.devbrackets.android:exomedia:5.1.0'
     implementation "com.google.android.exoplayer:extension-okhttp:$exoPlayerVersion"
 
     // Image Loading
