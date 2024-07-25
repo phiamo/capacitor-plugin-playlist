@@ -1,3 +1,4 @@
+
 package org.dwbn.plugins.playlist.playlist
 
 import android.content.Context
@@ -6,8 +7,10 @@ import android.net.Uri
 import android.os.PowerManager
 import androidx.annotation.FloatRange
 import androidx.annotation.IntRange
+import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.util.EventLogger
 import com.devbrackets.android.exomedia.AudioPlayer
 import com.devbrackets.android.exomedia.listener.OnErrorListener
@@ -16,6 +19,7 @@ import org.dwbn.plugins.playlist.data.AudioTrack
 import java.lang.ref.WeakReference
 import java.util.concurrent.locks.ReentrantLock
 
+@OptIn(UnstableApi::class)
 class AudioApi(context: Context) : BaseMediaApi() {
     private val audioPlayer: AudioPlayer = AudioPlayer(context.applicationContext)
 

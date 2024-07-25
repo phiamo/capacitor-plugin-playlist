@@ -47,9 +47,11 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     @PluginMethod
     fun release(call: PluginCall) {
-        destroyResources()
-        call.resolve()
-        Log.i(TAG,"released")
+        Handler(Looper.getMainLooper()).post {
+            destroyResources()
+            call.resolve()
+            Log.i(TAG, "released")
+        }
     }
 
     @PluginMethod
