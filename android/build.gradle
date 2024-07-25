@@ -71,7 +71,7 @@ dependencies {
     annotationProcessor 'com.github.bumptech.glide:compiler:4.6.1'
 
     // Playlist support
-    implementation 'com.devbrackets.android:playlistcore:2.1.0'
+    implementation 'com.devbrackets.android:playlistcore:2.2.0'
     implementation 'androidx.work:work-runtime-ktx:2.7.1'
 
 }
