@@ -120,6 +120,15 @@ await Playlist.setOptions({
 });
 ```
 
+In Adnroid Studio, you can simply right-click on `res` folder and choose `New > Image Asset`:
+
+![](https://github.com/user-attachments/assets/3f34e812-b283-4014-b566-52c519c511d3)
+
+And you must select type: `Notification Icons` and choose your icon, click `Next` to save it.
+
+![](https://github.com/user-attachments/assets/aa5ef9a1-5303-4f6a-8218-6c02ea797290)
+
+
 ## 4. Usage
 
 Be sure to check out the examples folder, where you can find an Angular10/Ionic5 implementation of the Capacitor plugin.
