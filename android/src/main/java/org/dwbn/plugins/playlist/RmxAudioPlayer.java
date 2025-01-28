@@ -4,6 +4,9 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.exoplayer.ExoPlaybackException;
 
 import com.devbrackets.android.exomedia.listener.OnErrorListener;
 import com.devbrackets.android.playlistcore.data.MediaProgress;
@@ -12,7 +15,6 @@ import com.devbrackets.android.playlistcore.data.PlaylistItemChange;
 import com.devbrackets.android.playlistcore.listener.PlaybackStatusListener;
 import com.devbrackets.android.playlistcore.listener.PlaylistListener;
 import com.devbrackets.android.playlistcore.listener.ProgressListener;
-import com.google.android.exoplayer2.ExoPlaybackException;
 
 import org.dwbn.plugins.playlist.data.AudioTrack;
 import org.dwbn.plugins.playlist.manager.MediaControlsListener;
@@ -142,7 +144,7 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
         onStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_FORWARD, trackId, param);
     }
 
-    @Override
+    @OptIn(markerClass = UnstableApi.class) @Override
     public boolean onError(Exception e) {
         String errorMsg = e.toString();
         RmxAudioErrorType errorType = RmxAudioErrorType.RMXERR_NONE_SUPPORTED;

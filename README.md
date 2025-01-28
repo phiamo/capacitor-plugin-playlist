@@ -1,4 +1,5 @@
 # capacitor-plugin-playlist
+
 Will probably be published as @dwbn/capacitor-playlist
 
 A capacitor 3. 0 plugin for Android, iOS and Web with native support for audio playlists, background support, and lock screen controls
@@ -21,12 +22,13 @@ cordova, and here we wanna give back to the community our outcome, any help is a
 
 ## 2. Notes
 
-### On *Android*, utilizes a wrapper over ExoPlayer called [ExoMedia](https://github.com/brianwernick/ExoMedia). ExoPlayer is a powerful, high-quality player for Android provided by Google
+### On _Android_, utilizes a wrapper over ExoPlayer called [ExoMedia](https://github.com/brianwernick/ExoMedia). ExoPlayer is a powerful, high-quality player for Android provided by Google
+
 ### On iOS, utilizes a customized AVQueuePlayer in order to provide feedback about track changes, buffering, etc.; given that AVQueuePlayer can keep the audio session running between songs.
 
-* This plugin is not designed to play mixable, rapid-fire, low-latency audio, as you would use in a game. A more appropriate cordova plugin for that use case is [cordova-plugin-nativeaudio](https://github.com/floatinghotpot/cordova-plugin-nativeaudio)
+- This plugin is not designed to play mixable, rapid-fire, low-latency audio, as you would use in a game. A more appropriate cordova plugin for that use case is [cordova-plugin-nativeaudio](https://github.com/floatinghotpot/cordova-plugin-nativeaudio)
 
-* Cannot mix audio; again the NativeAudio plugin is probably more appropriate. This is due to supporting the lock screen and command center controls: only an app in command of audio can do this, otherwise the controls have no meaning. I would like to add an option to do this, it should be fairly straightforward; at the cost of not supporting the OS-level controls for that invokation.
+- Cannot mix audio; again the NativeAudio plugin is probably more appropriate. This is due to supporting the lock screen and command center controls: only an app in command of audio can do this, otherwise the controls have no meaning. I would like to add an option to do this, it should be fairly straightforward; at the cost of not supporting the OS-level controls for that invokation.
 
 ## 3. Installation
 
@@ -36,10 +38,13 @@ As with most capacitor plugins...
 npm i capacitor-plugin-playlist
 npx cap sync
 ```
-### For web
-include hlsjs in your build 
 
-#### E.G. for Angular 2+: 
+### For web
+
+include hlsjs in your build
+
+#### E.G. for Angular 2+:
+
 ```
 npm i hls.js
 ```
@@ -55,16 +60,8 @@ architect => build => options:
     ]
 ```
 
-### On Android:
-
-##### Add to your build.gradle
-```
-ext {
-    exoPlayerVersion = "2.9.6"
-    supportLibVersion = "28.0.0"
-}
-```
 ##### AndroidManifest.xml:
+
 ```
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -78,7 +75,9 @@ ext {
 ```
 
 ##### Glide image loading for notifiction center
+
 To be able to use glide you need to create a file MyAppGlideModule.java:
+
 ```
 package org.your.package.namespace;
 
@@ -88,10 +87,13 @@ import com.bumptech.glide.module.AppGlideModule;
 @GlideModule
 public final class MyAppGlideModule extends AppGlideModule {}
 ```
+
 also see https://guides.codepath.com/android/Displaying-Images-with-the-Glide-Library
 
 ### iOS
+
 ##### inside Info.plist:
+
 ```
 	<key>UIBackgroundModes</key>
 	<array>
@@ -105,6 +107,7 @@ Android normally will give you ~2-3 minutes of background playback before killin
 iOS will immediately stop playback when the app goes into the background if you do not include the `audio` `UIBackgroundMode`. iOS has an additional requirement that audio playback must never stop; when it does, the audio session will be terminated and playback cannot continue without user interaction.
 
 ### Android notification icon
+
 To show a better notification icon in Android Lollipop (API 21) and above, create a transparent (silhouette) icon and name the file e.g. as "ic_notification.png".
 Then you can use the options like:
 
@@ -124,8 +127,10 @@ Just drop into your project and go.
 Should be quite obvious howto adapt this for other frameworks, or just vanillaJS
 
 ### API
+
 Example:
 @see definition.ts
+
 ```
 import {Playlist, AudioTrack} from 'capacitor-plugin-playlist'
 
@@ -147,20 +152,21 @@ Its a meant as a drop in replacement
 
 in the best case you only change your import. :D
 
-
 ## 5. Todo
-* [iOS] Utilize [AudioPlayer](https://github.com/delannoyk/AudioPlayer) instead of directly implementing AVQueuePlayer. `AudioPlayer` includes some smart network recovery features
-* [iOS, Android] Add a full example
+
+- [iOS] Utilize [AudioPlayer](https://github.com/delannoyk/AudioPlayer) instead of directly implementing AVQueuePlayer. `AudioPlayer` includes some smart network recovery features
+- [iOS, Android] Add a full example
 
 ## 6. Credits
 
 There are several plugins that are similar to this one, but all are focused on aspects of the media management experience. This plugin takes inspiration from:
-* [cordova-plugin-playlist](https://github.com/Rolamix/cordova-plugin-playlist)
-* [cordova-plugin-media](https://github.com/apache/cordova-plugin-media)
-* [ExoMedia](https://github.com/brianwernick/ExoMedia)
-* [PlaylistCore](https://github.com/brianwernick/PlaylistCore) (provides player controls on top of ExoMedia)
-* [Bi-Directional AVQueuePlayer proof of concept](https://github.com/jrtaal/AVBidirectionalQueuePlayer)
-* [cordova-music-controls-plugin](https://github.com/homerours/cordova-music-controls-plugin)
+
+- [cordova-plugin-playlist](https://github.com/Rolamix/cordova-plugin-playlist)
+- [cordova-plugin-media](https://github.com/apache/cordova-plugin-media)
+- [ExoMedia](https://github.com/brianwernick/ExoMedia)
+- [PlaylistCore](https://github.com/brianwernick/PlaylistCore) (provides player controls on top of ExoMedia)
+- [Bi-Directional AVQueuePlayer proof of concept](https://github.com/jrtaal/AVBidirectionalQueuePlayer)
+- [cordova-music-controls-plugin](https://github.com/homerours/cordova-music-controls-plugin)
 
 ## 7. License
 

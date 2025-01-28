@@ -9,7 +9,7 @@ export interface PlaylistPlugin {
     /**
      * Listen for screen reader state change (on/off)
      */
-    addListener(eventName: 'status', listenerFunc: PlaylistStatusChangeCallback): PluginListenerHandle;
+    addListener(eventName: 'status', listenerFunc: PlaylistStatusChangeCallback): Promise<PluginListenerHandle>;
 
     // Playlist item management
     setOptions(options: AudioPlayerOptions): Promise<void>;

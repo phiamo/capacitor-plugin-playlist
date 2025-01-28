@@ -1,5 +1,5 @@
-import {WebPlugin} from '@capacitor/core';
-import {RmxAudioStatusMessage} from './Constants';
+import { WebPlugin } from '@capacitor/core';
+import { RmxAudioStatusMessage } from './Constants';
 import {
     AddAllItemOptions,
     AddItemOptions,
@@ -16,8 +16,8 @@ import {
     SetPlaybackRateOptions,
     SetPlaybackVolumeOptions
 } from './definitions';
-import {AudioPlayerOptions, AudioTrack} from './interfaces';
-import {validateTrack, validateTracks} from './utils';
+import { AudioPlayerOptions, AudioTrack } from './interfaces';
+import { validateTrack, validateTracks } from './utils';
 
 declare var Hls: any;
 
@@ -68,8 +68,8 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             if (track.trackId === options.id) {
                 if (track !== this.currentTrack) {
                     await this.setCurrent(track);
-                    if (this.audio && options?.position && options.position > 0) {
-                        this.audio.currentTime = options.position;
+                    if (this.audio && options?.position && options.position! > 0) {
+                        this.audio!.currentTime = options.position!;
                     }
                 }
                 return this.play();
@@ -79,12 +79,12 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async playTrackByIndex(options: PlayByIndexOptions): Promise<void> {
-        for (let {index, item} of this.playlistItems.map((item, index) => ({ index, item }))) {
+        for (let { index, item } of this.playlistItems.map((item, index) => ({ index, item }))) {
             if (index === options.index) {
                 if (item !== this.currentTrack) {
                     await this.setCurrent(item);
-                    if (this.audio && options?.position && options.position > 0) {
-                        this.audio.currentTime = options.position;
+                    if (this.audio && options?.position && options.position! > 0) {
+                        this.audio!.currentTime = options.position!;
                     }
                 }
                 return this.play();
@@ -218,8 +218,8 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         if (found !== null) {
             this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK, {
                 currentIndex: found - 1,
-                currentItem: this.playlistItems[found -1]
-            }, this.playlistItems[found -1].trackId);
+                currentItem: this.playlistItems[found - 1]
+            }, this.playlistItems[found - 1].trackId);
             return this.setCurrent(this.playlistItems[found - 1]);
         }
 
@@ -255,7 +255,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         const canPlayListener = async () => {
             this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_CANPLAY, this.getCurrentTrackStatus('paused'));
             if (position) {
-                await this.seekTo({position});
+                await this.seekTo({ position });
             }
             this.audio?.removeEventListener('canplay', canPlayListener);
         };
@@ -276,12 +276,8 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             this.audio.addEventListener('ended', () => {
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_COMPLETED, this.getCurrentTrackStatus('stopped'));
                 const currentTrackIndex = this.playlistItems.findIndex(i => i.trackId === this.getCurrentTrackId());
-                if (currentTrackIndex === this.playlistItems.length -1) {
-                    if (this.loop) {
-                        this.setCurrent(this.playlistItems[0], undefined, true);
-                    } else {
-                        this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED, this.getCurrentTrackStatus('stopped'));
-                    }
+                if (currentTrackIndex === this.playlistItems.length - 1) {
+                    this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED, this.getCurrentTrackStatus('stopped'));
                 } else {
                     this.setCurrent(this.playlistItems[currentTrackIndex + 1], undefined, true);
                 }
@@ -296,7 +292,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                     lastPosition = status.currentPosition;
                 }
             });
-            
+
             this.audio.addEventListener('durationchange', () => {
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_DURATION, this.getCurrentTrackStatus(this.lastState));
             });
