@@ -234,6 +234,52 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         return Promise.reject();
     }
 
+    async setMediaSessionRemoteControlMetadata(): Promise<void> {
+        const audioTrack: AudioTrack = this.currentTrack!;
+        if(!navigator.mediaSession) {
+            console.warn('Media Session API not available');
+            return Promise.reject();
+        }
+
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: audioTrack.title,
+            artist: audioTrack.artist,
+            album: audioTrack.album,
+            artwork: [
+                { src: audioTrack.albumArt!, sizes: '96x96',   type: 'image/jpeg' },
+                { src: audioTrack.albumArt!, sizes: '128x128', type: 'image/jpeg' },
+                { src: audioTrack.albumArt!, sizes: '192x192', type: 'image/jpeg' },
+                { src: audioTrack.albumArt!, sizes: '256x256', type: 'image/jpeg' },
+                { src: audioTrack.albumArt!, sizes: '384x384', type: 'image/jpeg' },
+                { src: audioTrack.albumArt!, sizes: '512x512', type: 'image/jpeg' },
+            ]
+        });
+
+        navigator.mediaSession.setActionHandler('play', (details) => {this.mediaSessionControlsHandler(details)});
+        navigator.mediaSession.setActionHandler('pause', (details) => {this.mediaSessionControlsHandler(details)});
+        navigator.mediaSession.setActionHandler('nexttrack', (details) => {this.mediaSessionControlsHandler(details)});
+        navigator.mediaSession.setActionHandler('previoustrack', (details) => {this.mediaSessionControlsHandler(details)});
+        return Promise.resolve();
+    }
+
+    async mediaSessionControlsHandler(actionDetails: MediaSessionActionDetails): Promise<void> {
+        switch(actionDetails.action) {
+            case 'play':
+              this.play();
+              break;
+            case 'pause':
+              this.pause();
+              break;
+            case 'nexttrack':
+              this.skipForward();
+              break;
+            case 'previoustrack':
+              this.skipBack();
+              break;
+          }
+        return Promise.resolve();
+    }
+
     // register events
     /*
       private registerHlsListeners(hls: Hls, position?: number) {
@@ -260,6 +306,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             this.audio?.removeEventListener('canplay', canPlayListener);
         };
         if (this.audio) {
+            this.audio.addEventListener('loadstart', () => {this.setMediaSessionRemoteControlMetadata()});
             this.audio.addEventListener('canplay', canPlayListener);
             this.audio.addEventListener('playing', () => {
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYING, this.getCurrentTrackStatus('playing'));
