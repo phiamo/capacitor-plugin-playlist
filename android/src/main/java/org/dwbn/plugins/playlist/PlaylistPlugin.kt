@@ -66,10 +66,10 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     @PluginMethod
     fun setPlaylistItems(call: PluginCall) {
+        val items: JSArray = call.getArray("items")
+        val optionsArgs: JSONObject = call.getObject("options")
+        val options = PlaylistItemOptions(optionsArgs)
         Handler(Looper.getMainLooper()).post {
-            val items: JSArray = call.getArray("items")
-            val optionsArgs: JSONObject = call.getObject("options")
-            val options = PlaylistItemOptions(optionsArgs)
 
             val trackItems: ArrayList<AudioTrack> = getTrackItems(items)
             audioPlayerImpl!!.playlistManager.setAllItems(trackItems, options)
@@ -84,9 +84,8 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
             }
 
             call.resolve()
-
-            Log.i(TAG, "setPlaylistItems" + items.length().toString())
         }
+        Log.i(TAG, "setPlaylistItems: " + items.toString())
     }
 
     @PluginMethod
