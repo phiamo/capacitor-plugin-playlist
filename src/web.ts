@@ -22,7 +22,7 @@ import { validateTrack, validateTracks } from './utils';
 declare var Hls: any;
 
 export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
-    protected audio: HTMLVideoElement | undefined;
+    protected audio: HTMLAudioElement | undefined;
     protected playlistItems: AudioTrack[] = [];
     protected loop = false;
     protected options: AudioPlayerOptions = {};
@@ -51,6 +51,11 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async initialize(): Promise<void> {
+        this.audio = new Audio();
+        this.audio.crossOrigin = 'anonymous';
+        this.audio.preload = 'auto';
+        this.audio.controls = true;
+        this.audio.autoplay = false;
         this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_INIT, null, "INVALID");
         return Promise.resolve();
     }
@@ -96,6 +101,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     async release(): Promise<void> {
         await this.pause();
         this.audio = undefined;
+        await this.initialize();
         return Promise.resolve();
     }
 
@@ -385,9 +391,9 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             this.audio.removeAttribute('src');
             this.audio.load();
         }
-        this.audio = document.createElement('video');
+
         if (wasPlaying || forceAutoplay) {
-            this.audio.addEventListener('canplay', () => {
+            this.audio!.addEventListener('canplay', () => {
                 this.play();
             });
         }
@@ -407,7 +413,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
             //this.registerHlsListeners(hls, position);
         } else {
-            this.audio.src = item.assetUrl;
+            this.audio!.src = item.assetUrl;
         }
 
         await this.registerHtmlListeners(position);
