@@ -51,11 +51,6 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async initialize(): Promise<void> {
-        this.audio = new Audio();
-        this.audio.crossOrigin = 'anonymous';
-        this.audio.preload = 'auto';
-        this.audio.controls = true;
-        this.audio.autoplay = false;
         this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_INIT, null, "INVALID");
         return Promise.resolve();
     }
@@ -101,7 +96,15 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     async release(): Promise<void> {
         await this.pause();
         this.audio = undefined;
-        await this.initialize();
+        return Promise.resolve();
+    }
+
+    async create(): Promise<void> {
+        this.audio = document.createElement('audio');
+        this.audio.crossOrigin = 'anonymous';
+        this.audio.preload = 'none';
+        this.audio.controls = true;
+        this.audio.autoplay = false;
         return Promise.resolve();
     }
 
@@ -386,17 +389,10 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         let wasPlaying = false;
         if (this.audio) {
             wasPlaying = !this.audio.paused;
-            this.audio.pause();
-            this.audio.src = '';
-            this.audio.removeAttribute('src');
-            this.audio.load();
+            await this.release();
         }
+        await this.create();
 
-        if (wasPlaying || forceAutoplay) {
-            this.audio!.addEventListener('canplay', () => {
-                this.play();
-            });
-        }
         this.currentTrack = item;
         if (item.assetUrl.includes('.m3u8')) {
             await this.loadHlsJs();
@@ -421,7 +417,12 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_TRACK_CHANGED, {
             currentItem: item
         })
+
+        if (wasPlaying || forceAutoplay) {
+            this.play();
+        }
     }
+
     protected updateStatus(msgType: RmxAudioStatusMessage, value: any, trackId?: string) {
         this.notifyListeners('status', {
             action: 'status',
