@@ -102,7 +102,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     async create(): Promise<void> {
         this.audio = document.createElement('audio');
         this.audio.crossOrigin = 'anonymous';
-        this.audio.preload = 'none';
+        this.audio.preload = 'metadata';
         this.audio.controls = true;
         this.audio.autoplay = false;
         return Promise.resolve();
@@ -419,7 +419,10 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         })
 
         if (wasPlaying || forceAutoplay) {
-            this.play();
+            //this.play();
+            this.audio!.addEventListener('canplay', () => {
+                this.play();
+            });
         }
     }
 
