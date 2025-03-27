@@ -74,6 +74,21 @@ architect => build => options:
     </application>
 ```
 
+**Note**: Starting with Android 14, you now need to specify the `foregroundServiceType` and request the appropriate permission:
+
+```
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <application
+        android:name="org.dwbn.plugins.playlist.App"
+    >
+        <service android:enabled="true" android:exported="false"
+                 android:foregroundServiceType="mediaPlayback"
+                 android:name="org.dwbn.plugins.playlist.service.MediaService">
+        </service>
+    </application>
+```
+
 ##### Glide image loading for notifiction center
 
 To be able to use glide you need to create a file MyAppGlideModule.java:
