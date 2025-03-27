@@ -2,7 +2,7 @@
 
 Will probably be published as @dwbn/capacitor-playlist
 
-A capacitor 3. 0 plugin for Android, iOS and Web with native support for audio playlists, background support, and lock screen controls
+A capacitor plugin for Android, iOS and Web with native support for audio playlists, background support, and lock screen controls
 
 ## 0. Index
 
@@ -74,6 +74,21 @@ architect => build => options:
     </application>
 ```
 
+**Note**: Starting with Android 14, you now need to specify the `foregroundServiceType` and request the appropriate permission:
+
+```
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <application
+        android:name="org.dwbn.plugins.playlist.App"
+    >
+        <service android:enabled="true" android:exported="false"
+                 android:foregroundServiceType="mediaPlayback"
+                 android:name="org.dwbn.plugins.playlist.service.MediaService">
+        </service>
+    </application>
+```
+
 ##### Glide image loading for notifiction center
 
 To be able to use glide you need to create a file MyAppGlideModule.java:
@@ -120,13 +135,13 @@ await Playlist.setOptions({
 });
 ```
 
-In Adnroid Studio, you can simply right-click on `res` folder and choose `New > Image Asset`:
+In Android Studio, you can right-click on `res` folder and choose `New > Image Asset`:
 
-![](https://github.com/user-attachments/assets/3f34e812-b283-4014-b566-52c519c511d3)
+![](docs/375350860-3f34e812-b283-4014-b566-52c519c511d3.jpg)
 
-And you must select type: `Notification Icons` and choose your icon, click `Next` to save it.
+Select type: `Notification Icons` and choose your icon, click `Next` to save it.
 
-![](https://github.com/user-attachments/assets/aa5ef9a1-5303-4f6a-8218-6c02ea797290)
+![](docs/375351762-aa5ef9a1-5303-4f6a-8218-6c02ea797290.jpg)
 
 
 ## 4. Usage
