@@ -259,9 +259,13 @@ class PlaylistManager(application: Application) :
 
     fun setPlaybackSpeed(@FloatRange(from = 0.0, to = 1.0) speed: Float) {
         playbackSpeed = speed
-        if (playlistHandler!!.currentMediaPlayer != null &&  playlistHandler!!.currentMediaPlayer!! is AudioApi) {
-            Log.i(TAG, "setPlaybackSpeed completing with speed = $speed")
-            (playlistHandler!!.currentMediaPlayer as AudioApi?)!!.setPlaybackSpeed(playbackSpeed)
+        playlistHandler?.let { handler ->
+            handler.currentMediaPlayer?.let { mediaPlayer ->
+                if (mediaPlayer is AudioApi) {
+                    Log.i(TAG, "setPlaybackSpeed completing with speed = $speed")
+                    mediaPlayer.setPlaybackSpeed(playbackSpeed)
+                }
+            }
         }
     }
 
