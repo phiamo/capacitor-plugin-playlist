@@ -149,7 +149,7 @@ class PlaylistManager(application: Application) :
 
     fun addAllItems(its: List<AudioTrack>?) {
         val currentItem = currentItem // may be null
-        audioTracks.addAll(its!!)
+        audioTracks.addAll(its.orEmpty())
         items =
             audioTracks // not *strictly* needed since they share the reference, but for good measure..
         currentPosition = audioTracks.indexOf(currentItem)
@@ -212,9 +212,7 @@ class PlaylistManager(application: Application) :
     }
 
     fun clearItems() {
-        if (playlistHandler != null) {
-            playlistHandler!!.stop()
-        }
+        playlistHandler?.stop()
         audioTracks.clear()
         items = audioTracks
         currentPosition = INVALID_POSITION
