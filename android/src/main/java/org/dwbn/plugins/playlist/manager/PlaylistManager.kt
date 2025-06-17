@@ -255,12 +255,13 @@ class PlaylistManager(application: Application) :
         return playbackSpeed
     }
 
-    fun setPlaybackSpeed(@FloatRange(from = 0.0, to = 1.0) speed: Float) {
-        playbackSpeed = speed
+    fun setPlaybackSpeed(@FloatRange(from = 0.0625, to = 1.0) speed: Float) {
+        val validSpeed = speed.coerceIn(0.0625f, 1.0f)
+        playbackSpeed = validSpeed
         playlistHandler?.let { handler ->
             handler.currentMediaPlayer?.let { mediaPlayer ->
                 if (mediaPlayer is AudioApi) {
-                    Log.i(TAG, "setPlaybackSpeed completing with speed = $speed")
+                    Log.i(TAG, "setPlaybackSpeed completing with speed = $validSpeed")
                     mediaPlayer.setPlaybackSpeed(playbackSpeed)
                 }
             }
