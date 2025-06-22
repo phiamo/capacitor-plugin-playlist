@@ -255,8 +255,8 @@ class PlaylistManager(application: Application) :
         return playbackSpeed
     }
 
-    fun setPlaybackSpeed(@FloatRange(from = 0.0625, to = 1.0) speed: Float) {
-        val validSpeed = speed.coerceIn(0.0625f, 1.0f)
+    fun setPlaybackSpeed(@FloatRange(from = 0.0625, to = 16.0) speed: Float) {
+        val validSpeed = speed.coerceIn(0.0625f, 16.0f)
         playbackSpeed = validSpeed
         playlistHandler?.let { handler ->
             handler.currentMediaPlayer?.let { mediaPlayer ->
