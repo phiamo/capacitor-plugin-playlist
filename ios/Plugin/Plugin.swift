@@ -181,6 +181,14 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         audioPlayerImpl.setPlaybackRate(rate)
         call.resolve();
     }
+    @objc func insertItem(_ call: CAPPluginCall) {
+        let trackInfo = call.getObject("item")
+        let track = AudioTrack.initWithDictionary(trackInfo)
+        let index = call.getInt("index")
+        let afterId = call.getString("id")
+        audioPlayerImpl.insertItem(track!, index: index, afterId: afterId)
+        call.resolve();
+    }
 
     @objc func prepareForVideoHandoff(_ call: CAPPluginCall) {
         audioPlayerImpl.prepareForVideoHandoff()

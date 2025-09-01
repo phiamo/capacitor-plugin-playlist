@@ -58,6 +58,9 @@ export interface PlaylistPlugin {
     // advanced
     setPlaybackRate(options: SetPlaybackRateOptions): Promise<void>;
 
+    // inserts a track at a position or after an id
+    insertItem(options: InsertItemOptions): Promise<void>;
+
     /**
      * Epic 45 — release native audio session / focus so the video player can own playback.
      * Call immediately before CapacitorVideoPlayer.initPlayer (Critical Rule 2).
@@ -143,4 +146,10 @@ export interface SetPlaybackRateOptions {
 
 export interface GetPlaylistResult {
     items: Array<AudioTrack>
+}
+
+export interface InsertItemOptions {
+    item: AudioTrack;
+    index?: number;
+    id?: string;
 }

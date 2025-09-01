@@ -127,6 +127,25 @@ final class RmxAudioPlayer: NSObject {
         addTracks(items, startPosition: -1)
     }
 
+    func insertItem(_ item: AudioTrack, index: Int?, afterId: String?) {
+        let insertIndex: Int? = {
+            if let idx = index, idx >= 0 && idx <= avQueuePlayer.queuedAudioTracks.count { return idx }
+            if let afterId = afterId, let info = findTrack(byId: afterId) {
+                let pos = (info["index"] as? NSNumber)?.intValue ?? -1
+                if pos >= 0 { return min(pos + 1, avQueuePlayer.queuedAudioTracks.count) }
+            }
+            return nil
+        }()
+
+        addTrackObservers(item)
+        if let insertIndex = insertIndex, insertIndex < avQueuePlayer.queuedAudioTracks.count {
+            let afterItem = avQueuePlayer.queuedAudioTracks[max(insertIndex - 1, 0)]
+            avQueuePlayer.insert(item, after: insertIndex == 0 ? nil : afterItem)
+        } else {
+            avQueuePlayer.appendItems([item])
+        }
+    }
+
     func removeItems(_ items: JSArray) -> Int {
         print("RmxAudioPlayer.execute=removeItems, \(items)")
 

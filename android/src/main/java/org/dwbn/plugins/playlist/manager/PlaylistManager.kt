@@ -231,6 +231,30 @@ class PlaylistManager(application: Application) :
         currentPosition = INVALID_POSITION
     }
 
+    fun insertItem(item: AudioTrack?, index: Int, afterItemId: String) {
+        if (item == null) {
+            return
+        }
+        var insertIndex = index
+        if (insertIndex < 0 || insertIndex > audioTracks.size) {
+            if ("" != afterItemId) {
+                val pos = getPositionForItem(afterItemId.hashCode().toLong())
+                if (pos != INVALID_POSITION) {
+                    insertIndex = (pos + 1).coerceAtMost(audioTracks.size)
+                }
+            }
+        }
+        if (insertIndex < 0 || insertIndex > audioTracks.size) {
+            audioTracks.add(item)
+        } else {
+            audioTracks.add(insertIndex, item)
+        }
+        items = audioTracks
+        if (this.playlistHandler != null) {
+            this.playlistHandler!!.updateMediaControls()
+        }
+    }
+
     fun getAllItems(): List<AudioTrack> {
         return audioTracks.toList()
     }

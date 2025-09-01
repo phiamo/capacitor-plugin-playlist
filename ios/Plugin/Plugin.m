@@ -10,6 +10,7 @@ CAP_PLUGIN(PlaylistPlugin, "Playlist",
    CAP_PLUGIN_METHOD(setPlaylistItems, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(addItem, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(addAllItems, CAPPluginReturnPromise);
+   CAP_PLUGIN_METHOD(insertItem, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(removeItem, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(removeItems, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(clearAllItems, CAPPluginReturnPromise);

@@ -422,6 +422,27 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         }
     }
 
+    @PluginMethod
+    fun insertItem(call: PluginCall) {
+        Handler(Looper.getMainLooper()).post {
+            val item: JSONObject = call.getObject("item")
+            val playerItem: AudioTrack? = getTrackItem(item)
+            val index: Int = call.getInt("index", -1)!!
+            val id: String = call.getString("id", "")!!
+            audioPlayerImpl!!.playlistManager.insertItem(playerItem, index, id)
+
+            if (playerItem?.trackId != null) {
+                onStatus(
+                    RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED,
+                    playerItem.trackId,
+                    playerItem.toDict()
+                )
+            }
+            call.resolve()
+            Log.i(TAG, "insertItem")
+        }
+    }
+
     override fun handleOnDestroy() {
         Log.d(TAG, "Plugin destroy")
         super.handleOnDestroy()

@@ -14,7 +14,8 @@ import {
     SelectByIndexOptions,
     SetLoopOptions,
     SetPlaybackRateOptions,
-    SetPlaybackVolumeOptions
+    SetPlaybackVolumeOptions,
+    InsertItemOptions
 } from './definitions';
 import { AudioPlayerOptions, AudioTrack } from './interfaces';
 import { validateTrack, validateTracks } from './utils';
@@ -40,6 +41,29 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             this.playlistItems.push(track);
             this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED, track, track.trackId);
         }
+        return Promise.resolve();
+    }
+
+    insertItem(options: InsertItemOptions): Promise<void> {
+        const track = validateTrack(options.item);
+        if (!track) {
+            return Promise.resolve();
+        }
+        let insertIndex = -1;
+        if (typeof options.index === 'number' && options.index >= 0 && options.index <= this.playlistItems.length) {
+            insertIndex = options.index;
+        } else if (options.id) {
+            const foundIndex = this.playlistItems.findIndex(t => t.trackId === options.id);
+            if (foundIndex >= 0) {
+                insertIndex = foundIndex + 1;
+            }
+        }
+        if (insertIndex >= 0) {
+            this.playlistItems.splice(insertIndex, 0, track);
+        } else {
+            this.playlistItems.push(track);
+        }
+        this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED, track, track.trackId);
         return Promise.resolve();
     }
 
