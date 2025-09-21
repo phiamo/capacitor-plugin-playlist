@@ -311,6 +311,7 @@ class PlaylistManager(application: Application) :
 
     fun beginPlayback(@IntRange(from = 0) seekPosition: Long, startPaused: Boolean) {
         currentItem ?: return
+        Log.w(TAG, "beginPlayback: seekPosition = $seekPosition, startPaused = $startPaused")
         super.play(seekPosition, startPaused)
         try {
             setVolume(volumeLeft, volumeRight)

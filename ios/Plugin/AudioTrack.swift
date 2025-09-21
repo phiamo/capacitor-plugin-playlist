@@ -14,6 +14,8 @@ final class AudioTrack: AVPlayerItem {
     var artist: String?
     var album: String?
     var title: String?
+    var startTime: Double = 0.0
+    var endTime: Double?
 
     class func initWithDictionary(_ trackInfo: [String : Any]?) -> AudioTrack? {
         guard
@@ -46,11 +48,19 @@ final class AudioTrack: AVPlayerItem {
         track.album = trackInfo["album"] as? String
         track.title = trackInfo["title"] as? String
         
+        // Handle excerpt timing
+        if let startTime = trackInfo["startTime"] as? NSNumber {
+            track.startTime = startTime.doubleValue
+        }
+        if let endTime = trackInfo["endTime"] as? NSNumber {
+            track.endTime = endTime.doubleValue
+        }
+        
         return track
     }
 
     func toDict() -> [String : Any]? {
-        [
+        var dict: [String : Any] = [
             "isStream": NSNumber(value: isStream),
             "trackId": trackId ?? "",
             "assetUrl": assetUrl?.absoluteString ?? "",
@@ -59,5 +69,14 @@ final class AudioTrack: AVPlayerItem {
             "album": album ?? "",
             "title": title ?? ""
         ]
+        
+        if startTime > 0 {
+            dict["startTime"] = NSNumber(value: startTime)
+        }
+        if let endTime = endTime {
+            dict["endTime"] = NSNumber(value: endTime)
+        }
+        
+        return dict
     }
 }

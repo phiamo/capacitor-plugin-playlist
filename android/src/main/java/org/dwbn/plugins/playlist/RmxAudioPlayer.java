@@ -318,6 +318,28 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
                 lastDuration = progress.getDuration();
             }
 
+            // Check if we've reached the end of the excerpt
+            if (currentItem.getEndTime() != null && playbackState == PlaybackState.PLAYING) {
+                // Get excerpt-relative position (already converted by AudioApi)
+                double excerptPositionSeconds = progress.getPosition() / 1000.0;
+                
+                // Convert absolute end time to excerpt-relative end time
+                double absoluteEndTime = currentItem.getEndTime();
+                double excerptStartTime = currentItem.getStartTime();
+                double excerptEndTime = absoluteEndTime - excerptStartTime;
+                
+                // Safety check: ensure excerptEndTime is positive and valid
+                if (excerptEndTime > 0 && excerptPositionSeconds >= excerptEndTime) {
+                    // Reached end of excerpt, trigger next track
+                    Log.i(TAG, "Excerpt end reached, moving to next track");
+                    
+                    // Use the proper public API to move to next track
+                    playlistManager.invokeNext();
+                    
+                    return true;
+                }
+            }
+
             // dont send on prepare, if null
             if (playbackState == PlaybackState.PLAYING || playbackState == PlaybackState.SEEKING
                     || (playbackState == PlaybackState.PREPARING && progress.getDuration() == 0)) {
@@ -384,18 +406,23 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
             duration = currentItem.getDuration(); // progress.
         }
 
+        // Position and duration are now excerpt-relative from AudioApi
+        // No translation needed - use them directly
+        double finalPosition = position / 1000.0;  // Convert ms to seconds
+        double finalDuration = duration / 1000.0;  // Convert ms to seconds
+
         JSONObject trackStatus = new JSONObject();
         try {
             trackStatus.put("trackId", trackId);
             trackStatus.put("isStream", isStream);
             trackStatus.put("currentIndex", playlistManager.getCurrentPosition());
             trackStatus.put("status", status);
-            trackStatus.put("currentPosition", position / 1000.0);
-            trackStatus.put("duration", duration / 1000.0);
-            trackStatus.put("playbackPercent", duration > 0 ? (((double) position / duration) * 100.0) : 0);
+            trackStatus.put("currentPosition", finalPosition);
+            trackStatus.put("duration", finalDuration);
+            trackStatus.put("playbackPercent", finalDuration > 0 ? ((finalPosition / finalDuration) * 100.0) : 0);
             trackStatus.put("bufferPercent", bufferPercent);
             trackStatus.put("bufferStart", 0.0);
-            trackStatus.put("bufferEnd", (bufferPercentFloat * duration) / 1000.0);
+            trackStatus.put("bufferEnd", (bufferPercentFloat * finalDuration));
         } catch (JSONException e) {
             Log.e(TAG, "Error generating player status: " + e.toString());
         }

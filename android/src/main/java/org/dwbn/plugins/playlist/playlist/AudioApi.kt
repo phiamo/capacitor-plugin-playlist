@@ -25,6 +25,9 @@ class AudioApi(context: Context) : BaseMediaApi() {
 
     private val errorListenersLock = ReentrantLock(true)
     private val errorListeners = ArrayList<WeakReference<OnErrorListener>>()
+    
+    // Store the current track for excerpt handling
+    private var currentTrack: AudioTrack? = null
 
     override val isPlaying: Boolean
         get() = audioPlayer.isPlaying
@@ -33,10 +36,34 @@ class AudioApi(context: Context) : BaseMediaApi() {
         get() = false
 
     override val currentPosition: Long
-        get() = if (prepared) audioPlayer.currentPosition else 0
+        get() = if (prepared) {
+            // Convert absolute position to excerpt-relative position
+            val absolutePosition = audioPlayer.currentPosition
+            val track = currentTrack
+            
+            if (track != null) {
+                val startTimeMs = (track.startTime * 1000).toLong()
+                Math.max(0, absolutePosition - startTimeMs)
+            } else {
+                absolutePosition
+            }
+        } else 0
 
     override val duration: Long
-        get() = if (prepared) audioPlayer.duration else 0
+        get() = if (prepared) {
+            // Return excerpt duration instead of absolute duration
+            val absoluteDuration = audioPlayer.duration
+            val track = currentTrack
+            
+            if (track != null) {
+                val startTimeMs = (track.startTime * 1000).toLong()
+                val endTimeMs = track.endTime?.let { (it * 1000).toLong() } ?: absoluteDuration
+                val excerptDuration = endTimeMs - startTimeMs
+                Math.max(0, excerptDuration)
+            } else {
+                absoluteDuration
+            }
+        } else 0
 
     override val bufferedPercent: Int
         get() = bufferPercent
@@ -78,7 +105,16 @@ class AudioApi(context: Context) : BaseMediaApi() {
     }
 
     override fun seekTo(@IntRange(from = 0L) milliseconds: Long) {
-        audioPlayer.seekTo(milliseconds.toInt().toLong())
+        // The input milliseconds parameter is excerpt-relative position from system player
+        // Convert to absolute position for the media player
+        val track = currentTrack
+        if (track != null) {
+            val startTimeMs = (track.startTime * 1000).toLong()
+            val absolutePosition = milliseconds + startTimeMs
+            audioPlayer.seekTo(absolutePosition)
+        } else {
+            audioPlayer.seekTo(milliseconds)
+        }
     }
 
     override fun handlesItem(item: AudioTrack): Boolean {
@@ -89,6 +125,7 @@ class AudioApi(context: Context) : BaseMediaApi() {
         try {
             bufferPercent = 0
             audioPlayer.setMedia(Uri.parse(if (item.downloaded) item.downloadedMediaUri else item.mediaUrl))
+            currentTrack = item
         } catch (e: Exception) {
             //Purposefully left blank
         }

@@ -189,8 +189,14 @@ final class RmxAudioPlayer: NSObject {
         }
         playCommand(false)
 
-        if positionTime != nil {
-            seek(to: positionTime!, isCommand: false)
+        if let positionTime = positionTime {
+            seek(to: positionTime, isCommand: false)
+        } else {
+            // Set initial position to excerpt start if no position specified
+            let currentTrack = avQueuePlayer.currentAudioTrack
+            if currentTrack?.startTime ?? 0 > 0 {
+                seek(to: 0, isCommand: false) // This will be converted to excerpt start time
+            }
         }
     }
 
@@ -209,8 +215,14 @@ final class RmxAudioPlayer: NSObject {
         }
         playCommand(false)
 
-        if positionTime != nil {
-            seek(to: positionTime!, isCommand: false)
+        if let positionTime = positionTime {
+            seek(to: positionTime, isCommand: false)
+        } else {
+            // Set initial position to excerpt start if no position specified
+            let currentTrack = avQueuePlayer.currentAudioTrack
+            if currentTrack?.startTime ?? 0 > 0 {
+                seek(to: 0, isCommand: false) // This will be converted to excerpt start time
+            }
         }
     }
 
@@ -354,6 +366,16 @@ final class RmxAudioPlayer: NSObject {
         initializeMPCommandCenter()
 
         avQueuePlayer.playPreviousItem()
+        
+        // Handle excerpt start time for previous track
+        if let currentTrack = avQueuePlayer.currentAudioTrack, currentTrack.startTime > 0 {
+            let seekToTime = CMTimeMakeWithSeconds(Float64(currentTrack.startTime), preferredTimescale: 1000)
+            currentTrack.seek(to: seekToTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: { completed in
+                if completed {
+                    print("Seeked to excerpt start time for previous track: \(currentTrack.startTime)")
+                }
+            })
+        }
 
         if isCommand {
             let action = "music-controls-previous"
@@ -398,7 +420,27 @@ final class RmxAudioPlayer: NSObject {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
 
-        let seekToTime = CMTimeMakeWithSeconds(Float64(positionTime), preferredTimescale: 1000)
+        // Convert excerpt-relative position to absolute position
+        let currentTrack = avQueuePlayer.currentAudioTrack
+        let excerptStartTime = Float(currentTrack?.startTime ?? 0.0)
+        let absolutePosition = excerptStartTime + positionTime
+        
+        // Check if we're seeking past the excerpt end
+        if let endTime = currentTrack?.endTime {
+            let excerptEndTime = Float(endTime)
+            if absolutePosition >= excerptEndTime {
+                // Seek to end of excerpt and trigger completion
+                let seekToTime = CMTimeMakeWithSeconds(Float64(excerptEndTime), preferredTimescale: 1000)
+                avQueuePlayer.seek(to: seekToTime, toleranceBefore: .zero, toleranceAfter: .zero)
+                // Trigger track completion
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.playerItemDidReachEnd(Notification(name: NSNotification.Name(""), object: currentTrack))
+                }
+                return
+            }
+        }
+
+        let seekToTime = CMTimeMakeWithSeconds(Float64(absolutePosition), preferredTimescale: 1000)
         avQueuePlayer.seek(to: seekToTime, toleranceBefore: .zero, toleranceAfter: .zero)
 
         let action = "music-controls-seek-to"
@@ -522,6 +564,15 @@ final class RmxAudioPlayer: NSObject {
             print("Player item reached end: \(object)")
         }
         let playerItem = notification?.object as? AudioTrack
+        
+        // Check if this is an excerpt completion
+        if let endTime = playerItem?.endTime {
+            print("Excerpt completed, advancing to next track")
+            // For excerpts, don't seek back to beginning, just advance
+            avQueuePlayer.advanceToNextItem()
+            return
+        }
+        
         // When an item finishes, immediately scrub it back to the beginning
         // so that the visual indicators show you can "play again" or whatever.
         // Might make sense to have a flag for this behavior.
@@ -586,6 +637,20 @@ final class RmxAudioPlayer: NSObject {
         guard let playerItem = avQueuePlayer.currentAudioTrack else { return }
 
         if !CMTIME_IS_INDEFINITE(playerItem.currentTime()) {
+            // Check if we've reached the end of the excerpt
+            let currentTime = Float(CMTimeGetSeconds(playerItem.currentTime()))
+            if let endTime = playerItem.endTime {
+                let excerptEndTime = Float(endTime)
+                if currentTime >= excerptEndTime {
+                    // Reached end of excerpt, trigger completion
+                    print("Excerpt end reached, triggering track completion")
+                    DispatchQueue.main.async {
+                        self.playerItemDidReachEnd(Notification(name: NSNotification.Name(""), object: playerItem))
+                    }
+                    return
+                }
+            }
+            
             updateNowPlayingTrackInfo(playerItem, updateTrackData: false)
             if avQueuePlayer.isPlaying {
                 let trackStatus = getStatusItem(playerItem)
@@ -690,11 +755,16 @@ final class RmxAudioPlayer: NSObject {
 
         var currentTime: Float? = nil
         if let currentTime1 = currentItem?.currentTime() {
-            currentTime = Float(CMTimeGetSeconds(currentTime1))
+            let absoluteTime = Float(CMTimeGetSeconds(currentTime1))
+            let excerptStartTime = Float(currentItem?.startTime ?? 0.0)
+            currentTime = max(0, absoluteTime - excerptStartTime)
         }
         var duration: Float? = nil
         if let duration1 = currentItem?.duration {
-            duration = Float(CMTimeGetSeconds(duration1))
+            let absoluteDuration = Float(CMTimeGetSeconds(duration1))
+            let excerptStartTime = Float(currentItem?.startTime ?? 0.0)
+            let excerptEndTime = currentItem?.endTime != nil ? Float(currentItem!.endTime!) : absoluteDuration
+            duration = excerptEndTime - excerptStartTime
         }
         if CMTIME_IS_INDEFINITE(currentItem!.duration) {
             duration = 0
@@ -773,11 +843,36 @@ final class RmxAudioPlayer: NSObject {
     func handleCurrentItemChanged(_ playerItem: AudioTrack?) {
         if let playerItem = playerItem {
             print("Queue changed current item to: \(playerItem.trackId ?? "nil")")
-            // NSLog(@"New music name: %@", ((AVURLAsset*)playerItem.asset).URL.pathComponents.lastObject);
             print("New item ID: \(playerItem.trackId ?? "")")
+            print("New item startTime: \(playerItem.startTime)")
+            print("New item endTime: \(playerItem.endTime ?? 0)")
             print("Queue is at end: \(avQueuePlayer.isAtEnd ? "YES" : "NO")")
-            // When an item starts, immediately scrub it back to the beginning
-            //playerItem.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
+            
+            // Set initial position to excerpt start if track has excerpt timing
+            if playerItem.startTime > 0 {
+                print("Seeking to excerpt start time: \(playerItem.startTime)")
+                // Always pause the player to ensure seek completes before playback
+                let wasPlaying = avQueuePlayer.isPlaying
+                print("Was playing: \(wasPlaying)")
+                avQueuePlayer.pause()
+                
+                let seekToTime = CMTimeMakeWithSeconds(Float64(playerItem.startTime), preferredTimescale: 1000)
+                playerItem.seek(to: seekToTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: { [weak self] completed in
+                    if completed {
+                        print("Successfully seeked to excerpt start time: \(playerItem.startTime)")
+                        // Resume playback if it was playing before
+                        if wasPlaying {
+                            print("Resuming playback after seek")
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                self?.avQueuePlayer.play()
+                            }
+                        }
+                    } else {
+                        print("Failed to seek to excerpt start time")
+                    }
+                })
+            }
+            
             // Update the command center
             updateNowPlayingTrackInfo(playerItem, updateTrackData: true)
         } else if loop {
@@ -919,13 +1014,20 @@ final class RmxAudioPlayer: NSObject {
         }
 
         let bufferInfo = getTrackBufferInfo(currentItem)
-        var position = getTrackCurrentTime(currentItem)
-        let duration = (bufferInfo?["duration"] as? NSNumber)?.floatValue ?? 0.0
-
+        let absolutePosition = getTrackCurrentTime(currentItem)
+        let absoluteDuration = (bufferInfo?["duration"] as? NSNumber)?.floatValue ?? 0.0
+        
+        // Calculate excerpt-relative values
+        let excerptStartTime = Float(currentItem.startTime)
+        let excerptEndTime = currentItem.endTime != nil ? Float(currentItem.endTime!) : absoluteDuration
+        let excerptDuration = excerptEndTime - excerptStartTime
+        
+        // Convert absolute position to excerpt-relative position
+        let excerptPosition = max(0, absolutePosition - excerptStartTime)
+        
         // Correct this value here, so that playbackPercent is not set to INFINITY
-        if position.isNaN || position.isInfinite {
-            position = 0.0
-        }
+        let position = excerptPosition.isNaN || excerptPosition.isInfinite ? 0.0 : excerptPosition
+        let duration = excerptDuration.isNaN || excerptDuration.isInfinite ? 0.0 : excerptDuration
 
         let playbackPercent = duration > 0 ? (position / duration) * 100.0 : 0.0
 

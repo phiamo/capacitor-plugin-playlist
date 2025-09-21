@@ -54,7 +54,7 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
             return;
         }
         getPlaylistManager().next();
-        startItemPlayback(0, !this.isPlaying());
+        ((PlaylistManager) getPlaylistManager()).beginPlayback(1, !this.isPlaying());
     }
 
     public void previous() {
@@ -62,7 +62,7 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
             return;
         }
         getPlaylistManager().previous();
-        startItemPlayback(0, !this.isPlaying());
+        ((PlaylistManager) getPlaylistManager()).beginPlayback(1, !this.isPlaying());
     }
 
     @Override

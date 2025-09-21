@@ -29,6 +29,8 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     protected options: AudioPlayerOptions = {};
     protected currentTrack: AudioTrack | null = null;
     protected lastState = 'stopped';
+    protected excerptStartTime: number = 0;
+    protected excerptEndTime: number | null = null;
 
     addAllItems(options: AddAllItemOptions): Promise<void> {
         this.playlistItems = this.playlistItems.concat(validateTracks(options.items));
@@ -97,7 +99,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                 if (track !== this.currentTrack) {
                     await this.setCurrent(track);
                     if (this.audio && options?.position && options.position! > 0) {
-                        this.audio!.currentTime = options.position!;
+                        this.audio!.currentTime = this.excerptStartTime + options.position!;
                     }
                 }
                 return this.play();
@@ -112,7 +114,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                 if (item !== this.currentTrack) {
                     await this.setCurrent(item);
                     if (this.audio && options?.position && options.position! > 0) {
-                        this.audio!.currentTime = options.position!;
+                        this.audio!.currentTime = this.excerptStartTime + options.position!;
                     }
                 }
                 return this.play();
@@ -165,7 +167,16 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     seekTo(options: SeekToOptions): Promise<void> {
         if (this.audio) {
-            this.audio.currentTime = options.position;
+            const seekPosition = this.excerptStartTime + options.position;
+            const maxPosition = this.excerptEndTime || this.audio.duration;
+            
+            if (seekPosition >= maxPosition) {
+                // Seek past the end of excerpt, trigger track completion
+                this.audio.currentTime = maxPosition;
+                this.audio.dispatchEvent(new Event('ended'));
+            } else {
+                this.audio.currentTime = seekPosition;
+            }
             return Promise.resolve();
         }
         return Promise.reject();
@@ -300,6 +311,10 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             return Promise.reject();
         }
 
+        const excerptDuration = this.excerptEndTime ? 
+            (this.excerptEndTime - this.excerptStartTime) : 
+            (this.audio?.duration || 0) - this.excerptStartTime;
+
         navigator.mediaSession.metadata = new MediaMetadata({
             title: audioTrack.title,
             artist: audioTrack.artist,
@@ -314,10 +329,20 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             ]
         });
 
+        // Set the duration for the media session
+        if (navigator.mediaSession.setPositionState) {
+            navigator.mediaSession.setPositionState({
+                duration: excerptDuration,
+                playbackRate: this.audio?.playbackRate || 1,
+                position: this.getCurrentTrackStatus(this.lastState).currentPosition
+            });
+        }
+
         navigator.mediaSession.setActionHandler('play', (details) => {this.mediaSessionControlsHandler(details)});
         navigator.mediaSession.setActionHandler('pause', (details) => {this.mediaSessionControlsHandler(details)});
         navigator.mediaSession.setActionHandler('nexttrack', (details) => {this.mediaSessionControlsHandler(details)});
         navigator.mediaSession.setActionHandler('previoustrack', (details) => {this.mediaSessionControlsHandler(details)});
+        navigator.mediaSession.setActionHandler('seekto', (details) => {this.mediaSessionControlsHandler(details)});
         return Promise.resolve();
     }
 
@@ -334,6 +359,13 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
               break;
             case 'previoustrack':
               this.skipBack();
+              break;
+            case 'seekto':
+              if (actionDetails.seekTime !== undefined) {
+                // Convert excerpt-relative position to absolute position
+                const absolutePosition = this.excerptStartTime + actionDetails.seekTime;
+                this.audio!.currentTime = absolutePosition;
+              }
               break;
           }
         return Promise.resolve();
@@ -391,6 +423,16 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
             let lastTrackId: any, lastPosition: any;
             this.audio.addEventListener('timeupdate', () => {
+                // Check for excerpt end
+                if (this.excerptEndTime && this.audio!.currentTime >= this.excerptEndTime) {
+                    // Reached end of excerpt, trigger completion
+                    console.log('Excerpt end reached, triggering track completion');
+                    this.audio!.pause();
+                    this.audio!.dispatchEvent(new Event('ended'));
+                    return;
+                }
+                
+                // Update playback position
                 const status = this.getCurrentTrackStatus(this.lastState);
                 if (lastTrackId !== this.getCurrentTrackId() || lastPosition !== status.currentPosition) {
                     this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION, status);
@@ -430,13 +472,23 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     protected getCurrentTrackStatus(currentState: string) {
         this.lastState = currentState;
+        const currentTime = this.audio?.currentTime || 0;
+        const duration = this.audio?.duration || 0;
+        
+        // Calculate excerpt-relative values
+        const excerptDuration = this.excerptEndTime ? 
+            (this.excerptEndTime - this.excerptStartTime) : 
+            (duration - this.excerptStartTime);
+        
+        const excerptCurrentPosition = Math.max(0, currentTime - this.excerptStartTime);
+        
         return {
             trackId: this.getCurrentTrackId(),
             isStream: !!this.currentTrack?.isStream,
             currentIndex: this.getCurrentIndex(),
             status: currentState,
-            currentPosition: this.audio?.currentTime || 0,
-            duration: this.audio?.duration || 0,
+            currentPosition: excerptCurrentPosition,
+            duration: excerptDuration,
         };
     }
 
@@ -449,6 +501,11 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         await this.create();
 
         this.currentTrack = item;
+        
+        // Set up excerpt timing
+        this.excerptStartTime = item.startTime || 0;
+        this.excerptEndTime = item.endTime || null;
+        
         if (item.assetUrl.includes('.m3u8')) {
             await this.loadHlsJs();
 
@@ -476,6 +533,12 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         if (wasPlaying || forceAutoplay) {
             //this.play();
             this.audio!.addEventListener('canplay', () => {
+                // Set initial position if specified
+                if (position !== undefined) {
+                    this.audio!.currentTime = this.excerptStartTime + position;
+                } else {
+                    this.audio!.currentTime = this.excerptStartTime;
+                }
                 this.play();
             });
         }

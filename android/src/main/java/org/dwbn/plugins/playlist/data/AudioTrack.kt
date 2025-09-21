@@ -32,6 +32,12 @@ class AudioTrack (private val config: JSONObject) : PlaylistItem {
             info.put("artist", artist)
             info.put("album", album)
             info.put("title", title)
+            if (startTime > 0) {
+                info.put("startTime", startTime)
+            }
+            if (endTime != null) {
+                info.put("endTime", endTime)
+            }
         } catch (e: JSONException) {
             // I can think of no reason this would ever fail
         }
@@ -90,5 +96,22 @@ class AudioTrack (private val config: JSONObject) : PlaylistItem {
 
     override val artist: String
         get() = config.optString("artist")
+
+    /**
+     * Start time in seconds for audio excerpt playback. If not provided, playback starts from the beginning.
+     * This allows playing only a portion of a longer audio file.
+     */
+    val startTime: Double
+        get() = config.optDouble("startTime", 0.0)
+
+    /**
+     * End time in seconds for audio excerpt playback. If not provided, playback continues to the end of the file.
+     * This allows playing only a portion of a longer audio file.
+     */
+    val endTime: Double?
+        get() {
+            val endTime = config.optDouble("endTime", -1.0)
+            return if (endTime < 0) null else endTime
+        }
 
 }

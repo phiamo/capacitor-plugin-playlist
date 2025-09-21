@@ -121,6 +121,16 @@ export interface AudioTrack {
      * Title of the track
      */
     title: string;
+    /**
+     * Start time in seconds for audio excerpt playback. If not provided, playback starts from the beginning.
+     * This allows playing only a portion of a longer audio file.
+     */
+    startTime?: number;
+    /**
+     * End time in seconds for audio excerpt playback. If not provided, playback continues to the end of the file.
+     * This allows playing only a portion of a longer audio file.
+     */
+    endTime?: number;
 }
 
 /**
@@ -216,11 +226,16 @@ export interface OnStatusCallbackUpdateData {
      */
     status: 'unknown' | 'ready' | 'error' | 'playing' | 'loading' | 'paused';
     /**
-     * Current playback position of the reported track.
+     * Current playback position of the reported track, relative to the excerpt start time.
+     * For tracks with startTime/endTime, this represents the position within the excerpt (0 to excerpt duration).
+     * For full tracks, this represents the position from the beginning of the file.
      */
     currentPosition: number;
     /**
-     * The known duration of the reported track. For streams or malformed MP3's, this value will be 0.
+     * The known duration of the reported track, relative to the excerpt.
+     * For tracks with startTime/endTime, this represents the excerpt duration (endTime - startTime).
+     * For full tracks, this represents the full file duration.
+     * For streams or malformed MP3's, this value will be 0.
      */
     duration: number;
     /**
