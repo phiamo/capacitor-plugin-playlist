@@ -31,6 +31,9 @@
   },
   "author": "phiamo",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "devDependencies": {
     "@capacitor/android": "^8.0.0",
     "@capacitor/core": "^8.0.0",
@@ -78,5 +81,8 @@
   },
   "publishConfig": {
     "@phiamo:registry": "https://npm.pkg.github.com"
+  },
+  "overrides": {
+    "@types/node": "^20.0.0"
   }
 }
