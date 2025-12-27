@@ -256,6 +256,23 @@ final class RmxAudioPlayer: NSObject {
     func playCommand(_ isCommand: Bool) {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
+        
+        // Ensure audio session is active before playing
+        // This is critical when resuming after video player has deactivated the session
+        let audioSession = AVAudioSession.sharedInstance()
+        if !audioSession.isOtherAudioPlaying {
+            // Only reactivate if no other audio is playing
+            do {
+                try audioSession.setActive(true)
+            } catch {
+                print("Warning: Could not activate audio session: \(error.localizedDescription)")
+                // Try to reactivate with category setup
+                activateAudioSession()
+            }
+        } else {
+            // If other audio is playing, ensure our category is set correctly
+            activateAudioSession()
+        }
 
         if resetStreamOnPause,
            let currentTrack = avQueuePlayer.currentAudioTrack,
@@ -1049,12 +1066,15 @@ final class RmxAudioPlayer: NSObject {
         options.insert(.allowBluetoothA2DP)
 
         do {
+            // Always set category first, even if session is already active
+            // This ensures we have the correct category after video player exits
             try avSession.setCategory(.playAndRecord, options: options)
         } catch {
             print("Error setting category! \(error.localizedDescription)")
         }
 
         do {
+            // Activate the session (will activate if not active, or update if already active)
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
             print("Could not activate audio session. \(error.localizedDescription)")
