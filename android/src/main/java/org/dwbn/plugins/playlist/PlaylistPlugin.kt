@@ -357,14 +357,14 @@ class PlaylistPlugin : Plugin(), OnStatusReportListener {
     }
 
     @PluginMethod
-    fun setVolume(call: PluginCall) {
+    fun setPlaybackVolume(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
-            val volume = call.getFloat("volume", audioPlayerImpl!!.volume)!!
-            audioPlayerImpl!!.volume = volume
+            val volume = call.getFloat("volume", 1.0f)!!
+            audioPlayerImpl!!.setVolume(volume)
 
             call.resolve()
 
-            Log.i(TAG, "addItem")
+            Log.i(TAG, "setPlaybackVolume: $volume")
         }
     }
 
