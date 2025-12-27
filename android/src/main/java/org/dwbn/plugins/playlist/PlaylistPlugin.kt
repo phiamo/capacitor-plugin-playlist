@@ -197,11 +197,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             val playlistManager = audioPlayerImpl!!.playlistManager
             val audioTracks = playlistManager.items
             val itemsArray = JSONArray()
-
+            
             for (track in audioTracks) {
                 itemsArray.put(track.toDict())
             }
-
+            
             val result = JSObject()
             result.put("items", itemsArray)
             call.resolve(result)
