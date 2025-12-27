@@ -422,6 +422,8 @@ final class RmxAudioPlayer: NSObject {
         avQueuePlayer.removeAllItems()
         wasPlayingInterrupted = false
 
+        // Clear lock screen player info when playlist is cleared
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
     // MARK: - remote control events
