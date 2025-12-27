@@ -365,12 +365,11 @@ final class RmxAudioPlayer: NSObject {
         let action = "music-controls-seek-to"
         print(String(format: "%@ %.3f", action, positionTime))
 
-        if isCommand {
-            let playerItem = avQueuePlayer.currentAudioTrack
-            onStatus(.rmxstatus_SEEK, trackId: playerItem?.trackId, param: [
-                "position": NSNumber(value: positionTime)
-            ])
-        }
+        // Always fire seek event, not just for commands
+        let playerItem = avQueuePlayer.currentAudioTrack
+        onStatus(.rmxstatus_SEEK, trackId: playerItem?.trackId, param: [
+            "position": NSNumber(value: positionTime)
+        ])
     }
 
     func setVolume(_ volume: Float) {
