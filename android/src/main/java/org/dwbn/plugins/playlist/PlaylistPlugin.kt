@@ -12,7 +12,7 @@ import org.json.JSONObject
 import java.util.*
 
 @CapacitorPlugin(name = "Playlist")
-class PlaylistPlugin : Plugin(), OnStatusReportListener {
+public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     var TAG = "PlaylistPlugin"
     private var statusCallback: OnStatusCallback? = null
     private var audioPlayerImpl: RmxAudioPlayer? = null
