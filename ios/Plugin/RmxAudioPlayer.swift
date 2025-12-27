@@ -570,7 +570,7 @@ final class RmxAudioPlayer: NSObject {
                 guard !isReplacingItems && self.lastTrackId != playerItem?.trackId else {
                     return
                 }
-                print("observe change currentItem: lastTrackId \(self.lastTrackId) playerItem: \(playerItem?.trackId)")
+                print("observe change currentItem: lastTrackId \(self.lastTrackId ?? "nil") playerItem: \(playerItem?.trackId ?? "nil")")
                 self.lastTrackId = playerItem?.trackId
                 handleCurrentItemChanged(playerItem)
             }  else {
@@ -726,7 +726,7 @@ final class RmxAudioPlayer: NSObject {
 
     func handleCurrentItemChanged(_ playerItem: AudioTrack?) {
         if let playerItem = playerItem {
-            print("Queue changed current item to: \(playerItem.trackId)")
+            print("Queue changed current item to: \(playerItem.trackId ?? "nil")")
             // NSLog(@"New music name: %@", ((AVURLAsset*)playerItem.asset).URL.pathComponents.lastObject);
             print("New item ID: \(playerItem.trackId ?? "")")
             print("Queue is at end: \(avQueuePlayer.isAtEnd ? "YES" : "NO")")
@@ -796,9 +796,9 @@ final class RmxAudioPlayer: NSObject {
                 // Failed. Examine AVPlayerItem.error
                 isWaitingToStartPlayback = false
                 var errorMsg = ""
-                if playerItem.error != nil {
-                    print("\(playerItem.error)")
-                    errorMsg = "Error playing audio track: \((playerItem.error as NSError?)?.localizedFailureReason ?? "")"
+                if let error = playerItem.error {
+                    print("\(error)")
+                    errorMsg = "Error playing audio track: \((error as NSError).localizedFailureReason ?? "")"
                 }
                 print("AVPlayerItemStatusFailed: \(errorMsg)")
                 let errorParam = createError(withCode: .rmxerr_DECODE, message: errorMsg)
