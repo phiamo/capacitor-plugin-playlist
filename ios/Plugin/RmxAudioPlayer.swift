@@ -28,7 +28,7 @@ final class RmxAudioPlayer: NSObject {
     private var isWaitingToStartPlayback = false
     private var loop = false
 
-    private let avQueuePlayer = AVBidirectionalQueuePlayer(items: [])
+    let avQueuePlayer = AVBidirectionalQueuePlayer(items: [])
 
     private var lastTrackId: String? = nil
     private var lastRate: Float? = nil
