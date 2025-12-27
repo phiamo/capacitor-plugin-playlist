@@ -164,6 +164,10 @@ class PlaylistManager(application: Application) :
         var foundItem: AudioTrack? = null
         var removingCurrent = false
 
+        // Get the current playback position in milliseconds before removing items
+        val progress = currentProgress
+        val seekPosition: Long = if (progress != null) progress.position else 0
+
         // If isPlaying is true, and currentItem is not null,
         // that implies that currentItem is the currently playing item.
         // If removingCurrent gets set to true, we are removing the currently playing item,
@@ -178,7 +182,9 @@ class PlaylistManager(application: Application) :
         }
         items = audioTracks
         currentPosition = if (removingCurrent) currentPosition else audioTracks.indexOf(currentItem)
-        beginPlayback(currentPosition.toLong(), !wasPlaying)
+        // If removing the current item, start from beginning (0), otherwise preserve playback position
+        val seekStart = if (removingCurrent) 0 else seekPosition
+        beginPlayback(seekStart, !wasPlaying)
         if (this.playlistHandler != null) {
             this.playlistHandler!!.updateMediaControls()
         }
@@ -194,6 +200,11 @@ class PlaylistManager(application: Application) :
         var currentPosition = currentPosition
         val currentItem = currentItem // may be null
         var removingCurrent = false
+
+        // Get the current playback position in milliseconds before removing items
+        val progress = currentProgress
+        val seekPosition: Long = if (progress != null) progress.position else 0
+
         for (item in its) {
             val resolvedIndex = resolveItemPosition(item.trackIndex, item.trackId)
             if (resolvedIndex >= 0) {
@@ -207,7 +218,9 @@ class PlaylistManager(application: Application) :
         }
         items = audioTracks
         currentPosition = if (removingCurrent) currentPosition else audioTracks.indexOf(currentItem)
-        beginPlayback(currentPosition.toLong(), !wasPlaying)
+        // If removing the current item, start from beginning (0), otherwise preserve playback position
+        val seekStart = if (removingCurrent) 0 else seekPosition
+        beginPlayback(seekStart, !wasPlaying)
         return removedTracks
     }
 
