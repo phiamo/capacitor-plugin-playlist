@@ -195,13 +195,13 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     fun getPlaylist(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
             val playlistManager = audioPlayerImpl!!.playlistManager
-            val audioTracks = playlistManager.items
+            val audioTracks = playlistManager.getAllItems()
             val itemsArray = JSONArray()
-            
+
             for (track in audioTracks) {
                 itemsArray.put(track.toDict())
             }
-            
+
             val result = JSObject()
             result.put("items", itemsArray)
             call.resolve(result)

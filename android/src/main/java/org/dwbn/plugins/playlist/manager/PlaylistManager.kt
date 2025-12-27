@@ -231,6 +231,10 @@ class PlaylistManager(application: Application) :
         currentPosition = INVALID_POSITION
     }
 
+    fun getAllItems(): List<AudioTrack> {
+        return audioTracks.toList()
+    }
+
     private fun resolveItemPosition(trackIndex: Int, trackId: String): Int {
         var resolvedPosition = -1
         if (trackIndex >= 0 && trackIndex < audioTracks.size) {
