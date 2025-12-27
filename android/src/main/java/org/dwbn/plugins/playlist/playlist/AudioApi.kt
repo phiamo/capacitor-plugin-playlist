@@ -50,7 +50,7 @@ class AudioApi(context: Context) : BaseMediaApi() {
 
         audioPlayer.setWakeLevel(PowerManager.PARTIAL_WAKE_LOCK)
         audioPlayer.setAudioAttributes(getAudioAttributes(C.USAGE_MEDIA, C.AUDIO_CONTENT_TYPE_MUSIC))
-        audioPlayer.setAnalyticsListener(EventLogger(null))
+        audioPlayer.setAnalyticsListener(EventLogger())
     }
 
     override fun play() {
