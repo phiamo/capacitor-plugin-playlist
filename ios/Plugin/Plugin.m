@@ -13,6 +13,7 @@ CAP_PLUGIN(PlaylistPlugin, "Playlist",
    CAP_PLUGIN_METHOD(removeItem, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(removeItems, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(clearAllItems, CAPPluginReturnPromise);
+   CAP_PLUGIN_METHOD(getPlaylist, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(play, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(pause, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(skipForward, CAPPluginReturnPromise);

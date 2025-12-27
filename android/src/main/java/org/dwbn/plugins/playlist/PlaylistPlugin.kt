@@ -192,6 +192,25 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     }
 
     @PluginMethod
+    fun getPlaylist(call: PluginCall) {
+        Handler(Looper.getMainLooper()).post {
+            val playlistManager = audioPlayerImpl!!.playlistManager
+            val audioTracks = playlistManager.items
+            val itemsArray = JSONArray()
+
+            for (track in audioTracks) {
+                itemsArray.put(track.toDict())
+            }
+
+            val result = JSObject()
+            result.put("items", itemsArray)
+            call.resolve(result)
+
+            Log.i(TAG, "getPlaylist: ${audioTracks.size} items")
+        }
+    }
+
+    @PluginMethod
     fun play(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
             if (audioPlayerImpl!!.playlistManager.playlistHandler != null) {
