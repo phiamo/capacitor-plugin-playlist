@@ -81,6 +81,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         audioPlayerImpl.clearAllItems()
         call.resolve();
     }
+    @objc func getPlaylist(_ call: CAPPluginCall) {
+        let tracks = audioPlayerImpl.avQueuePlayer.queuedAudioTracks
+        let items = tracks.map { $0.toDict() }
+        call.resolve(["items": items]);
+    }
     @objc func play(_ call: CAPPluginCall) {
         audioPlayerImpl.playCommand(false)
         call.resolve();

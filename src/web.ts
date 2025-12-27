@@ -50,6 +50,10 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         return Promise.resolve();
     }
 
+    async getPlaylist(): Promise<{ items: AudioTrack[] }> {
+        return Promise.resolve({ items: this.playlistItems });
+    }
+
     async initialize(): Promise<void> {
         this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_INIT, null, "INVALID");
         return Promise.resolve();
