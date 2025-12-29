@@ -54,7 +54,6 @@ kotlin {
 
 repositories {
     google()
-    jcenter()
     mavenCentral()
 }
 
