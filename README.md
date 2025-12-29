@@ -89,6 +89,34 @@ architect => build => options:
     </application>
 ```
 
+##### Gradle Configuration (Gradle 9+)
+
+**Important**: If you're using Gradle 9 or later, you need to ensure the Kotlin plugin is declared in your root `android/build.gradle` file. This plugin no longer includes its own `buildscript` block to avoid conflicts with Gradle 9's plugin loading requirements.
+
+Add the Kotlin plugin to your root `android/build.gradle`:
+
+```gradle
+buildscript {
+    ext.kotlin_version = '2.3.0'  // Or your preferred Kotlin version
+    
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        // ... other dependencies
+    }
+}
+
+ext {
+    kotlin_version = '2.3.0'  // Make it available to subprojects
+}
+```
+
+The plugin's `build.gradle` will automatically use the Kotlin plugin from the root project. If you see a warning about the Kotlin plugin being loaded multiple times, ensure you've removed any `buildscript` blocks that declare the Kotlin plugin from other subprojects (except the root project).
+
 ##### Glide image loading for notifiction center
 
 To be able to use glide you need to create a file MyAppGlideModule.java:
