@@ -237,7 +237,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         Handler(Looper.getMainLooper()).post {
             val index: Int =
                 call.getInt("index", audioPlayerImpl!!.playlistManager.currentPosition)!!
-            val seekPosition = (call.getInt("position", 0)!! * 1000.0).toLong()
+            val seekPosition = (call.getFloat("position", 0f)!! * 1000.0f).toLong()
 
             audioPlayerImpl!!.playlistManager.currentPosition = index
             audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, false)
@@ -255,7 +255,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             if ("" != id) {
                 // alternatively we could search for the item and set the current index to that item.
                 val code = id.hashCode()
-                val seekPosition = (call.getInt("position", 0)!! * 1000.0).toLong()
+                val seekPosition = (call.getFloat("position", 0f)!! * 1000.0f).toLong()
                 audioPlayerImpl!!.playlistManager.setCurrentItem(code.toLong())
                 audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, false)
             }
@@ -274,7 +274,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
             audioPlayerImpl!!.playlistManager.currentPosition = index
 
-            val seekPosition = (call.getInt("position", 0)!! * 1000.0).toLong()
+            val seekPosition = (call.getFloat("position", 0f)!! * 1000.0f).toLong()
 
             audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, true)
 
@@ -294,7 +294,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
                 val code = id.hashCode()
                 audioPlayerImpl!!.playlistManager.setCurrentItem(code.toLong())
 
-                val seekPosition = (call.getInt("position", 0)!! * 1000.0).toLong()
+                val seekPosition = (call.getFloat("position", 0f)!! * 1000.0f).toLong()
 
                 audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, true)
             }
@@ -307,7 +307,9 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     @PluginMethod
     fun pause(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
-            audioPlayerImpl!!.playlistManager.invokePausePlay()
+            if (audioPlayerImpl!!.playlistManager.isPlaying) {
+                audioPlayerImpl!!.playlistManager.playlistHandler?.pause(false)
+            }
 
             call.resolve()
 
@@ -347,7 +349,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             }
 
             val seekPosition =
-                (call.getInt("position", (position / 1000.0f).toInt())!! * 1000.0).toLong()
+                (call.getFloat("position", position / 1000.0f)!! * 1000.0f).toLong()
 
             val isPlaying: Boolean? =
                 audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer?.isPlaying
