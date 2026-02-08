@@ -113,16 +113,22 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     removeItem(options: RemoveItemOptions): Promise<void> {
-        this.playlistItems.forEach((item, index) => {
-            if (options.index && options.index === index) {
-                const removedTrack = this.playlistItems.splice(index, 1);
+        // options.index can be 0; don't use a truthy check.
+        let removeIndex: number = -1;
+        if (options.index !== undefined && options.index !== null) {
+            removeIndex = options.index;
+        } else if (options.id) {
+            removeIndex = this.playlistItems.findIndex((t) => t.trackId === options.id);
+        }
 
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, removedTrack[0], removedTrack[0].trackId);
-            } else if (options.id && options.id === item.trackId) {
-                const removedTrack = this.playlistItems.splice(index, 1);
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, removedTrack[0], removedTrack[0].trackId);
-            }
-        });
+        if (removeIndex >= 0 && removeIndex < this.playlistItems.length) {
+            const removedTrack = this.playlistItems.splice(removeIndex, 1)[0];
+            this.updateStatus(
+                RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED,
+                removedTrack,
+                removedTrack?.trackId
+            );
+        }
         return Promise.resolve();
     }
 
