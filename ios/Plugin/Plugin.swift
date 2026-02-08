@@ -134,7 +134,6 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         catch let message {
             call.reject(message as! String)
         }
-        call.resolve();
     }
     @objc func selectTrackByIndex(_ call: CAPPluginCall) {
         guard let index = call.getInt("index") else {
@@ -163,7 +162,6 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         catch let message {
             call.reject(message as! String)
         }
-        call.resolve();
     }
     @objc func setPlaybackVolume(_ call: CAPPluginCall) {
         let volume = call.getFloat("volume", 1)
