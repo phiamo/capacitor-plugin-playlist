@@ -207,7 +207,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         }
 
         if (found !== null) {
-            this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK, {
+            this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_FORWARD, {
                 currentIndex: found + 1,
                 currentItem: this.playlistItems[found + 1]
             }, this.playlistItems[found + 1].trackId);
