@@ -207,9 +207,16 @@ export class RmxAudioPlayer {
             throw new Error('Track removal spec is empty');
         }
         if (!removeItem.trackId && !removeItem.trackIndex) {
-            new Error('Track removal spec is invalid');
+            throw new Error('Track removal spec is invalid');
         }
-        return Playlist.removeItem({id: removeItem.trackId!, index: removeItem.trackIndex!});
+        const opts: RemoveItemOptions = {};
+        if (removeItem.trackIndex !== undefined && removeItem.trackIndex !== null) {
+            opts.index = removeItem.trackIndex;
+        }
+        if (removeItem.trackId) {
+            opts.id = removeItem.trackId;
+        }
+        return Playlist.removeItem(opts);
     };
 
     /**
@@ -217,7 +224,11 @@ export class RmxAudioPlayer {
      * include the currently playing item, the next available item will automatically begin playing.
      */
     removeItems = (items: AudioTrackRemoval[]) => {
-        return Playlist.removeItems({items: items as RemoveItemOptions[]});
+        const mapped: RemoveItemOptions[] = (items || []).map((item) => ({
+            id: item?.trackId,
+            index: item?.trackIndex
+        }));
+        return Playlist.removeItems({items: mapped});
     };
 
     /**

@@ -36,11 +36,13 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     @PluginMethod
     fun setOptions(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
-            val options: JSObject = call.getObject("options") ?: JSObject()
-            resetStreamOnPause = options.optBoolean("resetStreamOnPause", this.resetStreamOnPause)
-            Log.i("AudioPlayerOptions", options.toString())
+            // The full call payload is the AudioPlayerOptions. Notification options live under "options".
+            resetStreamOnPause =
+                call.getBoolean("resetStreamOnPause", this.resetStreamOnPause) ?: this.resetStreamOnPause
+            val notificationOptions: JSObject = call.getObject("options") ?: JSObject()
+            Log.i("AudioPlayerOptions", call.toString())
             audioPlayerImpl!!.resetStreamOnPause = resetStreamOnPause
-            audioPlayerImpl!!.setOptions(options)
+            audioPlayerImpl!!.setOptions(notificationOptions)
             call.resolve()
         }
     }
@@ -66,8 +68,16 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     @PluginMethod
     fun setPlaylistItems(call: PluginCall) {
-        val items: JSArray = call.getArray("items")
-        val optionsArgs: JSONObject = call.getObject("options")
+        val items = call.getArray("items")
+        if (items == null) {
+            call.reject("Missing required 'items'")
+            return
+        }
+        val optionsArgs = call.getObject("options")
+        if (optionsArgs == null) {
+            call.reject("Missing required 'options'")
+            return
+        }
         val options = PlaylistItemOptions(optionsArgs)
         Handler(Looper.getMainLooper()).post {
 
@@ -150,29 +160,51 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     fun removeItems(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
             val items: JSONArray = call.getArray("items")
-            var removed = 0
+            val byIndex = ArrayList<TrackRemovalItem>()
+            val byId = ArrayList<TrackRemovalItem>()
 
-            val removals = ArrayList<TrackRemovalItem>()
-            for (index in 0 until items.length()) {
-                val entry = items.optJSONObject(index) ?: continue
-                val trackIndex = entry.optInt("trackIndex", -1)
-                val trackId = entry.optString("trackId", "")
-                removals.add(TrackRemovalItem(trackIndex, trackId))
-                val removedTracks = audioPlayerImpl!!.playlistManager.removeAllItems(removals)
-                if (removedTracks.size > 0) {
-                    for (removedItem in removedTracks) {
-                        onStatus(
-                            RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED,
-                            removedItem.trackId,
-                            removedItem.toDict()
-                        )
-                    }
-                    removed = removedTracks.size
+            for (i in 0 until items.length()) {
+                val entry = items.optJSONObject(i) ?: continue
+
+                // Canonical keys: id/index. Back-compat: trackId/trackIndex.
+                val id = when {
+                    entry.has("id") -> entry.optString("id", "")
+                    entry.has("trackId") -> entry.optString("trackId", "")
+                    else -> ""
+                }
+
+                val idx = when {
+                    entry.has("index") -> entry.optInt("index", -1)
+                    entry.has("trackIndex") -> entry.optInt("trackIndex", -1)
+                    else -> -1
+                }
+
+                if (idx >= 0) {
+                    byIndex.add(TrackRemovalItem(idx, ""))
+                } else if (id.isNotEmpty()) {
+                    byId.add(TrackRemovalItem(-1, id))
                 }
             }
 
+            // Preserve index semantics: remove indices first (descending), then ids.
+            byIndex.sortByDescending { it.trackIndex }
+            val removals = ArrayList<TrackRemovalItem>(byIndex.size + byId.size)
+            removals.addAll(byIndex)
+            removals.addAll(byId)
+
+            val removedTracks =
+                if (removals.isEmpty()) ArrayList() else audioPlayerImpl!!.playlistManager.removeAllItems(removals)
+
+            for (removedItem in removedTracks) {
+                onStatus(
+                    RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED,
+                    removedItem.trackId,
+                    removedItem.toDict()
+                )
+            }
+
             val result = JSObject()
-            result.put("removed", removed)
+            result.put("removed", removedTracks.size)
             call.resolve(result)
 
             Log.i(TAG, "removeItems")

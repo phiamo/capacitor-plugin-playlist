@@ -14,58 +14,76 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     
     // MARK: - Capacitor API
     @objc func initialize(_ call: CAPPluginCall) {
-        audioPlayerImpl.initialize()
+        // Ensure we don't drop the initial REGISTER status event.
         audioPlayerImpl.statusUpdater = self
-        call.resolve();
+        audioPlayerImpl.initialize()
+        call.resolve()
     }
     @objc func setOptions(_ call: CAPPluginCall) {
-        let options = call.getObject("options")!
-        audioPlayerImpl.setOptions(options)
-        call.resolve();
+        // setOptions is invoked with the full payload as the options object.
+        audioPlayerImpl.setOptions(call.options)
+        call.resolve()
     }
     @objc func release(_ call: CAPPluginCall) {
         audioPlayerImpl.releaseResources()
-        call.resolve();
+        call.resolve()
     }
     @objc func setPlaylistItems(_ call: CAPPluginCall) {
-        let items = call.getArray("items", [String:Any].self)!
-        let options = call.getObject("options")!
+        guard let items = call.getArray("items", [String:Any].self) else {
+            call.reject("Missing required 'items'")
+            return
+        }
+        guard let options = call.getObject("options") else {
+            call.reject("Missing required 'options'")
+            return
+        }
         
         let tracks = createTracks(items)
         audioPlayerImpl.setPlaylistItems(tracks, options: options)
         
-        call.resolve();
+        call.resolve()
     }
     @objc func addItem(_ call: CAPPluginCall) {
-        let trackInfo = call.getObject("item")
-        
-        let track = AudioTrack.initWithDictionary(trackInfo)
-        audioPlayerImpl.addItem(track!)
-        
-        call.resolve();
+        guard
+            let trackInfo = call.getObject("item"),
+            let track = AudioTrack.initWithDictionary(trackInfo)
+        else {
+            call.reject("Invalid item")
+            return
+        }
+
+        audioPlayerImpl.addItem(track)
+        call.resolve()
     }
     @objc func addAllItems(_ call: CAPPluginCall) {
-        let items = call.getArray("items", [String:Any].self)!
+        guard let items = call.getArray("items", [String:Any].self) else {
+            call.reject("Missing required 'items'")
+            return
+        }
         
         let tracks = createTracks(items)
         audioPlayerImpl.addAllItems(tracks)
-        call.resolve();
+        call.resolve()
     }
     @objc func removeItem(_ call: CAPPluginCall) {
         do {
-            if let id = call.getString("id"){
+            // Prefer index if present.
+            if let index = call.getInt("index"), index >= 0 {
+                try audioPlayerImpl.removeItem(index)
+                call.resolve()
+                return
+            }
+
+            if let id = call.getString("id"), !id.isEmpty {
                 try audioPlayerImpl.removeItem(id)
+                call.resolve()
                 return
             }
-            guard let index = call.getString("index") else {
-                call.reject("Cannot remove")
-                return
-            }
-            try audioPlayerImpl.removeItem(index)
-        } catch let message {
-            call.reject(message as! String)
+
+            call.reject("Cannot remove: missing id or index")
+        } catch {
+            call.reject(String(describing: error))
         }
-        call.resolve();
     }
     @objc func removeItems(_ call: CAPPluginCall) {
         guard let items = call.getArray("items") else {
@@ -75,37 +93,37 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         let count = audioPlayerImpl.removeItems(items)
         call.resolve([
             "removed": count
-        ]);
+        ])
     }
     @objc func clearAllItems(_ call: CAPPluginCall) {
         audioPlayerImpl.clearAllItems()
-        call.resolve();
+        call.resolve()
     }
     @objc func getPlaylist(_ call: CAPPluginCall) {
         let tracks = audioPlayerImpl.avQueuePlayer.queuedAudioTracks
         let items = tracks.map { $0.toDict() }
-        call.resolve(["items": items]);
+        call.resolve(["items": items])
     }
     @objc func play(_ call: CAPPluginCall) {
         audioPlayerImpl.playCommand(false)
-        call.resolve();
+        call.resolve()
     }
     @objc func pause(_ call: CAPPluginCall) {
         audioPlayerImpl.pauseCommand(false)
-        call.resolve();
+        call.resolve()
     }
     @objc func skipForward(_ call: CAPPluginCall) {
         audioPlayerImpl.playNext(false)
-        call.resolve();
+        call.resolve()
     }
     @objc func skipBack(_ call: CAPPluginCall) {
         audioPlayerImpl.playPrevious(false)
-        call.resolve();
+        call.resolve()
     }
     @objc func seekTo(_ call: CAPPluginCall) {
         let to = call.getFloat("position", 0.0)
         audioPlayerImpl.seek(to: to, isCommand: false)
-        call.resolve();
+        call.resolve()
     }
     @objc func playTrackByIndex(_ call: CAPPluginCall) {
         guard let index = call.getInt("index") else {
@@ -115,10 +133,10 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         
         do {
             try audioPlayerImpl.playTrack(index: index, positionTime: call.getFloat("position"))
-            call.resolve();
+            call.resolve()
         }
-        catch let message {
-            call.reject(message as! String)
+        catch {
+            call.reject(String(describing: error))
         }
     }
     @objc func playTrackById(_ call: CAPPluginCall) {
@@ -129,12 +147,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         
         do {
             try audioPlayerImpl.playTrack(id, positionTime: call.getFloat("position"))
-            call.resolve();
+            call.resolve()
         }
-        catch let message {
-            call.reject(message as! String)
+        catch {
+            call.reject(String(describing: error))
         }
-        call.resolve();
     }
     @objc func selectTrackByIndex(_ call: CAPPluginCall) {
         guard let index = call.getInt("index") else {
@@ -144,10 +161,10 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         
         do {
             try audioPlayerImpl.selectTrack(index: index)
-            call.resolve();
+            call.resolve()
         }
-        catch let message {
-            call.reject(message as! String)
+        catch {
+            call.reject(String(describing: error))
         }
     }
     @objc func selectTrackById(_ call: CAPPluginCall) {
@@ -158,27 +175,26 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         
         do {
             try audioPlayerImpl.selectTrack(id: id)
-            call.resolve();
+            call.resolve()
         }
-        catch let message {
-            call.reject(message as! String)
+        catch {
+            call.reject(String(describing: error))
         }
-        call.resolve();
     }
     @objc func setPlaybackVolume(_ call: CAPPluginCall) {
         let volume = call.getFloat("volume", 1)
         audioPlayerImpl.setPlaybackVolume(volume)
-        call.resolve();
+        call.resolve()
     }
     @objc func setLoop(_ call: CAPPluginCall) {
         let loop = call.getBool("loop", true)
         audioPlayerImpl.setLoopAll(loop)
-        call.resolve();
+        call.resolve()
     }
     @objc func setPlaybackRate(_ call: CAPPluginCall) {
         let rate = call.getFloat("rate", 1)
         audioPlayerImpl.setPlaybackRate(rate)
-        call.resolve();
+        call.resolve()
     }
     
     // MARK: - StatusUpdater delegate

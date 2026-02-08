@@ -28,7 +28,11 @@ final class AudioTrack: AVPlayerItem {
         let track = AudioTrack(url: assetUrl)
         track.canUseNetworkResourcesForLiveStreamingWhilePaused = true
 
-        if let isStreamStr = trackInfo["isStream"] as? NSString {
+        if let isStream = trackInfo["isStream"] as? Bool {
+            track.isStream = isStream
+        } else if let isStreamNum = trackInfo["isStream"] as? NSNumber {
+            track.isStream = isStreamNum.boolValue
+        } else if let isStreamStr = trackInfo["isStream"] as? NSString {
             track.isStream = isStreamStr.boolValue
         }
         

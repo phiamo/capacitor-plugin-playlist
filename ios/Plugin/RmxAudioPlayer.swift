@@ -45,7 +45,11 @@ final class RmxAudioPlayer: NSObject {
 
     func setOptions(_ options: [String:Any]) {
         print("RmxAudioPlayer.execute=setOptions, \(options)")
-        resetStreamOnPause = (options["resetStreamOnPause"] as? NSNumber)?.boolValue ?? false
+        if let val = options["resetStreamOnPause"] as? Bool {
+            resetStreamOnPause = val
+        } else if let val = options["resetStreamOnPause"] as? NSNumber {
+            resetStreamOnPause = val.boolValue
+        }
     }
 
     func initialize() {
@@ -115,22 +119,35 @@ final class RmxAudioPlayer: NSObject {
         var removed = 0
         if items.count > 0 {
             for item in items {
-                guard let item = item as? [String: String] else {
+                guard let item = item as? [String: Any] else {
                     continue
                 }
-                if let id = item["trackId"] {
-                    do {
-                        try removeItem(id)
-                        removed += 1
-                    } catch {}
-                }
-                else if let index = Int(item["trackIndex"]!) {
-                    do {
-                        try removeItem(index)
-                        removed += 1
-                    } catch {}
+
+                // Canonical keys: id / index. Back-compat: trackId / trackIndex.
+                let id = (item["id"] as? String) ?? (item["trackId"] as? String)
+
+                var index: Int? = nil
+                if let raw = item["index"] ?? item["trackIndex"] {
+                    if let i = raw as? Int {
+                        index = i
+                    } else if let n = raw as? NSNumber {
+                        index = n.intValue
+                    } else if let s = raw as? String {
+                        index = Int(s)
+                    }
                 }
 
+                do {
+                    if let idx = index, idx >= 0 {
+                        try removeItem(idx)
+                        removed += 1
+                    } else if let id = id, !id.isEmpty {
+                        try removeItem(id)
+                        removed += 1
+                    }
+                } catch {
+                    // Best-effort batch removal.
+                }
             }
         }
 
@@ -202,7 +219,7 @@ final class RmxAudioPlayer: NSObject {
     ///
     /// These functions don't really do anything interesting by themselves.
     func selectTrack(index: Int) throws {
-        guard index >= 0 || index < avQueuePlayer.queuedAudioTracks.count else {
+        guard index >= 0 && index < avQueuePlayer.queuedAudioTracks.count else {
             throw "Index out of Playlist bounds"
         }
         avQueuePlayer.setCurrentIndex(index)
@@ -231,20 +248,18 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func removeItem(_ id: String) throws {
-        let result = findTrack(byId: id)
-        let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
-        let track = result?["track"] as? AudioTrack
-
-        guard idx >= 0 else {
-            throw "Could not find track by id" + id
+        guard
+            let result = findTrack(byId: id),
+            let track = result["track"] as? AudioTrack,
+            let idx = (result["index"] as? NSNumber)?.intValue,
+            idx >= 0
+        else {
+            throw "Could not find track by id " + id
         }
-        // AudioTrack* item = [self avQueuePlayer].itemsForPlayer[idx];
+
         removeTrackObservers(track)
-
-        if let track = track {
-            avQueuePlayer.remove(track)
-        }
-        onStatus(.rmxstatus_ITEM_REMOVED, trackId: track?.trackId, param: track?.toDict())
+        avQueuePlayer.remove(track)
+        onStatus(.rmxstatus_ITEM_REMOVED, trackId: track.trackId, param: track.toDict())
     }
 
     // MARK: - player actions

@@ -99,6 +99,17 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     async release(): Promise<void> {
         await this.pause();
+        if (this.audio) {
+            try {
+                this.audio.removeAttribute('src');
+                this.audio.load();
+            } catch {
+                // Best-effort: release network/decoder resources.
+            }
+            if (this.audio.isConnected) {
+                this.audio.remove();
+            }
+        }
         this.audio = undefined;
         return Promise.resolve();
     }
@@ -113,24 +124,32 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     removeItem(options: RemoveItemOptions): Promise<void> {
-        this.playlistItems.forEach((item, index) => {
-            if (options.index && options.index === index) {
-                const removedTrack = this.playlistItems.splice(index, 1);
+        const anyOpts = options as any;
+        const index = (options.index ?? anyOpts.trackIndex) as number | undefined;
+        const id = (options.id ?? anyOpts.trackId) as string | undefined;
 
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, removedTrack[0], removedTrack[0].trackId);
-            } else if (options.id && options.id === item.trackId) {
-                const removedTrack = this.playlistItems.splice(index, 1);
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, removedTrack[0], removedTrack[0].trackId);
-            }
-        });
+        let removeIndex = -1;
+        if (index !== undefined && index !== null) {
+            removeIndex = index;
+        } else if (id) {
+            removeIndex = this.playlistItems.findIndex((t) => t.trackId === id);
+        }
+
+        if (removeIndex >= 0 && removeIndex < this.playlistItems.length) {
+            const removedTrack = this.playlistItems.splice(removeIndex, 1)[0];
+            this.updateStatus(
+                RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED,
+                removedTrack,
+                removedTrack?.trackId
+            );
+        }
         return Promise.resolve();
     }
 
-    removeItems(options: RemoveItemsOptions): Promise<void> {
-        options.items.forEach(async (item) => {
-            await this.removeItem(item);
-        });
-        return Promise.resolve();
+    async removeItems(options: RemoveItemsOptions): Promise<void> {
+        for (const item of options.items || []) {
+            await this.removeItem(item as any);
+        }
     }
 
     seekTo(options: SeekToOptions): Promise<void> {
@@ -195,48 +214,47 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async skipForward(): Promise<void> {
-        let found: number | null = null;
-        this.playlistItems.forEach((item, index) => {
-            if (!found && this.getCurrentTrackId() === item.trackId) {
-                found = index;
-            }
-        });
-
-        if (found === this.playlistItems.length - 1) {
-            found = -1;
+        if (this.playlistItems.length === 0) {
+            return Promise.reject();
         }
 
-        if (found !== null) {
-            this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK, {
-                currentIndex: found + 1,
-                currentItem: this.playlistItems[found + 1]
-            }, this.playlistItems[found + 1].trackId);
-            return this.setCurrent(this.playlistItems[found + 1]);
+        const found = this.playlistItems.findIndex(
+            (t) => t.trackId === this.getCurrentTrackId()
+        );
+        if (found < 0) {
+            return Promise.reject();
         }
 
-        return Promise.reject();
+        const targetIndex = found === this.playlistItems.length - 1 ? 0 : found + 1;
+        const target = this.playlistItems[targetIndex];
+        this.updateStatus(
+            RmxAudioStatusMessage.RMX_STATUS_SKIP_FORWARD,
+            { currentIndex: targetIndex, currentItem: target },
+            target.trackId
+        );
+        return this.setCurrent(target);
     }
 
     async skipBack(): Promise<void> {
-        let found: number | null = null;
-        this.playlistItems.forEach((item, index) => {
-            if (!found && this.getCurrentTrackId() === item.trackId) {
-                found = index;
-            }
-        });
-        if (found === 0) {
-            found = this.playlistItems.length - 1;
+        if (this.playlistItems.length === 0) {
+            return Promise.reject();
         }
 
-        if (found !== null) {
-            this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK, {
-                currentIndex: found - 1,
-                currentItem: this.playlistItems[found - 1]
-            }, this.playlistItems[found - 1].trackId);
-            return this.setCurrent(this.playlistItems[found - 1]);
+        const found = this.playlistItems.findIndex(
+            (t) => t.trackId === this.getCurrentTrackId()
+        );
+        if (found < 0) {
+            return Promise.reject();
         }
 
-        return Promise.reject();
+        const targetIndex = found === 0 ? this.playlistItems.length - 1 : found - 1;
+        const target = this.playlistItems[targetIndex];
+        this.updateStatus(
+            RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK,
+            { currentIndex: targetIndex, currentItem: target },
+            target.trackId
+        );
+        return this.setCurrent(target);
     }
 
     setPlaybackRate(options: SetPlaybackRateOptions): Promise<void> {
@@ -248,30 +266,50 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async setMediaSessionRemoteControlMetadata(): Promise<void> {
-        const audioTrack: AudioTrack = this.currentTrack!;
-        if(!navigator.mediaSession) {
-            console.warn('Media Session API not available');
-            return Promise.reject();
+        if (!this.currentTrack) {
+            return Promise.resolve();
         }
+        if (!navigator.mediaSession) {
+            // Not supported on all platforms; treat as a no-op.
+            return Promise.resolve();
+        }
+        const audioTrack: AudioTrack = this.currentTrack;
+
+        const artwork =
+            audioTrack.albumArt
+                ? [
+                      { src: audioTrack.albumArt, sizes: '96x96', type: 'image/jpeg' },
+                      { src: audioTrack.albumArt, sizes: '128x128', type: 'image/jpeg' },
+                      { src: audioTrack.albumArt, sizes: '192x192', type: 'image/jpeg' },
+                      { src: audioTrack.albumArt, sizes: '256x256', type: 'image/jpeg' },
+                      { src: audioTrack.albumArt, sizes: '384x384', type: 'image/jpeg' },
+                      { src: audioTrack.albumArt, sizes: '512x512', type: 'image/jpeg' }
+                  ]
+                : undefined;
 
         navigator.mediaSession.metadata = new MediaMetadata({
             title: audioTrack.title,
             artist: audioTrack.artist,
             album: audioTrack.album,
-            artwork: [
-                { src: audioTrack.albumArt!, sizes: '96x96',   type: 'image/jpeg' },
-                { src: audioTrack.albumArt!, sizes: '128x128', type: 'image/jpeg' },
-                { src: audioTrack.albumArt!, sizes: '192x192', type: 'image/jpeg' },
-                { src: audioTrack.albumArt!, sizes: '256x256', type: 'image/jpeg' },
-                { src: audioTrack.albumArt!, sizes: '384x384', type: 'image/jpeg' },
-                { src: audioTrack.albumArt!, sizes: '512x512', type: 'image/jpeg' },
-            ]
+            ...(artwork ? { artwork } : {})
         });
 
-        navigator.mediaSession.setActionHandler('play', (details) => {this.mediaSessionControlsHandler(details)});
-        navigator.mediaSession.setActionHandler('pause', (details) => {this.mediaSessionControlsHandler(details)});
-        navigator.mediaSession.setActionHandler('nexttrack', (details) => {this.mediaSessionControlsHandler(details)});
-        navigator.mediaSession.setActionHandler('previoustrack', (details) => {this.mediaSessionControlsHandler(details)});
+        try {
+            navigator.mediaSession.setActionHandler('play', (details) => {
+                this.mediaSessionControlsHandler(details);
+            });
+            navigator.mediaSession.setActionHandler('pause', (details) => {
+                this.mediaSessionControlsHandler(details);
+            });
+            navigator.mediaSession.setActionHandler('nexttrack', (details) => {
+                this.mediaSessionControlsHandler(details);
+            });
+            navigator.mediaSession.setActionHandler('previoustrack', (details) => {
+                this.mediaSessionControlsHandler(details);
+            });
+        } catch {
+            // Some browsers throw for unsupported actions.
+        }
         return Promise.resolve();
     }
 
@@ -404,17 +442,30 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
         this.currentTrack = item;
         if (item.assetUrl.includes('.m3u8')) {
-            await this.loadHlsJs();
+            try {
+                await this.loadHlsJs();
+            } catch {
+                // If CDN loading fails, attempt native playback below.
+            }
 
-            const hls = new Hls({
-                autoStartLoad: true,
-                debug: false,
-                enableWorker: true,
-            });
-            hls.attachMedia(this.audio);
-            hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-                hls.loadSource(item.assetUrl);
-            });
+            const HlsCtor = (window as any).Hls;
+            const canUseHlsJs =
+                HlsCtor && typeof HlsCtor.isSupported === 'function' && HlsCtor.isSupported();
+
+            if (canUseHlsJs) {
+                const hls = new HlsCtor({
+                    autoStartLoad: true,
+                    debug: false,
+                    enableWorker: true
+                });
+                hls.attachMedia(this.audio);
+                hls.on(HlsCtor.Events.MEDIA_ATTACHED, () => {
+                    hls.loadSource(item.assetUrl);
+                });
+            } else {
+                // Safari (and some platforms) support HLS natively via <audio>.
+                this.audio!.src = item.assetUrl;
+            }
 
             //this.registerHlsListeners(hls, position);
         } else {
@@ -449,7 +500,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     private hlsLoaded = false;
 
     protected loadHlsJs() {
-        if (window.Hls !== undefined || this.hlsLoaded) {
+        if ((window as any).Hls !== undefined || this.hlsLoaded) {
             return Promise.resolve();
         }
         return new Promise(
