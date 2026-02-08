@@ -150,7 +150,6 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     fun removeItems(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
             val items: JSONArray = call.getArray("items")
-            var removed = 0
 
             val removals = ArrayList<TrackRemovalItem>()
             for (index in 0 until items.length()) {
@@ -158,21 +157,19 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
                 val trackIndex = entry.optInt("trackIndex", -1)
                 val trackId = entry.optString("trackId", "")
                 removals.add(TrackRemovalItem(trackIndex, trackId))
-                val removedTracks = audioPlayerImpl!!.playlistManager.removeAllItems(removals)
-                if (removedTracks.size > 0) {
-                    for (removedItem in removedTracks) {
-                        onStatus(
-                            RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED,
-                            removedItem.trackId,
-                            removedItem.toDict()
-                        )
-                    }
-                    removed = removedTracks.size
-                }
+            }
+
+            val removedTracks = audioPlayerImpl!!.playlistManager.removeAllItems(removals)
+            for (removedItem in removedTracks) {
+                onStatus(
+                    RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED,
+                    removedItem.trackId,
+                    removedItem.toDict()
+                )
             }
 
             val result = JSObject()
-            result.put("removed", removed)
+            result.put("removed", removedTracks.size)
             call.resolve(result)
 
             Log.i(TAG, "removeItems")
