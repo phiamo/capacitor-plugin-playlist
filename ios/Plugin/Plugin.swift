@@ -53,19 +53,21 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     }
     @objc func removeItem(_ call: CAPPluginCall) {
         do {
-            if let id = call.getString("id"){
+            // Prefer index if present.
+            if let index = call.getInt("index") {
+                try audioPlayerImpl.removeItem(index)
+                call.resolve()
+                return
+            }
+            if let id = call.getString("id") {
                 try audioPlayerImpl.removeItem(id)
+                call.resolve()
                 return
             }
-            guard let index = call.getString("index") else {
-                call.reject("Cannot remove")
-                return
-            }
-            try audioPlayerImpl.removeItem(index)
-        } catch let message {
-            call.reject(message as! String)
+            call.reject("Cannot remove: missing id or index")
+        } catch {
+            call.reject(String(describing: error))
         }
-        call.resolve();
     }
     @objc func removeItems(_ call: CAPPluginCall) {
         guard let items = call.getArray("items") else {
