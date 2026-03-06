@@ -3,9 +3,6 @@ import {
     RmxAudioStatusMessageDescriptions
 } from './Constants';
 import {
-    RemoveItemOptions
-} from './definitions';
-import {
     AudioPlayerEventHandler,
     AudioPlayerEventHandlers,
     AudioPlayerOptions,
@@ -206,17 +203,13 @@ export class RmxAudioPlayer {
         if (!removeItem) {
             throw new Error('Track removal spec is empty');
         }
-        if (!removeItem.trackId && !removeItem.trackIndex) {
+        if (!removeItem.trackId && removeItem.trackIndex === undefined) {
             throw new Error('Track removal spec is invalid');
         }
-        const opts: RemoveItemOptions = {};
-        if (removeItem.trackIndex !== undefined && removeItem.trackIndex !== null) {
-            opts.index = removeItem.trackIndex;
-        }
-        if (removeItem.trackId) {
-            opts.id = removeItem.trackId;
-        }
-        return Playlist.removeItem(opts);
+        return Playlist.removeItem({
+            id: removeItem.trackId,
+            index: removeItem.trackIndex
+        });
     };
 
     /**
@@ -224,11 +217,12 @@ export class RmxAudioPlayer {
      * include the currently playing item, the next available item will automatically begin playing.
      */
     removeItems = (items: AudioTrackRemoval[]) => {
-        const mapped: RemoveItemOptions[] = (items || []).map((item) => ({
-            id: item?.trackId,
-            index: item?.trackIndex
-        }));
-        return Playlist.removeItems({items: mapped});
+        return Playlist.removeItems({
+            items: (items || []).map((item) => ({
+                id: item?.trackId,
+                index: item?.trackIndex
+            }))
+        });
     };
 
     /**
