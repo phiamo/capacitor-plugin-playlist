@@ -202,7 +202,7 @@ final class RmxAudioPlayer: NSObject {
     ///
     /// These functions don't really do anything interesting by themselves.
     func selectTrack(index: Int) throws {
-        guard index >= 0 || index < avQueuePlayer.queuedAudioTracks.count else {
+        guard index >= 0 && index < avQueuePlayer.queuedAudioTracks.count else {
             throw "Index out of Playlist bounds"
         }
         avQueuePlayer.setCurrentIndex(index)
