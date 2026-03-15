@@ -203,7 +203,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     async skipForward(): Promise<void> {
         let found: number | null = null;
         this.playlistItems.forEach((item, index) => {
-            if (!found && this.getCurrentTrackId() === item.trackId) {
+            if (found === null && this.getCurrentTrackId() === item.trackId) {
                 found = index;
             }
         });
@@ -213,11 +213,12 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         }
 
         if (found !== null) {
-            this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK, {
-                currentIndex: found + 1,
-                currentItem: this.playlistItems[found + 1]
-            }, this.playlistItems[found + 1].trackId);
-            return this.setCurrent(this.playlistItems[found + 1]);
+            const targetIndex = found + 1;
+            this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_FORWARD, {
+                currentIndex: targetIndex,
+                currentItem: this.playlistItems[targetIndex]
+            }, this.playlistItems[targetIndex].trackId);
+            return this.setCurrent(this.playlistItems[targetIndex]);
         }
 
         return Promise.reject();
@@ -226,20 +227,18 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     async skipBack(): Promise<void> {
         let found: number | null = null;
         this.playlistItems.forEach((item, index) => {
-            if (!found && this.getCurrentTrackId() === item.trackId) {
+            if (found === null && this.getCurrentTrackId() === item.trackId) {
                 found = index;
             }
         });
-        if (found === 0) {
-            found = this.playlistItems.length - 1;
-        }
 
         if (found !== null) {
+            const targetIndex = found === 0 ? this.playlistItems.length - 1 : found - 1;
             this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK, {
-                currentIndex: found - 1,
-                currentItem: this.playlistItems[found - 1]
-            }, this.playlistItems[found - 1].trackId);
-            return this.setCurrent(this.playlistItems[found - 1]);
+                currentIndex: targetIndex,
+                currentItem: this.playlistItems[targetIndex]
+            }, this.playlistItems[targetIndex].trackId);
+            return this.setCurrent(this.playlistItems[targetIndex]);
         }
 
         return Promise.reject();
