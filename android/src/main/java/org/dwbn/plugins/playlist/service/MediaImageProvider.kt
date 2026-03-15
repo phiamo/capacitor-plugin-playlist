@@ -5,7 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.bumptech.glide.Glide
 import com.bumptech.glide.RequestManager
-import com.bumptech.glide.request.target.SimpleTarget
+import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import com.devbrackets.android.playlistcore.components.image.ImageProvider
 import org.dwbn.plugins.playlist.FakeR
@@ -63,9 +63,13 @@ class MediaImageProvider(
      *
      * **NOTE:** This is a Glide Image loader class
      */
-    private inner class RemoteViewImageTarget : SimpleTarget<Bitmap>() {
+    private inner class RemoteViewImageTarget : CustomTarget<Bitmap>() {
         override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
             artworkImage = resource
+        }
+
+        override fun onLoadCleared(placeholder: android.graphics.drawable.Drawable?) {
+            // No cleanup needed
         }
     }
 

@@ -30,6 +30,8 @@ export interface PlaylistPlugin {
 
     clearAllItems(): Promise<void>;
 
+    getPlaylist(): Promise<GetPlaylistResult>;
+
     // Playback
     play(): Promise<void>;
 
@@ -113,4 +115,8 @@ export interface SetLoopOptions {
 
 export interface SetPlaybackRateOptions {
     rate: number
+}
+
+export interface GetPlaylistResult {
+    items: Array<AudioTrack>
 }

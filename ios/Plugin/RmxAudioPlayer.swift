@@ -28,7 +28,7 @@ final class RmxAudioPlayer: NSObject {
     private var isWaitingToStartPlayback = false
     private var loop = false
 
-    private let avQueuePlayer = AVBidirectionalQueuePlayer(items: [])
+    let avQueuePlayer = AVBidirectionalQueuePlayer(items: [])
 
     private var lastTrackId: String? = nil
     private var lastRate: Float? = nil
@@ -202,7 +202,7 @@ final class RmxAudioPlayer: NSObject {
     ///
     /// These functions don't really do anything interesting by themselves.
     func selectTrack(index: Int) throws {
-        guard index >= 0 || index < avQueuePlayer.queuedAudioTracks.count else {
+        guard index >= 0 && index < avQueuePlayer.queuedAudioTracks.count else {
             throw "Index out of Playlist bounds"
         }
         avQueuePlayer.setCurrentIndex(index)
@@ -256,6 +256,23 @@ final class RmxAudioPlayer: NSObject {
     func playCommand(_ isCommand: Bool) {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
+        
+        // Ensure audio session is active before playing
+        // This is critical when resuming after video player has deactivated the session
+        let audioSession = AVAudioSession.sharedInstance()
+        if !audioSession.isOtherAudioPlaying {
+            // Only reactivate if no other audio is playing
+            do {
+                try audioSession.setActive(true)
+            } catch {
+                print("Warning: Could not activate audio session: \(error.localizedDescription)")
+                // Try to reactivate with category setup
+                activateAudioSession()
+            }
+        } else {
+            // If other audio is playing, ensure our category is set correctly
+            activateAudioSession()
+        }
 
         if resetStreamOnPause,
            let currentTrack = avQueuePlayer.currentAudioTrack,
@@ -348,12 +365,11 @@ final class RmxAudioPlayer: NSObject {
         let action = "music-controls-seek-to"
         print(String(format: "%@ %.3f", action, positionTime))
 
-        if isCommand {
-            let playerItem = avQueuePlayer.currentAudioTrack
-            onStatus(.rmxstatus_SEEK, trackId: playerItem?.trackId, param: [
-                "position": NSNumber(value: positionTime)
-            ])
-        }
+        // Always fire seek event, not just for commands
+        let playerItem = avQueuePlayer.currentAudioTrack
+        onStatus(.rmxstatus_SEEK, trackId: playerItem?.trackId, param: [
+            "position": NSNumber(value: positionTime)
+        ])
     }
 
     func setVolume(_ volume: Float) {
@@ -406,6 +422,8 @@ final class RmxAudioPlayer: NSObject {
         avQueuePlayer.removeAllItems()
         wasPlayingInterrupted = false
 
+        // Clear lock screen player info when playlist is cleared
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
     // MARK: - remote control events
@@ -553,7 +571,7 @@ final class RmxAudioPlayer: NSObject {
                 guard !isReplacingItems && self.lastTrackId != playerItem?.trackId else {
                     return
                 }
-                print("observe change currentItem: lastTrackId \(self.lastTrackId) playerItem: \(playerItem?.trackId)")
+                print("observe change currentItem: lastTrackId \(self.lastTrackId ?? "nil") playerItem: \(playerItem?.trackId ?? "nil")")
                 self.lastTrackId = playerItem?.trackId
                 handleCurrentItemChanged(playerItem)
             }  else {
@@ -709,7 +727,7 @@ final class RmxAudioPlayer: NSObject {
 
     func handleCurrentItemChanged(_ playerItem: AudioTrack?) {
         if let playerItem = playerItem {
-            print("Queue changed current item to: \(playerItem.trackId)")
+            print("Queue changed current item to: \(playerItem.trackId ?? "nil")")
             // NSLog(@"New music name: %@", ((AVURLAsset*)playerItem.asset).URL.pathComponents.lastObject);
             print("New item ID: \(playerItem.trackId ?? "")")
             print("Queue is at end: \(avQueuePlayer.isAtEnd ? "YES" : "NO")")
@@ -779,9 +797,9 @@ final class RmxAudioPlayer: NSObject {
                 // Failed. Examine AVPlayerItem.error
                 isWaitingToStartPlayback = false
                 var errorMsg = ""
-                if playerItem.error != nil {
-                    print("\(playerItem.error)")
-                    errorMsg = "Error playing audio track: \((playerItem.error as NSError?)?.localizedFailureReason ?? "")"
+                if let error = playerItem.error {
+                    print("\(error)")
+                    errorMsg = "Error playing audio track: \((error as NSError).localizedFailureReason ?? "")"
                 }
                 print("AVPlayerItemStatusFailed: \(errorMsg)")
                 let errorParam = createError(withCode: .rmxerr_DECODE, message: errorMsg)
@@ -1049,12 +1067,15 @@ final class RmxAudioPlayer: NSObject {
         options.insert(.allowBluetoothA2DP)
 
         do {
+            // Always set category first, even if session is already active
+            // This ensures we have the correct category after video player exits
             try avSession.setCategory(.playAndRecord, options: options)
         } catch {
             print("Error setting category! \(error.localizedDescription)")
         }
 
         do {
+            // Activate the session (will activate if not active, or update if already active)
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
             print("Could not activate audio session. \(error.localizedDescription)")

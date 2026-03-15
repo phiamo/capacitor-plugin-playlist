@@ -149,7 +149,7 @@ class PlaylistManager(application: Application) :
 
     fun addAllItems(its: List<AudioTrack>?) {
         val currentItem = currentItem // may be null
-        audioTracks.addAll(its!!)
+        audioTracks.addAll(its.orEmpty())
         items =
             audioTracks // not *strictly* needed since they share the reference, but for good measure..
         currentPosition = audioTracks.indexOf(currentItem)
@@ -163,6 +163,10 @@ class PlaylistManager(application: Application) :
         var currentPosition = currentPosition
         var foundItem: AudioTrack? = null
         var removingCurrent = false
+
+        // Get the current playback position in milliseconds before removing items
+        val progress = currentProgress
+        val seekPosition: Long = if (progress != null) progress.position else 0
 
         // If isPlaying is true, and currentItem is not null,
         // that implies that currentItem is the currently playing item.
@@ -178,7 +182,9 @@ class PlaylistManager(application: Application) :
         }
         items = audioTracks
         currentPosition = if (removingCurrent) currentPosition else audioTracks.indexOf(currentItem)
-        beginPlayback(currentPosition.toLong(), !wasPlaying)
+        // If removing the current item, start from beginning (0), otherwise preserve playback position
+        val seekStart = if (removingCurrent) 0 else seekPosition
+        beginPlayback(seekStart, !wasPlaying)
         if (this.playlistHandler != null) {
             this.playlistHandler!!.updateMediaControls()
         }
@@ -194,6 +200,11 @@ class PlaylistManager(application: Application) :
         var currentPosition = currentPosition
         val currentItem = currentItem // may be null
         var removingCurrent = false
+
+        // Get the current playback position in milliseconds before removing items
+        val progress = currentProgress
+        val seekPosition: Long = if (progress != null) progress.position else 0
+
         for (item in its) {
             val resolvedIndex = resolveItemPosition(item.trackIndex, item.trackId)
             if (resolvedIndex >= 0) {
@@ -207,17 +218,21 @@ class PlaylistManager(application: Application) :
         }
         items = audioTracks
         currentPosition = if (removingCurrent) currentPosition else audioTracks.indexOf(currentItem)
-        beginPlayback(currentPosition.toLong(), !wasPlaying)
+        // If removing the current item, start from beginning (0), otherwise preserve playback position
+        val seekStart = if (removingCurrent) 0 else seekPosition
+        beginPlayback(seekStart, !wasPlaying)
         return removedTracks
     }
 
     fun clearItems() {
-        if (playlistHandler != null) {
-            playlistHandler!!.stop()
-        }
+        playlistHandler?.stop()
         audioTracks.clear()
         items = audioTracks
         currentPosition = INVALID_POSITION
+    }
+
+    fun getAllItems(): List<AudioTrack> {
+        return audioTracks.toList()
     }
 
     private fun resolveItemPosition(trackIndex: Int, trackId: String): Int {
@@ -257,11 +272,16 @@ class PlaylistManager(application: Application) :
         return playbackSpeed
     }
 
-    fun setPlaybackSpeed(@FloatRange(from = 0.0, to = 1.0) speed: Float) {
-        playbackSpeed = speed
-        if (playlistHandler!!.currentMediaPlayer != null &&  playlistHandler!!.currentMediaPlayer!! is AudioApi) {
-            Log.i(TAG, "setPlaybackSpeed completing with speed = $speed")
-            (playlistHandler!!.currentMediaPlayer as AudioApi?)!!.setPlaybackSpeed(playbackSpeed)
+    fun setPlaybackSpeed(@FloatRange(from = 0.0625, to = 16.0) speed: Float) {
+        val validSpeed = speed.coerceIn(0.0625f, 16.0f)
+        playbackSpeed = validSpeed
+        playlistHandler?.let { handler ->
+            handler.currentMediaPlayer?.let { mediaPlayer ->
+                if (mediaPlayer is AudioApi) {
+                    Log.i(TAG, "setPlaybackSpeed completing with speed = $validSpeed")
+                    mediaPlayer.setPlaybackSpeed(playbackSpeed)
+                }
+            }
         }
     }
 

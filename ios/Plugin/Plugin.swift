@@ -14,14 +14,15 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     
     // MARK: - Capacitor API
     @objc func initialize(_ call: CAPPluginCall) {
-        audioPlayerImpl.initialize()
+        // Ensure we don't drop the initial REGISTER status event.
         audioPlayerImpl.statusUpdater = self
-        call.resolve();
+        audioPlayerImpl.initialize()
+        call.resolve()
     }
     @objc func setOptions(_ call: CAPPluginCall) {
-        let options = call.getObject("options")!
-        audioPlayerImpl.setOptions(options)
-        call.resolve();
+        // setOptions is invoked with the full payload as the options object.
+        audioPlayerImpl.setOptions(call.options)
+        call.resolve()
     }
     @objc func release(_ call: CAPPluginCall) {
         audioPlayerImpl.releaseResources()
@@ -53,19 +54,21 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     }
     @objc func removeItem(_ call: CAPPluginCall) {
         do {
-            if let id = call.getString("id"){
+            // Prefer index if present.
+            if let index = call.getInt("index") {
+                try audioPlayerImpl.removeItem(index)
+                call.resolve()
+                return
+            }
+            if let id = call.getString("id") {
                 try audioPlayerImpl.removeItem(id)
+                call.resolve()
                 return
             }
-            guard let index = call.getString("index") else {
-                call.reject("Cannot remove")
-                return
-            }
-            try audioPlayerImpl.removeItem(index)
-        } catch let message {
-            call.reject(message as! String)
+            call.reject("Cannot remove: missing id or index")
+        } catch {
+            call.reject(String(describing: error))
         }
-        call.resolve();
     }
     @objc func removeItems(_ call: CAPPluginCall) {
         guard let items = call.getArray("items") else {
@@ -80,6 +83,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     @objc func clearAllItems(_ call: CAPPluginCall) {
         audioPlayerImpl.clearAllItems()
         call.resolve();
+    }
+    @objc func getPlaylist(_ call: CAPPluginCall) {
+        let tracks = audioPlayerImpl.avQueuePlayer.queuedAudioTracks
+        let items = tracks.map { $0.toDict() }
+        call.resolve(["items": items]);
     }
     @objc func play(_ call: CAPPluginCall) {
         audioPlayerImpl.playCommand(false)
@@ -129,7 +137,6 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         catch let message {
             call.reject(message as! String)
         }
-        call.resolve();
     }
     @objc func selectTrackByIndex(_ call: CAPPluginCall) {
         guard let index = call.getInt("index") else {
@@ -158,7 +165,6 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         catch let message {
             call.reject(message as! String)
         }
-        call.resolve();
     }
     @objc func setPlaybackVolume(_ call: CAPPluginCall) {
         let volume = call.getFloat("volume", 1)

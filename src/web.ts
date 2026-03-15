@@ -50,6 +50,10 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         return Promise.resolve();
     }
 
+    async getPlaylist(): Promise<{ items: AudioTrack[] }> {
+        return Promise.resolve({ items: this.playlistItems });
+    }
+
     async initialize(): Promise<void> {
         this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_INIT, null, "INVALID");
         return Promise.resolve();
@@ -109,16 +113,22 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     removeItem(options: RemoveItemOptions): Promise<void> {
-        this.playlistItems.forEach((item, index) => {
-            if (options.index && options.index === index) {
-                const removedTrack = this.playlistItems.splice(index, 1);
+        // options.index can be 0; don't use a truthy check.
+        let removeIndex: number = -1;
+        if (options.index !== undefined && options.index !== null) {
+            removeIndex = options.index;
+        } else if (options.id) {
+            removeIndex = this.playlistItems.findIndex((t) => t.trackId === options.id);
+        }
 
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, removedTrack[0], removedTrack[0].trackId);
-            } else if (options.id && options.id === item.trackId) {
-                const removedTrack = this.playlistItems.splice(index, 1);
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED, removedTrack[0], removedTrack[0].trackId);
-            }
-        });
+        if (removeIndex >= 0 && removeIndex < this.playlistItems.length) {
+            const removedTrack = this.playlistItems.splice(removeIndex, 1)[0];
+            this.updateStatus(
+                RmxAudioStatusMessage.RMXSTATUS_ITEM_REMOVED,
+                removedTrack,
+                removedTrack?.trackId
+            );
+        }
         return Promise.resolve();
     }
 
@@ -193,7 +203,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     async skipForward(): Promise<void> {
         let found: number | null = null;
         this.playlistItems.forEach((item, index) => {
-            if (!found && this.getCurrentTrackId() === item.trackId) {
+            if (found === null && this.getCurrentTrackId() === item.trackId) {
                 found = index;
             }
         });
@@ -203,11 +213,12 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         }
 
         if (found !== null) {
-            this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK, {
-                currentIndex: found + 1,
-                currentItem: this.playlistItems[found + 1]
-            }, this.playlistItems[found + 1].trackId);
-            return this.setCurrent(this.playlistItems[found + 1]);
+            const targetIndex = found + 1;
+            this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_FORWARD, {
+                currentIndex: targetIndex,
+                currentItem: this.playlistItems[targetIndex]
+            }, this.playlistItems[targetIndex].trackId);
+            return this.setCurrent(this.playlistItems[targetIndex]);
         }
 
         return Promise.reject();
@@ -216,20 +227,18 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     async skipBack(): Promise<void> {
         let found: number | null = null;
         this.playlistItems.forEach((item, index) => {
-            if (!found && this.getCurrentTrackId() === item.trackId) {
+            if (found === null && this.getCurrentTrackId() === item.trackId) {
                 found = index;
             }
         });
-        if (found === 0) {
-            found = this.playlistItems.length - 1;
-        }
 
         if (found !== null) {
+            const targetIndex = found === 0 ? this.playlistItems.length - 1 : found - 1;
             this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK, {
-                currentIndex: found - 1,
-                currentItem: this.playlistItems[found - 1]
-            }, this.playlistItems[found - 1].trackId);
-            return this.setCurrent(this.playlistItems[found - 1]);
+                currentIndex: targetIndex,
+                currentItem: this.playlistItems[targetIndex]
+            }, this.playlistItems[targetIndex].trackId);
+            return this.setCurrent(this.playlistItems[targetIndex]);
         }
 
         return Promise.reject();
@@ -351,6 +360,11 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
             this.audio.addEventListener('durationchange', () => {
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_DURATION, this.getCurrentTrackStatus(this.lastState));
+            });
+
+            this.audio.addEventListener('seeking', () => {
+                const status = this.getCurrentTrackStatus(this.lastState);
+                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_SEEK, status);
             });
         }
     }
