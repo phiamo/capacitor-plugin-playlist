@@ -14,9 +14,10 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     
     // MARK: - Capacitor API
     @objc func initialize(_ call: CAPPluginCall) {
-        audioPlayerImpl.initialize()
+        // Ensure we don't drop the initial REGISTER status event.
         audioPlayerImpl.statusUpdater = self
-        call.resolve();
+        audioPlayerImpl.initialize()
+        call.resolve()
     }
     @objc func setOptions(_ call: CAPPluginCall) {
         // setOptions is invoked with the full payload as the options object.
