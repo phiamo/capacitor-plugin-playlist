@@ -19,9 +19,9 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         call.resolve();
     }
     @objc func setOptions(_ call: CAPPluginCall) {
-        let options = call.getObject("options")!
-        audioPlayerImpl.setOptions(options)
-        call.resolve();
+        // setOptions is invoked with the full payload as the options object.
+        audioPlayerImpl.setOptions(call.options)
+        call.resolve()
     }
     @objc func release(_ call: CAPPluginCall) {
         audioPlayerImpl.releaseResources()
