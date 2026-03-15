@@ -21,7 +21,6 @@ CAP_PLUGIN(PlaylistPlugin, "Playlist",
    CAP_PLUGIN_METHOD(seekTo, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(playTrackByIndex, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(playTrackById, CAPPluginReturnPromise);
-   CAP_PLUGIN_METHOD(playTrackByIndex, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(selectTrackByIndex, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(selectTrackById, CAPPluginReturnPromise);
    CAP_PLUGIN_METHOD(setPlaybackVolume, CAPPluginReturnPromise);
