@@ -181,7 +181,23 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         audioPlayerImpl.setPlaybackRate(rate)
         call.resolve();
     }
-    
+
+    @objc func prepareForVideoHandoff(_ call: CAPPluginCall) {
+        audioPlayerImpl.prepareForVideoHandoff()
+        call.resolve()
+    }
+
+    @objc func resumeAfterVideoHandoff(_ call: CAPPluginCall) {
+        let position = call.getFloat("position", 0)
+        audioPlayerImpl.resumeAfterVideoHandoff(position: position)
+        call.resolve()
+    }
+
+    @objc func getLastKnownPosition(_ call: CAPPluginCall) {
+        let position = audioPlayerImpl.getLastKnownPosition()
+        call.resolve(["position": position])
+    }
+
     // MARK: - StatusUpdater delegate
     // todo: calls to notifyListeners should be throttled
     func onStatus(_ data: [String: Any]) {

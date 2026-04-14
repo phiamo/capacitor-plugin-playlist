@@ -252,6 +252,23 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         return Promise.reject();
     }
 
+    protected lastKnownHandoffPosition = 0;
+
+    async prepareForVideoHandoff(): Promise<void> {
+        this.lastKnownHandoffPosition = this.audio?.currentTime ?? 0;
+        await this.pause();
+        return Promise.resolve();
+    }
+
+    async resumeAfterVideoHandoff(options: { position: number }): Promise<void> {
+        this.lastKnownHandoffPosition = options.position;
+        return Promise.resolve();
+    }
+
+    async getLastKnownPosition(): Promise<{ position: number }> {
+        return Promise.resolve({ position: this.lastKnownHandoffPosition });
+    }
+
     async setMediaSessionRemoteControlMetadata(): Promise<void> {
         const audioTrack: AudioTrack = this.currentTrack!;
         if(!navigator.mediaSession) {

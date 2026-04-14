@@ -1146,4 +1146,33 @@ final class RmxAudioPlayer: NSObject {
         playbackTimeObserver = nil
         isWaitingToStartPlayback = false
     }
+
+    // MARK: - Epic 45 video handoff
+
+    private var lastKnownHandoffPosition: Float = 0
+
+    func prepareForVideoHandoff() {
+        pauseCommand(false)
+        // Capture position after pausing so lastKnownHandoffPosition reflects the
+        // true stopped head, not a value that may have ticked during the pause call.
+        if let track = avQueuePlayer.currentAudioTrack {
+            lastKnownHandoffPosition = getTrackCurrentTime(track)
+        } else {
+            lastKnownHandoffPosition = 0
+        }
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        } catch {
+            print("prepareForVideoHandoff: setActive(false) failed: \(error.localizedDescription)")
+        }
+    }
+
+    func resumeAfterVideoHandoff(position: Float) {
+        lastKnownHandoffPosition = position
+        activateAudioSession()
+    }
+
+    func getLastKnownPosition() -> Float {
+        lastKnownHandoffPosition
+    }
 }

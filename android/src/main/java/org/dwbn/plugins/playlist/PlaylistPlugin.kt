@@ -388,6 +388,36 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         }
     }
 
+    @PluginMethod
+    fun prepareForVideoHandoff(call: PluginCall) {
+        Handler(Looper.getMainLooper()).post {
+            audioPlayerImpl!!.prepareForVideoHandoff()
+            call.resolve()
+            Log.i(TAG, "prepareForVideoHandoff")
+        }
+    }
+
+    @PluginMethod
+    fun resumeAfterVideoHandoff(call: PluginCall) {
+        Handler(Looper.getMainLooper()).post {
+            val position = call.getFloat("position", 0f)!!
+            audioPlayerImpl!!.resumeAfterVideoHandoff(position)
+            call.resolve()
+            Log.i(TAG, "resumeAfterVideoHandoff")
+        }
+    }
+
+    @PluginMethod
+    fun getLastKnownPosition(call: PluginCall) {
+        Handler(Looper.getMainLooper()).post {
+            val position = audioPlayerImpl!!.getLastKnownPositionSec()
+            val o = JSObject()
+            o.put("position", position.toDouble())
+            call.resolve(o)
+            Log.i(TAG, "getLastKnownPosition")
+        }
+    }
+
     override fun handleOnDestroy() {
         Log.d(TAG, "Plugin destroy")
         super.handleOnDestroy()

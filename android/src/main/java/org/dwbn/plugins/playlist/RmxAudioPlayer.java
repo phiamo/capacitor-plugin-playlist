@@ -450,4 +450,29 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
     private void onStatus(RmxAudioStatusMessage what, String trackId, JSONObject param) {
         statusListener.onStatus(what, trackId, param);
     }
+
+    private float lastKnownHandoffPositionSec = 0f;
+
+    public void prepareForVideoHandoff() {
+        MediaProgress progress = playlistManager.getCurrentProgress();
+        if (progress != null) {
+            lastKnownHandoffPositionSec = progress.getPosition() / 1000f;
+        } else {
+            lastKnownHandoffPositionSec = 0f;
+        }
+        // Pause unconditionally (not only when isPlaying) so that DefaultAudioFocusProvider
+        // always abandons audio focus before CapacitorVideoPlayer.initPlayer acquires it.
+        // Calling pause() on an already-paused handler is safe; it triggers focus release.
+        if (playlistManager.getPlaylistHandler() != null) {
+            playlistManager.getPlaylistHandler().pause(false);
+        }
+    }
+
+    public void resumeAfterVideoHandoff(float positionSec) {
+        lastKnownHandoffPositionSec = positionSec;
+    }
+
+    public float getLastKnownPositionSec() {
+        return lastKnownHandoffPositionSec;
+    }
 }
