@@ -610,7 +610,13 @@ final class RmxAudioPlayer: NSObject {
             let trackStatus = getStatusItem(playerItem)
             print("Playback rate changed: \(String(describing: change[.newKey])), is playing: \(player?.isPlaying ?? false)")
 
-            if player?.isPlaying ?? false {
+            // Use the new rate value to determine playing/paused state.
+            // player?.isPlaying (= timeControlStatus == .playing) is false during the
+            // .waitingToPlayAtSpecifiedRate transition right after play() is called, which
+            // would emit a spurious PAUSE event and leave JS stuck in PAUSED state until the
+            // periodic PLAYBACK_POSITION event corrects it ~1 second later.
+            let newRate = change[.newKey] as? Float ?? 0
+            if newRate != 0 {
                 onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
             } else {
                 onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
@@ -1201,6 +1207,11 @@ final class RmxAudioPlayer: NSObject {
     func resumeAfterVideoHandoff(position: Float) {
         lastKnownHandoffPosition = position
         activateAudioSession()
+        // Reset lastTrackId so the timeControlStatus KVO guard does not suppress the PLAYING
+        // event on same-track non-index-0 resume. The guard `lastTrackId != trackId || isAtBeginning`
+        // (where isAtBeginning = currentIndex() == 0) would silently drop the PLAYING transition
+        // for any audio track at playlist index > 0, leaving JS stuck in PAUSED.
+        lastTrackId = nil
     }
 
     func getLastKnownPosition() -> Float {

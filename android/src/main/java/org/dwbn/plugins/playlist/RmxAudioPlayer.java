@@ -470,6 +470,13 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
 
     public void resumeAfterVideoHandoff(float positionSec) {
         lastKnownHandoffPositionSec = positionSec;
+        // Re-arm the audio session/service so the handler is primed before JS calls play().
+        // On Android, prepareForVideoHandoff() abandoned audio focus which may have caused
+        // the MediaService to stop itself (foreground service removal). beginPlayback with
+        // startPaused=true restarts the service, re-acquires audio focus, and prepares the
+        // MediaPlayer at the stored position — without auto-starting playback (JS owns FR111).
+        long positionMs = (long) (positionSec * 1000f);
+        playlistManager.beginPlayback(positionMs, true);
     }
 
     public float getLastKnownPositionSec() {

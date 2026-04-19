@@ -212,16 +212,20 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     @PluginMethod
     fun play(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
-            if (audioPlayerImpl!!.playlistManager.playlistHandler != null) {
-                val isPlaying =
-                    (audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer != null
-                            && audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer?.isPlaying!!)
-                // There's a bug in the threaded repeater that it stacks up the repeat calls instead of ignoring
-                // additional ones or starting a new one. E.g. every time this is called, you'd get a new repeat cycle,
-                // meaning you get N updates per second. Ew.
+            val handler = audioPlayerImpl!!.playlistManager.playlistHandler
+            if (handler == null || handler.currentMediaPlayer == null) {
+                // MediaPlayer was released or MediaService was killed (e.g. after a long video session
+                // where audio focus was permanently abandoned). Fall back to beginPlayback which
+                // re-starts the service, re-prepares the MediaPlayer, and re-acquires audio focus.
+                val posMs = (audioPlayerImpl!!.getLastKnownPositionSec() * 1000f).toLong()
+                audioPlayerImpl!!.playlistManager.beginPlayback(posMs, false)
+                Log.i(TAG, "play: handler/mediaPlayer was null — re-armed via beginPlayback at ${posMs}ms")
+            } else {
+                // Handler and MediaPlayer are alive — use the lightweight resume path.
+                // Guard against stacking up repeat cycles (playlistcore bug): skip if already playing.
+                val isPlaying = handler.currentMediaPlayer?.isPlaying ?: false
                 if (!isPlaying) {
-                    audioPlayerImpl!!.playlistManager.playlistHandler?.play()
-                    //audioPlayerImpl.getPlaylistManager().playlistHandler.seek(position)
+                    handler.play()
                 }
             }
 
