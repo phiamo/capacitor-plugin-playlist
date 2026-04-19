@@ -19,6 +19,7 @@ final class RmxAudioPlayer: NSObject {
     var statusUpdater: StatusUpdater? = nil
 
     private var playbackTimeObserver: Any?
+    private var kvoObserversRegistered = false
     private var wasPlayingInterrupted = false
     private var commandCenterRegistered = false
     private var resetStreamOnPause = false
@@ -52,20 +53,37 @@ final class RmxAudioPlayer: NSObject {
         print("RmxAudioPlayer.execute=initialize")
 
         avQueuePlayer.actionAtItemEnd = .advance
-        avQueuePlayer.addObserver(self, forKeyPath: "currentItem", options: .new, context: nil)
-        avQueuePlayer.addObserver(self, forKeyPath: "rate", options: .new, context: nil)
-        avQueuePlayer.addObserver(self, forKeyPath: "timeControlStatus", options: .new, context: nil)
+        // Guard against duplicate KVO registration (e.g. called more than once without a
+        // matching releaseResources() between calls — would otherwise crash with an
+        // "Cannot remove observer" or duplicate-key exception).
+        if !kvoObserversRegistered {
+            avQueuePlayer.addObserver(self, forKeyPath: "currentItem", options: .new, context: nil)
+            avQueuePlayer.addObserver(self, forKeyPath: "rate", options: .new, context: nil)
+            avQueuePlayer.addObserver(self, forKeyPath: "timeControlStatus", options: .new, context: nil)
+            kvoObserversRegistered = true
+        }
 
-        let interval = CMTimeMakeWithSeconds(Float64(1.0), preferredTimescale: Int32(Double(NSEC_PER_SEC)))
-        playbackTimeObserver = avQueuePlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] time in
-            self?.executePeriodicUpdate(time)
-        })
+        installPlaybackTimeObserverIfNeeded()
 
         onStatus(.rmxstatus_REGISTER, trackId: "INIT", param: nil)
     }
 
+    /// Re-arms the periodic time observer if it is not already installed.
+    /// Safe to call multiple times; no-ops when an observer is already active.
+    /// Must be called on the main thread.
+    private func installPlaybackTimeObserverIfNeeded() {
+        guard playbackTimeObserver == nil else { return }
+        let interval = CMTimeMakeWithSeconds(Float64(1.0), preferredTimescale: Int32(Double(NSEC_PER_SEC)))
+        playbackTimeObserver = avQueuePlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] time in
+            self?.executePeriodicUpdate(time)
+        })
+    }
+
     func setPlaylistItems(_ items: [AudioTrack], options: [String:Any]) {
         print("RmxAudioPlayer.execute=setPlaylistItems, \(options), \(items.count)")
+
+        // Re-arm the periodic observer in case it was removed by a prior releaseResources() call.
+        installPlaybackTimeObserverIfNeeded()
 
         var seekToPosition: Float = 0.0
         let retainPosition = options["retainPosition"] != nil ? (options["retainPosition"] as? Bool) ?? false : false
@@ -256,6 +274,8 @@ final class RmxAudioPlayer: NSObject {
     func playCommand(_ isCommand: Bool) {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
+        // Re-arm the periodic observer if it was removed by a prior releaseResources() call.
+        installPlaybackTimeObserverIfNeeded()
         
         // Ensure audio session is active before playing
         // This is critical when resuming after video player has deactivated the session
@@ -1139,11 +1159,22 @@ final class RmxAudioPlayer: NSObject {
         if let playbackTimeObserver = playbackTimeObserver {
             avQueuePlayer.removeTimeObserver(playbackTimeObserver)
         }
+        playbackTimeObserver = nil
+
+        // Remove the queue-level KVO observers added in initialize() so that a subsequent
+        // initialize() call does not crash with a duplicate-observer exception.
+        if kvoObserversRegistered {
+            avQueuePlayer.removeObserver(self, forKeyPath: "currentItem")
+            avQueuePlayer.removeObserver(self, forKeyPath: "rate")
+            avQueuePlayer.removeObserver(self, forKeyPath: "timeControlStatus")
+            kvoObserversRegistered = false
+        }
+
         deregisterMusicControlsEventListener()
+        // commandCenterRegistered is already reset inside deregisterMusicControlsEventListener()
 
         removeAllTracks()
 
-        playbackTimeObserver = nil
         isWaitingToStartPlayback = false
     }
 

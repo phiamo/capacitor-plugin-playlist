@@ -426,21 +426,26 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     override fun onError(errorCode: RmxAudioErrorType?, trackId: String?, message: String?) {
         if (statusCallback == null) {
-            return
+            statusCallback = OnStatusCallback(this)
         }
         val errorObj = OnStatusCallback.createErrorWithCode(errorCode, message)
         onStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, trackId, errorObj)
     }
 
     override fun onStatus(what: RmxAudioStatusMessage, trackId: String?, param: JSONObject?) {
+        // Defensive: recreate the callback if it was ever cleared (e.g. by an unexpected
+        // destroyResources call) so that audio events are never permanently silenced.
         if (statusCallback == null) {
-            return
+            statusCallback = OnStatusCallback(this)
         }
         statusCallback!!.onStatus(what, trackId, param)
     }
 
     private fun destroyResources() {
-        statusCallback = null
+        // Do NOT null statusCallback here — it is bound to the Plugin instance and must remain
+        // alive for the entire app lifetime. Nulling it silences all subsequent audio events
+        // (PLAYING, PAUSE, PLAYBACK_POSITION, etc.) because onStatus() would early-return.
+        // Only clear the playback items so native memory is released.
         audioPlayerImpl!!.playlistManager.clearItems()
     }
 
