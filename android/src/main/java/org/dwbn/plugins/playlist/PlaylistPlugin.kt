@@ -212,16 +212,20 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     @PluginMethod
     fun play(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
-            if (audioPlayerImpl!!.playlistManager.playlistHandler != null) {
-                val isPlaying =
-                    (audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer != null
-                            && audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer?.isPlaying!!)
-                // There's a bug in the threaded repeater that it stacks up the repeat calls instead of ignoring
-                // additional ones or starting a new one. E.g. every time this is called, you'd get a new repeat cycle,
-                // meaning you get N updates per second. Ew.
+            val handler = audioPlayerImpl!!.playlistManager.playlistHandler
+            if (handler == null || handler.currentMediaPlayer == null) {
+                // MediaPlayer was released or MediaService was killed (e.g. after a long video session
+                // where audio focus was permanently abandoned). Fall back to beginPlayback which
+                // re-starts the service, re-prepares the MediaPlayer, and re-acquires audio focus.
+                val posMs = (audioPlayerImpl!!.getLastKnownPositionSec() * 1000f).toLong()
+                audioPlayerImpl!!.playlistManager.beginPlayback(posMs, false)
+                Log.i(TAG, "play: handler/mediaPlayer was null — re-armed via beginPlayback at ${posMs}ms")
+            } else {
+                // Handler and MediaPlayer are alive — use the lightweight resume path.
+                // Guard against stacking up repeat cycles (playlistcore bug): skip if already playing.
+                val isPlaying = handler.currentMediaPlayer?.isPlaying ?: false
                 if (!isPlaying) {
-                    audioPlayerImpl!!.playlistManager.playlistHandler?.play()
-                    //audioPlayerImpl.getPlaylistManager().playlistHandler.seek(position)
+                    handler.play()
                 }
             }
 
@@ -388,6 +392,36 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         }
     }
 
+    @PluginMethod
+    fun prepareForVideoHandoff(call: PluginCall) {
+        Handler(Looper.getMainLooper()).post {
+            audioPlayerImpl!!.prepareForVideoHandoff()
+            call.resolve()
+            Log.i(TAG, "prepareForVideoHandoff")
+        }
+    }
+
+    @PluginMethod
+    fun resumeAfterVideoHandoff(call: PluginCall) {
+        Handler(Looper.getMainLooper()).post {
+            val position = call.getFloat("position", 0f)!!
+            audioPlayerImpl!!.resumeAfterVideoHandoff(position)
+            call.resolve()
+            Log.i(TAG, "resumeAfterVideoHandoff")
+        }
+    }
+
+    @PluginMethod
+    fun getLastKnownPosition(call: PluginCall) {
+        Handler(Looper.getMainLooper()).post {
+            val position = audioPlayerImpl!!.getLastKnownPositionSec()
+            val o = JSObject()
+            o.put("position", position.toDouble())
+            call.resolve(o)
+            Log.i(TAG, "getLastKnownPosition")
+        }
+    }
+
     override fun handleOnDestroy() {
         Log.d(TAG, "Plugin destroy")
         super.handleOnDestroy()
@@ -396,21 +430,26 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     override fun onError(errorCode: RmxAudioErrorType?, trackId: String?, message: String?) {
         if (statusCallback == null) {
-            return
+            statusCallback = OnStatusCallback(this)
         }
         val errorObj = OnStatusCallback.createErrorWithCode(errorCode, message)
         onStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, trackId, errorObj)
     }
 
     override fun onStatus(what: RmxAudioStatusMessage, trackId: String?, param: JSONObject?) {
+        // Defensive: recreate the callback if it was ever cleared (e.g. by an unexpected
+        // destroyResources call) so that audio events are never permanently silenced.
         if (statusCallback == null) {
-            return
+            statusCallback = OnStatusCallback(this)
         }
         statusCallback!!.onStatus(what, trackId, param)
     }
 
     private fun destroyResources() {
-        statusCallback = null
+        // Do NOT null statusCallback here — it is bound to the Plugin instance and must remain
+        // alive for the entire app lifetime. Nulling it silences all subsequent audio events
+        // (PLAYING, PAUSE, PLAYBACK_POSITION, etc.) because onStatus() would early-return.
+        // Only clear the playback items so native memory is released.
         audioPlayerImpl!!.playlistManager.clearItems()
     }
 

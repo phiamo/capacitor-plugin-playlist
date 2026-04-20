@@ -19,6 +19,7 @@ final class RmxAudioPlayer: NSObject {
     var statusUpdater: StatusUpdater? = nil
 
     private var playbackTimeObserver: Any?
+    private var kvoObserversRegistered = false
     private var wasPlayingInterrupted = false
     private var commandCenterRegistered = false
     private var resetStreamOnPause = false
@@ -52,20 +53,37 @@ final class RmxAudioPlayer: NSObject {
         print("RmxAudioPlayer.execute=initialize")
 
         avQueuePlayer.actionAtItemEnd = .advance
-        avQueuePlayer.addObserver(self, forKeyPath: "currentItem", options: .new, context: nil)
-        avQueuePlayer.addObserver(self, forKeyPath: "rate", options: .new, context: nil)
-        avQueuePlayer.addObserver(self, forKeyPath: "timeControlStatus", options: .new, context: nil)
+        // Guard against duplicate KVO registration (e.g. called more than once without a
+        // matching releaseResources() between calls — would otherwise crash with an
+        // "Cannot remove observer" or duplicate-key exception).
+        if !kvoObserversRegistered {
+            avQueuePlayer.addObserver(self, forKeyPath: "currentItem", options: .new, context: nil)
+            avQueuePlayer.addObserver(self, forKeyPath: "rate", options: .new, context: nil)
+            avQueuePlayer.addObserver(self, forKeyPath: "timeControlStatus", options: .new, context: nil)
+            kvoObserversRegistered = true
+        }
 
-        let interval = CMTimeMakeWithSeconds(Float64(1.0), preferredTimescale: Int32(Double(NSEC_PER_SEC)))
-        playbackTimeObserver = avQueuePlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] time in
-            self?.executePeriodicUpdate(time)
-        })
+        installPlaybackTimeObserverIfNeeded()
 
         onStatus(.rmxstatus_REGISTER, trackId: "INIT", param: nil)
     }
 
+    /// Re-arms the periodic time observer if it is not already installed.
+    /// Safe to call multiple times; no-ops when an observer is already active.
+    /// Must be called on the main thread.
+    private func installPlaybackTimeObserverIfNeeded() {
+        guard playbackTimeObserver == nil else { return }
+        let interval = CMTimeMakeWithSeconds(Float64(1.0), preferredTimescale: Int32(Double(NSEC_PER_SEC)))
+        playbackTimeObserver = avQueuePlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] time in
+            self?.executePeriodicUpdate(time)
+        })
+    }
+
     func setPlaylistItems(_ items: [AudioTrack], options: [String:Any]) {
         print("RmxAudioPlayer.execute=setPlaylistItems, \(options), \(items.count)")
+
+        // Re-arm the periodic observer in case it was removed by a prior releaseResources() call.
+        installPlaybackTimeObserverIfNeeded()
 
         var seekToPosition: Float = 0.0
         let retainPosition = options["retainPosition"] != nil ? (options["retainPosition"] as? Bool) ?? false : false
@@ -256,6 +274,8 @@ final class RmxAudioPlayer: NSObject {
     func playCommand(_ isCommand: Bool) {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
+        // Re-arm the periodic observer if it was removed by a prior releaseResources() call.
+        installPlaybackTimeObserverIfNeeded()
         
         // Ensure audio session is active before playing
         // This is critical when resuming after video player has deactivated the session
@@ -590,7 +610,13 @@ final class RmxAudioPlayer: NSObject {
             let trackStatus = getStatusItem(playerItem)
             print("Playback rate changed: \(String(describing: change[.newKey])), is playing: \(player?.isPlaying ?? false)")
 
-            if player?.isPlaying ?? false {
+            // Use the new rate value to determine playing/paused state.
+            // player?.isPlaying (= timeControlStatus == .playing) is false during the
+            // .waitingToPlayAtSpecifiedRate transition right after play() is called, which
+            // would emit a spurious PAUSE event and leave JS stuck in PAUSED state until the
+            // periodic PLAYBACK_POSITION event corrects it ~1 second later.
+            let newRate = change[.newKey] as? Float ?? 0
+            if newRate != 0 {
                 onStatus(.rmxstatus_PLAYING, trackId: playerItem.trackId, param: trackStatus)
             } else {
                 onStatus(.rmxstatus_PAUSE, trackId: playerItem.trackId, param: trackStatus)
@@ -1139,11 +1165,56 @@ final class RmxAudioPlayer: NSObject {
         if let playbackTimeObserver = playbackTimeObserver {
             avQueuePlayer.removeTimeObserver(playbackTimeObserver)
         }
+        playbackTimeObserver = nil
+
+        // Remove the queue-level KVO observers added in initialize() so that a subsequent
+        // initialize() call does not crash with a duplicate-observer exception.
+        if kvoObserversRegistered {
+            avQueuePlayer.removeObserver(self, forKeyPath: "currentItem")
+            avQueuePlayer.removeObserver(self, forKeyPath: "rate")
+            avQueuePlayer.removeObserver(self, forKeyPath: "timeControlStatus")
+            kvoObserversRegistered = false
+        }
+
         deregisterMusicControlsEventListener()
+        // commandCenterRegistered is already reset inside deregisterMusicControlsEventListener()
 
         removeAllTracks()
 
-        playbackTimeObserver = nil
         isWaitingToStartPlayback = false
+    }
+
+    // MARK: - Epic 45 video handoff
+
+    private var lastKnownHandoffPosition: Float = 0
+
+    func prepareForVideoHandoff() {
+        pauseCommand(false)
+        // Capture position after pausing so lastKnownHandoffPosition reflects the
+        // true stopped head, not a value that may have ticked during the pause call.
+        if let track = avQueuePlayer.currentAudioTrack {
+            lastKnownHandoffPosition = getTrackCurrentTime(track)
+        } else {
+            lastKnownHandoffPosition = 0
+        }
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        } catch {
+            print("prepareForVideoHandoff: setActive(false) failed: \(error.localizedDescription)")
+        }
+    }
+
+    func resumeAfterVideoHandoff(position: Float) {
+        lastKnownHandoffPosition = position
+        activateAudioSession()
+        // Reset lastTrackId so the timeControlStatus KVO guard does not suppress the PLAYING
+        // event on same-track non-index-0 resume. The guard `lastTrackId != trackId || isAtBeginning`
+        // (where isAtBeginning = currentIndex() == 0) would silently drop the PLAYING transition
+        // for any audio track at playlist index > 0, leaving JS stuck in PAUSED.
+        lastTrackId = nil
+    }
+
+    func getLastKnownPosition() -> Float {
+        lastKnownHandoffPosition
     }
 }

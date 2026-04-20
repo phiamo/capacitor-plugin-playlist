@@ -21,7 +21,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
     }
     @objc func setOptions(_ call: CAPPluginCall) {
         // setOptions is invoked with the full payload as the options object.
-        audioPlayerImpl.setOptions(call.options)
+        audioPlayerImpl.setOptions(call.options as! [String : Any])
         call.resolve()
     }
     @objc func release(_ call: CAPPluginCall) {
@@ -181,7 +181,23 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         audioPlayerImpl.setPlaybackRate(rate)
         call.resolve();
     }
-    
+
+    @objc func prepareForVideoHandoff(_ call: CAPPluginCall) {
+        audioPlayerImpl.prepareForVideoHandoff()
+        call.resolve()
+    }
+
+    @objc func resumeAfterVideoHandoff(_ call: CAPPluginCall) {
+        let position = call.getFloat("position", 0)
+        audioPlayerImpl.resumeAfterVideoHandoff(position: position)
+        call.resolve()
+    }
+
+    @objc func getLastKnownPosition(_ call: CAPPluginCall) {
+        let position = audioPlayerImpl.getLastKnownPosition()
+        call.resolve(["position": position])
+    }
+
     // MARK: - StatusUpdater delegate
     // todo: calls to notifyListeners should be throttled
     func onStatus(_ data: [String: Any]) {

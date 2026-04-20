@@ -57,6 +57,30 @@ export interface PlaylistPlugin {
 
     // advanced
     setPlaybackRate(options: SetPlaybackRateOptions): Promise<void>;
+
+    /**
+     * Epic 45 — release native audio session / focus so the video player can own playback.
+     * Call immediately before CapacitorVideoPlayer.initPlayer (Critical Rule 2).
+     */
+    prepareForVideoHandoff(): Promise<void>;
+
+    /**
+     * Epic 45 — optional resume hook after video exits (full behaviour in Stories 45.3/45.4).
+     */
+    resumeAfterVideoHandoff(options: ResumeAfterVideoHandoffOptions): Promise<void>;
+
+    /**
+     * Epic 45 — last audio head captured during prepare (seconds).
+     */
+    getLastKnownPosition(): Promise<GetLastKnownPositionResult>;
+}
+
+export interface ResumeAfterVideoHandoffOptions {
+    position: number;
+}
+
+export interface GetLastKnownPositionResult {
+    position: number;
 }
 
 export interface PlaylistOptions {
