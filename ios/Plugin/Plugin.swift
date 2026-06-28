@@ -198,8 +198,16 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         call.resolve(["position": position])
     }
 
+    public override func handleApplicationWillResignActive(_ notification: Notification) {
+        audioPlayerImpl.setWebViewActive(false)
+    }
+
+    public override func handleApplicationDidBecomeActive(_ notification: Notification) {
+        audioPlayerImpl.setWebViewActive(true)
+        audioPlayerImpl.emitPlaybackSnapshot()
+    }
+
     // MARK: - StatusUpdater delegate
-    // todo: calls to notifyListeners should be throttled
     func onStatus(_ data: [String: Any]) {
         notifyListeners("status", data: data)
     }

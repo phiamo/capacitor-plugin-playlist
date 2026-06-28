@@ -28,6 +28,7 @@ final class RmxAudioPlayer: NSObject {
     private var isReplacingItems = false
     private var isWaitingToStartPlayback = false
     private var loop = false
+    private var isWebViewActive = true
 
     let avQueuePlayer = AVBidirectionalQueuePlayer(items: [])
 
@@ -1127,6 +1128,10 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func onStatus(_ what: RmxAudioStatusMessage, trackId: String?, param: [String:Any]?) {
+        if what == .rmxstatus_PLAYBACK_POSITION && !isWebViewActive {
+            return
+        }
+
         var status: [String : Any] = [:]
         status["msgType"] = NSNumber(value: what.rawValue)
         // in the error case contains a dict with "code" and "message", otherwise a NSNumber
@@ -1216,5 +1221,22 @@ final class RmxAudioPlayer: NSObject {
 
     func getLastKnownPosition() -> Float {
         lastKnownHandoffPosition
+    }
+
+    func setWebViewActive(_ active: Bool) {
+        isWebViewActive = active
+    }
+
+    func shouldEmitStatusToBridge(_ what: RmxAudioStatusMessage) -> Bool {
+        if what == .rmxstatus_PLAYBACK_POSITION && !isWebViewActive {
+            return false
+        }
+        return true
+    }
+
+    func emitPlaybackSnapshot() {
+        guard let playerItem = avQueuePlayer.currentAudioTrack else { return }
+        let trackStatus = getStatusItem(playerItem)
+        onStatus(.rmxstatus_PLAYBACK_POSITION, trackId: playerItem.trackId, param: trackStatus)
     }
 }
