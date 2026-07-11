@@ -287,7 +287,13 @@ class PlaylistManager(application: Application) :
 
     fun beginPlayback(@IntRange(from = 0) seekPosition: Long, startPaused: Boolean) {
         currentItem ?: return
-        super.play(seekPosition, startPaused)
+        try {
+            super.play(seekPosition, startPaused)
+        } catch (e: IllegalStateException) {
+            // Android 12+: BackgroundServiceStartNotAllowedException when app is backgrounded
+            Log.w(TAG, "beginPlayback: cannot start MediaService while backgrounded: ${e.message}")
+            return
+        }
         try {
             setVolume(volumeLeft, volumeRight)
             setPlaybackSpeed(playbackSpeed)

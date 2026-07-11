@@ -482,4 +482,13 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
     public float getLastKnownPositionSec() {
         return lastKnownHandoffPositionSec;
     }
+
+    public void emitPlaybackSnapshot() {
+        AudioTrack currentItem = playlistManager.getCurrentItem();
+        if (currentItem == null) {
+            return;
+        }
+        JSONObject trackStatus = getPlayerStatus(currentItem);
+        onStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION, currentItem.getTrackId(), trackStatus);
+    }
 }

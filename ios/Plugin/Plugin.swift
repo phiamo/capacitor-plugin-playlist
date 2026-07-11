@@ -198,8 +198,31 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         call.resolve(["position": position])
     }
 
+    public override func load() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationWillResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
+
+    @objc private func applicationWillResignActive() {
+        audioPlayerImpl.setWebViewActive(false)
+    }
+
+    @objc private func applicationDidBecomeActive() {
+        audioPlayerImpl.setWebViewActive(true)
+        audioPlayerImpl.emitPlaybackSnapshot()
+    }
+
     // MARK: - StatusUpdater delegate
-    // todo: calls to notifyListeners should be throttled
     func onStatus(_ data: [String: Any]) {
         notifyListeners("status", data: data)
     }

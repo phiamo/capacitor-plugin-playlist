@@ -17,6 +17,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     private var statusCallback: OnStatusCallback? = null
     private var audioPlayerImpl: RmxAudioPlayer? = null
     private var resetStreamOnPause = true
+    private var isWebViewActive = true
 
     override fun load() {
         audioPlayerImpl = RmxAudioPlayer(this, (this.context.applicationContext as App))
@@ -422,6 +423,19 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         }
     }
 
+    override fun handleOnPause() {
+        super.handleOnPause()
+        isWebViewActive = false
+    }
+
+    override fun handleOnResume() {
+        super.handleOnResume()
+        isWebViewActive = true
+        Handler(Looper.getMainLooper()).post {
+            audioPlayerImpl?.emitPlaybackSnapshot()
+        }
+    }
+
     override fun handleOnDestroy() {
         Log.d(TAG, "Plugin destroy")
         super.handleOnDestroy()
@@ -474,7 +488,41 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         return trackItems
     }
 
+    fun emitStatus(what: RmxAudioStatusMessage, trackId: String?, param: JSONObject?) {
+        if (!shouldEmitStatusToBridge(what, isWebViewActive)) {
+            return
+        }
+        val data = JSObject()
+        val detail = JSObject()
+        detail.put("msgType", what.value)
+        detail.put("trackId", trackId)
+        detail.put("value", param)
+        data.put("action", "status")
+        data.put("status", detail)
+        Log.v(TAG, "statusChanged:$data")
+        notifyListeners("status", data, shouldRetainStatusEvent(what))
+    }
+
+    /** @deprecated Use [emitStatus] so retain/gating policy is applied consistently. */
     fun emit(name: String, data: JSObject) {
         this.notifyListeners(name, data, true)
+    }
+
+    companion object {
+        @JvmStatic
+        internal fun shouldEmitStatusToBridge(
+            what: RmxAudioStatusMessage,
+            isWebViewActive: Boolean
+        ): Boolean {
+            if (what == RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION && !isWebViewActive) {
+                return false
+            }
+            return true
+        }
+
+        @JvmStatic
+        internal fun shouldRetainStatusEvent(what: RmxAudioStatusMessage): Boolean {
+            return what != RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION
+        }
     }
 }
