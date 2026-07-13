@@ -9,7 +9,33 @@ protocol StatusUpdater {
  * here: https://capacitorjs.com/docs/plugins/ios
  */
 @objc(PlaylistPlugin)
-public class PlaylistPlugin: CAPPlugin, StatusUpdater {
+public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
+    public let identifier = "PlaylistPlugin"
+    public let jsName = "Playlist"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "setOptions", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "initialize", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "release", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setPlaylistItems", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "addItem", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "addAllItems", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "removeItem", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "removeItems", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "clearAllItems", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getPlaylist", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "play", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pause", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "skipForward", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "skipBack", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "seekTo", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "playTrackByIndex", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "playTrackById", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "selectTrackByIndex", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "selectTrackById", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setPlaybackVolume", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setLoop", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setPlaybackRate", returnType: CAPPluginReturnPromise),
+    ]
     let audioPlayerImpl = RmxAudioPlayer()
     
     // MARK: - Capacitor API
