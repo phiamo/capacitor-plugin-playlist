@@ -12,7 +12,34 @@ import Capacitor
 import MediaPlayer
 import UIKit
 
-extension String: Error {}
+enum RmxAudioPlayerError: Error, LocalizedError {
+    case indexOutOfBounds
+    case playlistEmpty
+    case trackIdNotFound
+    case indexOutOfPlaylistBounds
+    case queueEmpty
+    case indexNotFound
+    case trackNotFoundById(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .indexOutOfBounds:
+            return "Provided index is out of bounds"
+        case .playlistEmpty:
+            return "The playlist is empty!"
+        case .trackIdNotFound:
+            return "Track ID not found"
+        case .indexOutOfPlaylistBounds:
+            return "Index out of Playlist bounds"
+        case .queueEmpty:
+            return "Queue is Empty"
+        case .indexNotFound:
+            return "Index not found"
+        case .trackNotFoundById(let id):
+            return "Could not find track by id" + id
+        }
+    }
+}
 
 final class RmxAudioPlayer: NSObject {
 
@@ -163,7 +190,7 @@ final class RmxAudioPlayer: NSObject {
 
     func playTrack(index: Int, positionTime: Float?) throws {
         guard (0..<avQueuePlayer.queuedAudioTracks.count).contains(index) else {
-            throw "Provided index is out of bounds"
+            throw RmxAudioPlayerError.indexOutOfBounds
         }
         
         if avQueuePlayer.currentIndex() != index {
@@ -178,14 +205,14 @@ final class RmxAudioPlayer: NSObject {
 
     func playTrack(_ trackId: String, positionTime: Float?) throws {
         guard !avQueuePlayer.queuedAudioTracks.isEmpty else {
-            throw "The playlist is empty!"
+            throw RmxAudioPlayerError.playlistEmpty
         }
         
         if avQueuePlayer.currentAudioTrack?.trackId != trackId {
             let result = findTrack(byId: trackId)
             let idx = result?["index"] as? Int ?? -1
             guard idx >= 0 else {
-                throw "Track ID not found"
+                throw RmxAudioPlayerError.trackIdNotFound
             }
             avQueuePlayer.setCurrentIndex(idx)
         }
@@ -222,14 +249,14 @@ final class RmxAudioPlayer: NSObject {
     /// These functions don't really do anything interesting by themselves.
     func selectTrack(index: Int) throws {
         guard index >= 0 && index < avQueuePlayer.queuedAudioTracks.count else {
-            throw "Index out of Playlist bounds"
+            throw RmxAudioPlayerError.indexOutOfPlaylistBounds
         }
         avQueuePlayer.setCurrentIndex(index)
     }
 
     func selectTrack(id: String) throws {
         guard !avQueuePlayer.queuedAudioTracks.isEmpty else {
-            throw "Queue is Empty"
+            throw RmxAudioPlayerError.queueEmpty
         }
         let result = findTrack(byId: id)
         let idx = (result?["index"] as? NSNumber)?.intValue ?? 0
@@ -241,7 +268,7 @@ final class RmxAudioPlayer: NSObject {
 
     func removeItem(_ index: Int) throws {
         guard index > -1 && index < avQueuePlayer.queuedAudioTracks.count else {
-            throw "Index not found"
+            throw RmxAudioPlayerError.indexNotFound
         }
         let item = avQueuePlayer.queuedAudioTracks[index]
         removeTrackObservers(item)
@@ -255,7 +282,7 @@ final class RmxAudioPlayer: NSObject {
         let track = result?["track"] as? AudioTrack
 
         guard idx >= 0 else {
-            throw "Could not find track by id" + id
+            throw RmxAudioPlayerError.trackNotFoundById(id)
         }
         // AudioTrack* item = [self avQueuePlayer].itemsForPlayer[idx];
         removeTrackObservers(track)
@@ -536,8 +563,7 @@ final class RmxAudioPlayer: NSObject {
 
         switch interruptionType {
         case AVAudioSession.InterruptionType.began:
-            let suspended = (interruptionNotification?.userInfo?[AVAudioSessionInterruptionWasSuspendedKey] as? NSNumber)?.boolValue ?? false
-                print("AVAudioSessionInterruptionTypeBegan. Was suspended: \(suspended)")
+                print("AVAudioSessionInterruptionTypeBegan")
                 if avQueuePlayer.isPlaying {
                     wasPlayingInterrupted = true
                 }

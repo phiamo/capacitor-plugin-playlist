@@ -119,9 +119,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         do {
             try audioPlayerImpl.playTrack(index: index, positionTime: call.getFloat("position"))
             call.resolve();
-        }
-        catch let message {
-            call.reject(message as! String)
+        } catch {
+            call.reject(error.localizedDescription)
         }
     }
     @objc func playTrackById(_ call: CAPPluginCall) {
@@ -133,9 +132,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         do {
             try audioPlayerImpl.playTrack(id, positionTime: call.getFloat("position"))
             call.resolve();
-        }
-        catch let message {
-            call.reject(message as! String)
+        } catch {
+            call.reject(error.localizedDescription)
         }
     }
     @objc func selectTrackByIndex(_ call: CAPPluginCall) {
@@ -147,9 +145,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         do {
             try audioPlayerImpl.selectTrack(index: index)
             call.resolve();
-        }
-        catch let message {
-            call.reject(message as! String)
+        } catch {
+            call.reject(error.localizedDescription)
         }
     }
     @objc func selectTrackById(_ call: CAPPluginCall) {
@@ -161,9 +158,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater {
         do {
             try audioPlayerImpl.selectTrack(id: id)
             call.resolve();
-        }
-        catch let message {
-            call.reject(message as! String)
+        } catch {
+            call.reject(error.localizedDescription)
         }
     }
     @objc func setPlaybackVolume(_ call: CAPPluginCall) {
