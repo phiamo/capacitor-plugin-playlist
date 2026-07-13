@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -19,7 +19,10 @@ let package = Package(
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm")
             ],
-            path: "ios/Sources/PlaylistPlugin"),
+            path: "ios/Sources/PlaylistPlugin",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+            ]),
         .testTarget(
             name: "PlaylistPluginTests",
             dependencies: ["PlaylistPlugin"],

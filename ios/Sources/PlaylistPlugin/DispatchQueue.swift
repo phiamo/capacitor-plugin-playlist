@@ -1,8 +1,8 @@
 import Dispatch
 
-private var throttleWorkItems = [AnyHashable: DispatchWorkItem]()
-private var lastDebounceCallTimes = [AnyHashable: DispatchTime]()
-private let nilContext: AnyHashable = arc4random()
+nonisolated(unsafe) private var throttleWorkItems = [AnyHashable: DispatchWorkItem]()
+nonisolated(unsafe) private var lastDebounceCallTimes = [AnyHashable: DispatchTime]()
+nonisolated(unsafe) private let nilContext: AnyHashable = arc4random()
 
 public extension DispatchQueue {
     /**
