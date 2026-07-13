@@ -1,6 +1,6 @@
 {
   "name": "capacitor-plugin-playlist",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Playlist ",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
@@ -26,8 +26,7 @@
     "build": "npm run clean && npm run docgen && tsc && rollup -c rollup.config.mjs",
     "clean": "rimraf ./dist",
     "watch": "tsc --watch",
-    "prepublishOnly": "npm run build",
-    "prepare": "npm run build"
+    "prepublishOnly": "npm run build"
   },
   "author": "phiamo",
   "license": "MIT",

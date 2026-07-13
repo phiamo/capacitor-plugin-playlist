@@ -12,6 +12,7 @@
     "outDir": "dist/esm",
     "pretty": true,
     "sourceMap": true,
+    "skipLibCheck": true,
     "strict": true,
     "target": "es2017"
   },
