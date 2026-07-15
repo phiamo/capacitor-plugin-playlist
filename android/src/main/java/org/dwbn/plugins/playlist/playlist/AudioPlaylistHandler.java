@@ -71,9 +71,14 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
      * Request audio focus before starting ExoMedia — DefaultPlaylistHandler.play() starts the
      * MediaPlayer first, which fails silently after native video handoff (focus abandoned in
      * pauseForVideoHandoff while the video ExoPlayer still held the stream).
+     * During Epic 45 prewarm (native video active), never request focus or start audible playback.
      */
     @Override
     public void play() {
+        if (isVideoHandoffPrewarmActive()) {
+            setupForeground();
+            return;
+        }
         getAudioFocusProvider().requestFocus();
         com.devbrackets.android.playlistcore.api.MediaPlayerApi<I> mediaPlayer = getCurrentMediaPlayer();
         if (mediaPlayer != null) {
@@ -92,6 +97,7 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
      * isPlaying() state before {@link #play()}.
      */
     public void resumePlaybackAfterVideoHandoff(long positionMs) {
+        ((PlaylistManager) getPlaylistManager()).setVideoHandoffForegroundRetain(false);
         getAudioFocusProvider().requestFocus();
         com.devbrackets.android.playlistcore.api.MediaPlayerApi<I> mediaPlayer = getCurrentMediaPlayer();
         if (mediaPlayer != null) {
@@ -162,7 +168,23 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
 
     @Override
     public void onPrepared(@NotNull MediaPlayerApi<I> mediaPlayer) {
+        if (isVideoHandoffPrewarmActive()) {
+            // Prewarm: prepare at seek position but stay silent — native video owns audio focus.
+            super.onPrepared(mediaPlayer);
+            com.devbrackets.android.playlistcore.api.MediaPlayerApi<I> currentPlayer = getCurrentMediaPlayer();
+            if (currentPlayer != null && currentPlayer.isPlaying()) {
+                currentPlayer.pause();
+            }
+            getMediaProgressPoll().stop();
+            setPlaybackState(com.devbrackets.android.playlistcore.data.PlaybackState.PAUSED);
+            getAudioFocusProvider().abandonFocus();
+            return;
+        }
         super.onPrepared(mediaPlayer);
+    }
+
+    private boolean isVideoHandoffPrewarmActive() {
+        return ((PlaylistManager) getPlaylistManager()).getVideoHandoffForegroundRetain();
     }
 
     @Override
