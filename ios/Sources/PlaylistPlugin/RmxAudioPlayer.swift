@@ -1235,8 +1235,11 @@ final class RmxAudioPlayer: NSObject {
         }
     }
 
-    func resumeAfterVideoHandoff(position: Float) {
+    func resumeAfterVideoHandoff(position: Float, prewarm: Bool = false) {
         lastKnownHandoffPosition = position
+        if prewarm {
+            return
+        }
         activateAudioSession()
         // Reset lastTrackId so the timeControlStatus KVO guard does not suppress the PLAYING
         // event on same-track non-index-0 resume. The guard `lastTrackId != trackId || isAtBeginning`
