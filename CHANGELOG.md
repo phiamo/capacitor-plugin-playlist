@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.3
+
+- Fix (Android): During video handoff prewarm, `AudioPlaylistHandler` no longer requests audio focus or plays audio while native video owns focus. Prevents video sound from dropping shortly after start.
+- Fix (Android): `onPrepared()` during prewarm prepares at seek position but stays silent (paused, focus abandoned) until `resumeAfterVideoHandoff` clears the prewarm flag.
+- Fix (iOS): Register `prepareForVideoHandoff`, `resumeAfterVideoHandoff`, and `getLastKnownPosition` in `pluginMethods` allow-list.
+- Feat (iOS): `resumeAfterVideoHandoff` accepts optional `prewarm` option.
+
 ## 0.9.1
 
 - Fix (Android/iOS): Suppress `RMXSTATUS_PLAYBACK_POSITION` bridge emissions while the WebView is backgrounded; emit one live playback snapshot on foreground resume instead of flushing a backlog of stale position ticks.
