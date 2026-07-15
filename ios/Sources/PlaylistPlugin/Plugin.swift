@@ -35,6 +35,9 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         CAPPluginMethod(name: "setPlaybackVolume", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setLoop", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setPlaybackRate", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "prepareForVideoHandoff", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "resumeAfterVideoHandoff", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getLastKnownPosition", returnType: CAPPluginReturnPromise),
     ]
     let audioPlayerImpl = RmxAudioPlayer()
     
@@ -211,7 +214,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
 
     @objc func resumeAfterVideoHandoff(_ call: CAPPluginCall) {
         let position = call.getFloat("position", 0)
-        audioPlayerImpl.resumeAfterVideoHandoff(position: position)
+        let prewarm = call.getBool("prewarm", false)
+        audioPlayerImpl.resumeAfterVideoHandoff(position: position, prewarm: prewarm)
         call.resolve()
     }
 
