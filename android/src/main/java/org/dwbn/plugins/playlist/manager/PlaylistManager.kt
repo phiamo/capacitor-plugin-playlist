@@ -29,6 +29,10 @@ class PlaylistManager(application: Application) :
     var isShouldStopPlaylist = false
     var currentErrorTrack: AudioTrack? = null
 
+    /** When true, MediaService stays in foreground during native video (Android 17 AudioHardening). */
+    var videoHandoffForegroundRetain = false
+    var mediaServiceInForeground = false
+
     // Really need a way to propagate the settings through the app
     var resetStreamOnPause = true
     var options: Options

@@ -1916,6 +1916,13 @@
           "docs": "",
           "complexTypes": [],
           "type": "number"
+        },
+        {
+          "name": "prewarm",
+          "tags": [],
+          "docs": "Android: keep MediaService FGS alive (with WIU) while native video plays.",
+          "complexTypes": [],
+          "type": "boolean | undefined"
         }
       ]
     },

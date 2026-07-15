@@ -7,6 +7,8 @@ import com.devbrackets.android.playlistcore.data.MediaProgress
 import com.getcapacitor.*
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.dwbn.plugins.playlist.data.AudioTrack
+import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler
+import org.dwbn.plugins.playlist.service.MediaService
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.*
@@ -214,20 +216,18 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     fun play(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
             val handler = audioPlayerImpl!!.playlistManager.playlistHandler
+            val serviceForeground = MediaService.instance?.isRunningInForeground() == true
             if (handler == null || handler.currentMediaPlayer == null) {
-                // MediaPlayer was released or MediaService was killed (e.g. after a long video session
-                // where audio focus was permanently abandoned). Fall back to beginPlayback which
-                // re-starts the service, re-prepares the MediaPlayer, and re-acquires audio focus.
                 val posMs = (audioPlayerImpl!!.getLastKnownPositionSec() * 1000f).toLong()
-                audioPlayerImpl!!.playlistManager.beginPlayback(posMs, false)
-                Log.i(TAG, "play: handler/mediaPlayer was null — re-armed via beginPlayback at ${posMs}ms")
-            } else {
-                // Handler and MediaPlayer are alive — use the lightweight resume path.
-                // Guard against stacking up repeat cycles (playlistcore bug): skip if already playing.
-                val isPlaying = handler.currentMediaPlayer?.isPlaying ?: false
-                if (!isPlaying) {
-                    handler.play()
+                if (serviceForeground && handler is AudioPlaylistHandler<*, *>) {
+                    handler.startItemPlayback(posMs, false)
+                    Log.i(TAG, "play: re-armed via startItemPlayback at ${posMs}ms (FGS already foreground)")
+                } else {
+                    audioPlayerImpl!!.playlistManager.beginPlayback(posMs, false)
+                    Log.i(TAG, "play: handler/mediaPlayer was null — re-armed via beginPlayback at ${posMs}ms")
                 }
+            } else {
+                handler.play()
             }
 
             call.resolve()
@@ -257,11 +257,14 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         Handler(Looper.getMainLooper()).post {
             val id: String = call.getString("id")!!
             if ("" != id) {
-                // alternatively we could search for the item and set the current index to that item.
                 val code = id.hashCode()
                 val seekPosition = (call.getFloat("position", 0f)!! * 1000.0f).toLong()
                 audioPlayerImpl!!.playlistManager.setCurrentItem(code.toLong())
-                audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, false)
+                val handler = audioPlayerImpl!!.playlistManager.playlistHandler
+                val alreadyPlaying = handler?.currentMediaPlayer?.isPlaying == true
+                if (!audioPlayerImpl!!.tryResumeVideoHandoffInPlace(seekPosition) && !alreadyPlaying) {
+                    audioPlayerImpl!!.playlistManager.beginPlayback(seekPosition, false)
+                }
             }
 
             call.resolve()
@@ -406,9 +409,10 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     fun resumeAfterVideoHandoff(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
             val position = call.getFloat("position", 0f)!!
-            audioPlayerImpl!!.resumeAfterVideoHandoff(position)
+            val prewarm = call.getBoolean("prewarm", false) ?: false
+            audioPlayerImpl!!.resumeAfterVideoHandoff(position, prewarm)
             call.resolve()
-            Log.i(TAG, "resumeAfterVideoHandoff")
+            Log.i(TAG, "resumeAfterVideoHandoff prewarm=$prewarm")
         }
     }
 

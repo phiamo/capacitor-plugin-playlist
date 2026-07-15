@@ -20,6 +20,8 @@ import org.dwbn.plugins.playlist.data.AudioTrack;
 import org.dwbn.plugins.playlist.manager.MediaControlsListener;
 import org.dwbn.plugins.playlist.manager.Options;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
+import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler;
+import org.dwbn.plugins.playlist.service.MediaService;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -460,23 +462,61 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
         } else {
             lastKnownHandoffPositionSec = 0f;
         }
-        // Pause unconditionally (not only when isPlaying) so that DefaultAudioFocusProvider
-        // always abandons audio focus before CapacitorVideoPlayer.initPlayer acquires it.
-        // Calling pause() on an already-paused handler is safe; it triggers focus release.
-        if (playlistManager.getPlaylistHandler() != null) {
-            playlistManager.getPlaylistHandler().pause(false);
+        com.devbrackets.android.playlistcore.components.playlisthandler.PlaylistHandler<?> handler =
+                playlistManager.getPlaylistHandler();
+        if (handler instanceof AudioPlaylistHandler) {
+            ((AudioPlaylistHandler<?, ?>) handler).pauseForVideoHandoff();
+        } else if (handler != null) {
+            handler.pause(false);
         }
     }
 
     public void resumeAfterVideoHandoff(float positionSec) {
+        resumeAfterVideoHandoff(positionSec, false);
+    }
+
+    public void resumeAfterVideoHandoff(float positionSec, boolean prewarm) {
         lastKnownHandoffPositionSec = positionSec;
-        // Re-arm the audio session/service so the handler is primed before JS calls play().
-        // On Android, prepareForVideoHandoff() abandoned audio focus which may have caused
-        // the MediaService to stop itself (foreground service removal). beginPlayback with
-        // startPaused=true restarts the service, re-acquires audio focus, and prepares the
-        // MediaPlayer at the stored position — without auto-starting playback (JS owns FR111).
         long positionMs = (long) (positionSec * 1000f);
+        if (prewarm) {
+            playlistManager.setVideoHandoffForegroundRetain(true);
+            playlistManager.beginPlayback(positionMs, true);
+            return;
+        }
+        if (tryResumeVideoHandoffInPlace(positionMs)) {
+            return;
+        }
+        // Service not foreground — last resort (may be muted on Android 17 when backgrounded).
+        playlistManager.setVideoHandoffForegroundRetain(false);
         playlistManager.beginPlayback(positionMs, true);
+    }
+
+    /**
+     * Resume audio at {@code positionMs} without restarting MediaService (Android 17 AudioHardening).
+     */
+    public boolean tryResumeVideoHandoffInPlace(long positionMs) {
+        if (!playlistManager.getVideoHandoffForegroundRetain()) {
+            return false;
+        }
+        MediaService service = MediaService.getInstance();
+        if (service == null || !service.isRunningInForeground()) {
+            return false;
+        }
+        com.devbrackets.android.playlistcore.components.playlisthandler.PlaylistHandler<?> handler =
+                playlistManager.getPlaylistHandler();
+        if (!(handler instanceof AudioPlaylistHandler)) {
+            return false;
+        }
+        AudioPlaylistHandler<?, ?> audioHandler = (AudioPlaylistHandler<?, ?>) handler;
+        com.devbrackets.android.playlistcore.api.MediaPlayerApi<?> mediaPlayer = audioHandler.getCurrentMediaPlayer();
+        if (mediaPlayer != null) {
+            audioHandler.resumePlaybackAfterVideoHandoff(positionMs);
+        } else {
+            // Re-prepare within the existing foreground service — do not call beginPlayback/startService.
+            audioHandler.startItemPlayback(positionMs, false);
+        }
+        playlistManager.setVideoHandoffForegroundRetain(false);
+        return true;
     }
 
     public float getLastKnownPositionSec() {

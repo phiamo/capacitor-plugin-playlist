@@ -16,12 +16,14 @@ import com.devbrackets.android.playlistcore.components.mediacontrols.MediaContro
 import com.devbrackets.android.playlistcore.components.mediasession.DefaultMediaSessionProvider;
 import com.devbrackets.android.playlistcore.components.mediasession.MediaSessionProvider;
 import com.devbrackets.android.playlistcore.components.playlisthandler.DefaultPlaylistHandler;
+import com.devbrackets.android.playlistcore.data.PlaybackState;
 import com.devbrackets.android.playlistcore.manager.BasePlaylistManager;
 
 import org.dwbn.plugins.playlist.RmxAudioPlayer;
 import org.dwbn.plugins.playlist.data.AudioTrack;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
 import org.dwbn.plugins.playlist.notification.PlaylistNotificationProvider;
+import org.dwbn.plugins.playlist.service.MediaService;
 import org.jetbrains.annotations.NotNull;
 
 
@@ -63,6 +65,99 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
         }
         getPlaylistManager().previous();
         startItemPlayback(0, !this.isPlaying());
+    }
+
+    /**
+     * Request audio focus before starting ExoMedia — DefaultPlaylistHandler.play() starts the
+     * MediaPlayer first, which fails silently after native video handoff (focus abandoned in
+     * pauseForVideoHandoff while the video ExoPlayer still held the stream).
+     */
+    @Override
+    public void play() {
+        getAudioFocusProvider().requestFocus();
+        com.devbrackets.android.playlistcore.api.MediaPlayerApi<I> mediaPlayer = getCurrentMediaPlayer();
+        if (mediaPlayer != null) {
+            if (mediaPlayer.isPlaying()) {
+                mediaPlayer.pause();
+            }
+            mediaPlayer.play();
+        }
+        getMediaProgressPoll().start();
+        setPlaybackState(PlaybackState.PLAYING);
+        setupForeground();
+    }
+
+    /**
+     * Resume at {@code positionMs} after native video ends. Re-requests focus and clears a stale
+     * isPlaying() state before {@link #play()}.
+     */
+    public void resumePlaybackAfterVideoHandoff(long positionMs) {
+        getAudioFocusProvider().requestFocus();
+        com.devbrackets.android.playlistcore.api.MediaPlayerApi<I> mediaPlayer = getCurrentMediaPlayer();
+        if (mediaPlayer != null) {
+            if (positionMs > 0) {
+                seek(positionMs);
+            }
+            if (mediaPlayer.isPlaying()) {
+                mediaPlayer.pause();
+            }
+        }
+        play();
+    }
+
+    /**
+     * Release audio focus for video without tearing down the foreground service (Epic 45 / Android 17).
+     */
+    public void pauseForVideoHandoff() {
+        if (isPlaying()) {
+            com.devbrackets.android.playlistcore.api.MediaPlayerApi<I> mediaPlayer = getCurrentMediaPlayer();
+            if (mediaPlayer != null) {
+                mediaPlayer.pause();
+            }
+        }
+        getMediaProgressPoll().stop();
+        setPlaybackState(com.devbrackets.android.playlistcore.data.PlaybackState.PAUSED);
+        getAudioFocusProvider().abandonFocus();
+    }
+
+    @Override
+    public void pause(boolean isTemporary) {
+        if (((PlaylistManager) getPlaylistManager()).getVideoHandoffForegroundRetain()) {
+            if (isPlaying()) {
+                com.devbrackets.android.playlistcore.api.MediaPlayerApi<I> mediaPlayer = getCurrentMediaPlayer();
+                if (mediaPlayer != null) {
+                    mediaPlayer.pause();
+                }
+            }
+            getMediaProgressPoll().stop();
+            setPlaybackState(com.devbrackets.android.playlistcore.data.PlaybackState.PAUSED);
+            if (!isTemporary) {
+                getAudioFocusProvider().abandonFocus();
+            }
+            return;
+        }
+        super.pause(isTemporary);
+    }
+
+    @Override
+    protected void relaxResources() {
+        if (((PlaylistManager) getPlaylistManager()).getVideoHandoffForegroundRetain()) {
+            return;
+        }
+        super.relaxResources();
+    }
+
+    /**
+     * Android 17 AudioHardening: re-calling startForeground from background revokes WIU and mutes playback.
+     * When prewarm already promoted MediaService, only update the notification via super when not foreground.
+     */
+    @Override
+    protected void setupForeground() {
+        MediaService service = MediaService.getInstance();
+        if (service != null && service.isRunningInForeground()) {
+            return;
+        }
+        super.setupForeground();
     }
 
     @Override

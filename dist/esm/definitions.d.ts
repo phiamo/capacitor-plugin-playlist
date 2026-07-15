@@ -43,6 +43,8 @@ export interface PlaylistPlugin {
 }
 export interface ResumeAfterVideoHandoffOptions {
     position: number;
+    /** Android: keep MediaService FGS alive (with WIU) while native video plays. */
+    prewarm?: boolean;
 }
 export interface GetLastKnownPositionResult {
     position: number;

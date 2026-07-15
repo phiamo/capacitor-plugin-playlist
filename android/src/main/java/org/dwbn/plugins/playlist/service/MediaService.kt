@@ -22,9 +22,14 @@ import org.dwbn.plugins.playlist.service.MediaImageProvider.OnImageUpdatedListen
 class MediaService : BasePlaylistService<AudioTrack, PlaylistManager>() {
     companion object {
         private const val TAG = "MediaService"
+
+        @JvmStatic
+        @Volatile
+        var instance: MediaService? = null
     }
 
     override fun onCreate() {
+        instance = this
         super.onCreate()
         // Adds the audio player implementation, otherwise there's nothing to play media with
         val newAudio = AudioApi(applicationContext)
@@ -33,6 +38,7 @@ class MediaService : BasePlaylistService<AudioTrack, PlaylistManager>() {
     }
 
     override fun onDestroy() {
+        instance = null
         super.onDestroy()
 
         // Releases and clears all the MediaPlayersMediaImageProvider
@@ -57,6 +63,7 @@ class MediaService : BasePlaylistService<AudioTrack, PlaylistManager>() {
 
     override fun runAsForeground(notificationId: Int, notification: Notification) {
         if (inForeground) {
+            playlistManager.mediaServiceInForeground = true
             return
         }
 
@@ -68,14 +75,26 @@ class MediaService : BasePlaylistService<AudioTrack, PlaylistManager>() {
                 startForeground(notificationId, notification,
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
             }
+            playlistManager.mediaServiceInForeground = true
         } catch (e: android.app.ForegroundServiceStartNotAllowedException) {
             // Android 12+ blocks foreground service start from background
             // Log the error but don't crash - service can still function without foreground status
             Log.w(TAG, "Cannot start foreground service: app is in background", e)
             inForeground = false
+            playlistManager.mediaServiceInForeground = false
             // Service will continue as a regular service (may be killed by system)
         }
     }
+
+    override fun endForeground(removeNotification: Boolean) {
+        if (playlistManager.videoHandoffForegroundRetain) {
+            return
+        }
+        super.endForeground(removeNotification)
+        playlistManager.mediaServiceInForeground = false
+    }
+
+    fun isRunningInForeground(): Boolean = inForeground
 
     override val playlistManager: PlaylistManager
         get() = (applicationContext as App).playlistManager
