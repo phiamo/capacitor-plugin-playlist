@@ -7,10 +7,43 @@
 - Fix (iOS): Register `prepareForVideoHandoff`, `resumeAfterVideoHandoff`, and `getLastKnownPosition` in `pluginMethods` allow-list.
 - Feat (iOS): `resumeAfterVideoHandoff` accepts optional `prewarm` option.
 
+## 0.10.2
+
+- Fix (iOS): Swift 6 SPM build with v5 language mode and concurrency globals.
+
+## 0.10.1
+
+- Chore: Include committed `dist/` for git/npm consumers that install without running `prepare`.
+
+## 0.10.0
+
+- Feat (iOS): Swift Package Manager support (`Package.swift`, `CAPBridgedPlugin`).
+
+## 0.9.5
+
+- Fix (npm): Remove `prepare` script to fix consumer CI installs that do not run build on install.
+
+## 0.9.4
+
+- Fix (iOS): Raise minimum deployment target to iOS 18; Swift 6 error handling updates.
+
+## 0.9.3
+
+- Fix (Android): Catch `ForegroundServiceStartNotAllowedException` and background MediaService start failures in `beginPlayback`.
+- Merge: Integrate interop branch (0.9.1–0.9.3 background audio and bridge fixes).
+
+## 0.9.2
+
+- Fix (Android/iOS): Application state notifications for background audio status handling.
+
 ## 0.9.1
 
 - Fix (Android/iOS): Suppress `RMXSTATUS_PLAYBACK_POSITION` bridge emissions while the WebView is backgrounded; emit one live playback snapshot on foreground resume instead of flushing a backlog of stale position ticks.
 - Fix (Android): Do not retain `PLAYBACK_POSITION` events in the Capacitor bridge (`notifyListeners` retain=false for msgType 40); discrete events (PLAYING, PAUSE, TRACK_CHANGED, etc.) remain retained.
+
+## 0.9.0
+
+- Chore: Version bump after merging interop fixes into main for release.
 
 ## 0.8.11
 
@@ -29,4 +62,4 @@
 
 ## 0.8.8
 
-- Epic 45: `prepareForVideoHandoff`, `resumeAfterVideoHandoff`, `getLastKnownPosition` on iOS, Android, and web stub.
+- Feat: `prepareForVideoHandoff`, `resumeAfterVideoHandoff`, `getLastKnownPosition` on iOS, Android, and web stub.

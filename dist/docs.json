@@ -11,18 +11,27 @@
         "parameters": [
           {
             "name": "eventName",
-            "docs": "",
+            "docs": "Must be `'status'`.",
             "type": "'status'"
           },
           {
             "name": "listenerFunc",
-            "docs": "",
+            "docs": "Callback receiving `{ action, status }` where `status.msgType` is a `RmxAudioStatusMessage`.",
             "type": "PlaylistStatusChangeCallback"
           }
         ],
         "returns": "Promise<PluginListenerHandle>",
-        "tags": [],
-        "docs": "Listen for screen reader state change (on/off)",
+        "tags": [
+          {
+            "name": "param",
+            "text": "eventName Must be `'status'`."
+          },
+          {
+            "name": "param",
+            "text": "listenerFunc Callback receiving `{ action, status }` where `status.msgType` is a `RmxAudioStatusMessage`."
+          }
+        ],
+        "docs": "Subscribe to native playback status events (track changes, position, errors, etc.).",
         "complexTypes": [
           "PluginListenerHandle",
           "PlaylistStatusChangeCallback"
@@ -41,7 +50,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Configure plugin behaviour (verbose logging, stream pause handling, notification icon).\nCan be called at any time; not required before playback.",
         "complexTypes": [
           "AudioPlayerOptions"
         ],
@@ -53,7 +62,7 @@
         "parameters": [],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Initialise the native player, register status callbacks, and arm lock-screen / notification controls.\nCall once before playback (e.g. on app start).",
         "complexTypes": [],
         "slug": "initialize"
       },
@@ -63,7 +72,7 @@
         "parameters": [],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Tear down native resources (audio session, media service, observers).\nCall when the app no longer needs background audio (e.g. on logout).",
         "complexTypes": [],
         "slug": "release"
       },
@@ -79,7 +88,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Replace the entire playlist. Clears all previous items.\nUse `options.retainPosition` to keep the current track and playback position.",
         "complexTypes": [
           "PlaylistOptions"
         ],
@@ -97,7 +106,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Append a single track to the end of the playlist.",
         "complexTypes": [
           "AddItemOptions"
         ],
@@ -115,7 +124,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Append multiple tracks to the end of the playlist.\nRaises one `RMXSTATUS_ITEM_ADDED` event per track.",
         "complexTypes": [
           "AddAllItemOptions"
         ],
@@ -133,7 +142,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Remove a track by index (preferred) or id.\nIf the removed track is currently playing, the next track starts automatically.",
         "complexTypes": [
           "RemoveItemOptions"
         ],
@@ -151,7 +160,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Remove multiple tracks in a single batch.\nIf the currently playing track is removed, the next available track starts automatically.",
         "complexTypes": [
           "RemoveItemsOptions"
         ],
@@ -163,7 +172,7 @@
         "parameters": [],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Remove all tracks from the playlist. Raises `RMXSTATUS_PLAYLIST_CLEARED` and `RMXSTATUS_STOPPED`.",
         "complexTypes": [],
         "slug": "clearallitems"
       },
@@ -173,7 +182,7 @@
         "parameters": [],
         "returns": "Promise<GetPlaylistResult>",
         "tags": [],
-        "docs": "",
+        "docs": "Return a snapshot of the current playlist items.",
         "complexTypes": [
           "GetPlaylistResult"
         ],
@@ -185,7 +194,7 @@
         "parameters": [],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Start or resume playback of the current track.\nNo-op if the playlist is empty.",
         "complexTypes": [],
         "slug": "play"
       },
@@ -195,7 +204,7 @@
         "parameters": [],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Pause playback of the current track.",
         "complexTypes": [],
         "slug": "pause"
       },
@@ -205,7 +214,7 @@
         "parameters": [],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Skip to the next track. At the end of the playlist, wraps to the beginning when loop is enabled.",
         "complexTypes": [],
         "slug": "skipforward"
       },
@@ -215,7 +224,7 @@
         "parameters": [],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Skip to the previous track. No-op when already at the first track.",
         "complexTypes": [],
         "slug": "skipback"
       },
@@ -231,7 +240,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Seek to a position (seconds) in the currently playing track.\nIf the position exceeds track length, playback advances to the next track.",
         "complexTypes": [
           "SeekToOptions"
         ],
@@ -249,7 +258,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Jump to the track at the given 0-based index and start playback.",
         "complexTypes": [
           "PlayByIndexOptions"
         ],
@@ -267,7 +276,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Jump to the track with the given id and start playback.",
         "complexTypes": [
           "PlayByIdOptions"
         ],
@@ -285,7 +294,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Select the track at the given index without necessarily starting playback.",
         "complexTypes": [
           "SelectByIndexOptions"
         ],
@@ -303,7 +312,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Select the track with the given id without necessarily starting playback.",
         "complexTypes": [
           "SelectByIdOptions"
         ],
@@ -321,7 +330,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Set media stream volume. Float in range [0, 1].\nHardware volume controls still apply on top of this value.",
         "complexTypes": [
           "SetPlaybackVolumeOptions"
         ],
@@ -339,7 +348,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "When true, the playlist loops back to the first track after the last track completes.",
         "complexTypes": [
           "SetLoopOptions"
         ],
@@ -357,7 +366,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "",
+        "docs": "Set playback speed. Float value; 0 pauses, 1 is normal speed.",
         "complexTypes": [
           "SetPlaybackRateOptions"
         ],
@@ -369,7 +378,7 @@
         "parameters": [],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Epic 45 — release native audio session / focus so the video player can own playback.\nCall immediately before CapacitorVideoPlayer.initPlayer (Critical Rule 2).",
+        "docs": "Release native audio session / focus so a video player can own playback.\n\n**Android:** pauses current track, abandons audio focus, stores head position. Does not stop the foreground media service.\n**iOS:** pauses, captures head position, deactivates `AVAudioSession` with `notifyOthersOnDeactivation`.\n**Web:** pauses HTMLAudioElement and stores `currentTime`.\n\nCall immediately before native video starts (e.g. your video plugin's init method).",
         "complexTypes": [],
         "slug": "prepareforvideohandoff"
       },
@@ -385,7 +394,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Epic 45 — optional resume hook after video exits (full behaviour in Stories 45.3/45.4).",
+        "docs": "Re-arm native audio after video ends or, on Android, prewarm the media service before video starts.\n\n**Without `prewarm` (typical exit path):**\n- Android: re-acquires audio focus and prepares/resumes at `position` (seconds). Uses in-place resume when the foreground service was kept alive via prewarm.\n- iOS: reactivates `AVAudioSession`; call `play()` afterward to resume audible playback.\n- Web: stores position only (no native session).\n\n**With `prewarm: true` (Android, before video):** starts `MediaService` in foreground at `position` but stays silent — no audio focus, no audible playback. Prevents Android 14+/17 background FGS restrictions and stops video sound from being stolen by audio. Call `play()` after video closes (following a non-prewarm `resumeAfterVideoHandoff` or directly if already re-armed).\n\nOn iOS, `prewarm` is accepted but is a no-op; use the standard prepare → video → resume → play sequence.",
         "complexTypes": [
           "ResumeAfterVideoHandoffOptions"
         ],
@@ -397,7 +406,7 @@
         "parameters": [],
         "returns": "Promise<GetLastKnownPositionResult>",
         "tags": [],
-        "docs": "Epic 45 — last audio head captured during prepare (seconds).",
+        "docs": "Return the audio head position (seconds) captured during the most recent `prepareForVideoHandoff`\nor passed to `resumeAfterVideoHandoff`.",
         "complexTypes": [
           "GetLastKnownPositionResult"
         ],
@@ -1913,14 +1922,14 @@
         {
           "name": "position",
           "tags": [],
-          "docs": "",
+          "docs": "Resume position in seconds (video exit head or saved audio position).",
           "complexTypes": [],
           "type": "number"
         },
         {
           "name": "prewarm",
           "tags": [],
-          "docs": "Android: keep MediaService FGS alive (with WIU) while native video plays.",
+          "docs": "**Android only.** When `true`, promote `MediaService` to foreground and prepare at `position`\nwithout requesting audio focus or playing audio. Use immediately after `prepareForVideoHandoff`\nand before native video starts, while the app is still foregrounded.\nIgnored on iOS (no-op). Not applicable on web.",
           "complexTypes": [],
           "type": "boolean | undefined"
         }

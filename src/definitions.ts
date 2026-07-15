@@ -7,77 +7,174 @@ import {
 
 export interface PlaylistPlugin {
     /**
-     * Listen for screen reader state change (on/off)
+     * Subscribe to native playback status events (track changes, position, errors, etc.).
+     *
+     * @param eventName Must be `'status'`.
+     * @param listenerFunc Callback receiving `{ action, status }` where `status.msgType` is a `RmxAudioStatusMessage`.
      */
     addListener(eventName: 'status', listenerFunc: PlaylistStatusChangeCallback): Promise<PluginListenerHandle>;
 
-    // Playlist item management
+    /**
+     * Configure plugin behaviour (verbose logging, stream pause handling, notification icon).
+     * Can be called at any time; not required before playback.
+     */
     setOptions(options: AudioPlayerOptions): Promise<void>;
 
+    /**
+     * Initialise the native player, register status callbacks, and arm lock-screen / notification controls.
+     * Call once before playback (e.g. on app start).
+     */
     initialize(): Promise<void>;
 
+    /**
+     * Tear down native resources (audio session, media service, observers).
+     * Call when the app no longer needs background audio (e.g. on logout).
+     */
     release(): Promise<void>;
 
+    /**
+     * Replace the entire playlist. Clears all previous items.
+     * Use `options.retainPosition` to keep the current track and playback position.
+     */
     setPlaylistItems(options: PlaylistOptions): Promise<void>;
 
+    /**
+     * Append a single track to the end of the playlist.
+     */
     addItem(options: AddItemOptions): Promise<void>;
 
+    /**
+     * Append multiple tracks to the end of the playlist.
+     * Raises one `RMXSTATUS_ITEM_ADDED` event per track.
+     */
     addAllItems(options: AddAllItemOptions): Promise<void>;
 
+    /**
+     * Remove a track by index (preferred) or id.
+     * If the removed track is currently playing, the next track starts automatically.
+     */
     removeItem(options: RemoveItemOptions): Promise<void>;
 
+    /**
+     * Remove multiple tracks in a single batch.
+     * If the currently playing track is removed, the next available track starts automatically.
+     */
     removeItems(options: RemoveItemsOptions): Promise<void>;
 
+    /**
+     * Remove all tracks from the playlist. Raises `RMXSTATUS_PLAYLIST_CLEARED` and `RMXSTATUS_STOPPED`.
+     */
     clearAllItems(): Promise<void>;
 
+    /**
+     * Return a snapshot of the current playlist items.
+     */
     getPlaylist(): Promise<GetPlaylistResult>;
 
-    // Playback
+    /**
+     * Start or resume playback of the current track.
+     * No-op if the playlist is empty.
+     */
     play(): Promise<void>;
 
+    /**
+     * Pause playback of the current track.
+     */
     pause(): Promise<void>;
 
+    /**
+     * Skip to the next track. At the end of the playlist, wraps to the beginning when loop is enabled.
+     */
     skipForward(): Promise<void>;
 
+    /**
+     * Skip to the previous track. No-op when already at the first track.
+     */
     skipBack(): Promise<void>;
 
+    /**
+     * Seek to a position (seconds) in the currently playing track.
+     * If the position exceeds track length, playback advances to the next track.
+     */
     seekTo(options: SeekToOptions): Promise<void>;
 
+    /**
+     * Jump to the track at the given 0-based index and start playback.
+     */
     playTrackByIndex(options: PlayByIndexOptions): Promise<void>;
 
+    /**
+     * Jump to the track with the given id and start playback.
+     */
     playTrackById(options: PlayByIdOptions): Promise<void>;
 
+    /**
+     * Select the track at the given index without necessarily starting playback.
+     */
     selectTrackByIndex(options: SelectByIndexOptions): Promise<void>;
 
+    /**
+     * Select the track with the given id without necessarily starting playback.
+     */
     selectTrackById(options: SelectByIdOptions): Promise<void>;
 
+    /**
+     * Set media stream volume. Float in range [0, 1].
+     * Hardware volume controls still apply on top of this value.
+     */
     setPlaybackVolume(options: SetPlaybackVolumeOptions): Promise<void>;
 
+    /**
+     * When true, the playlist loops back to the first track after the last track completes.
+     */
     setLoop(options: SetLoopOptions): Promise<void>;
 
-    // advanced
+    /**
+     * Set playback speed. Float value; 0 pauses, 1 is normal speed.
+     */
     setPlaybackRate(options: SetPlaybackRateOptions): Promise<void>;
 
     /**
-     * Epic 45 — release native audio session / focus so the video player can own playback.
-     * Call immediately before CapacitorVideoPlayer.initPlayer (Critical Rule 2).
+     * Release native audio session / focus so a video player can own playback.
+     *
+     * **Android:** pauses current track, abandons audio focus, stores head position. Does not stop the foreground media service.
+     * **iOS:** pauses, captures head position, deactivates `AVAudioSession` with `notifyOthersOnDeactivation`.
+     * **Web:** pauses HTMLAudioElement and stores `currentTime`.
+     *
+     * Call immediately before native video starts (e.g. your video plugin's init method).
      */
     prepareForVideoHandoff(): Promise<void>;
 
     /**
-     * Epic 45 — optional resume hook after video exits (full behaviour in Stories 45.3/45.4).
+     * Re-arm native audio after video ends or, on Android, prewarm the media service before video starts.
+     *
+     * **Without `prewarm` (typical exit path):**
+     * - Android: re-acquires audio focus and prepares/resumes at `position` (seconds). Uses in-place resume when the foreground service was kept alive via prewarm.
+     * - iOS: reactivates `AVAudioSession`; call `play()` afterward to resume audible playback.
+     * - Web: stores position only (no native session).
+     *
+     * **With `prewarm: true` (Android, before video):** starts `MediaService` in foreground at `position` but stays silent — no audio focus, no audible playback. Prevents Android 14+/17 background FGS restrictions and stops video sound from being stolen by audio. Call `play()` after video closes (following a non-prewarm `resumeAfterVideoHandoff` or directly if already re-armed).
+     *
+     * On iOS, `prewarm` is accepted but is a no-op; use the standard prepare → video → resume → play sequence.
      */
     resumeAfterVideoHandoff(options: ResumeAfterVideoHandoffOptions): Promise<void>;
 
     /**
-     * Epic 45 — last audio head captured during prepare (seconds).
+     * Return the audio head position (seconds) captured during the most recent `prepareForVideoHandoff`
+     * or passed to `resumeAfterVideoHandoff`.
      */
     getLastKnownPosition(): Promise<GetLastKnownPositionResult>;
 }
 
 export interface ResumeAfterVideoHandoffOptions {
+    /** Resume position in seconds (video exit head or saved audio position). */
     position: number;
-    /** Android: keep MediaService FGS alive (with WIU) while native video plays. */
+    /**
+     * **Android only.** When `true`, promote `MediaService` to foreground and prepare at `position`
+     * without requesting audio focus or playing audio. Use immediately after `prepareForVideoHandoff`
+     * and before native video starts, while the app is still foregrounded.
+     * Ignored on iOS (no-op). Not applicable on web.
+     */
     prewarm?: boolean;
 }
 
