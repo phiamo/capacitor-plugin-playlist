@@ -260,9 +260,9 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         return Promise.resolve();
     }
 
-    async resumeAfterVideoHandoff(options: { position: number }): Promise<void> {
+    async resumeAfterVideoHandoff(options: { position: number }): Promise<{ resumed: boolean }> {
         this.lastKnownHandoffPosition = options.position;
-        return Promise.resolve();
+        return Promise.resolve({ resumed: false });
     }
 
     async getLastKnownPosition(): Promise<{ position: number }> {

@@ -791,7 +791,7 @@ class PlaylistWeb extends core.WebPlugin {
     }
     async resumeAfterVideoHandoff(options) {
         this.lastKnownHandoffPosition = options.position;
-        return Promise.resolve();
+        return Promise.resolve({ resumed: false });
     }
     async getLastKnownPosition() {
         return Promise.resolve({ position: this.lastKnownHandoffPosition });

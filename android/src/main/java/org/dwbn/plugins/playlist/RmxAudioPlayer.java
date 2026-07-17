@@ -471,24 +471,29 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
         }
     }
 
-    public void resumeAfterVideoHandoff(float positionSec) {
-        resumeAfterVideoHandoff(positionSec, false);
+    public boolean resumeAfterVideoHandoff(float positionSec) {
+        return resumeAfterVideoHandoff(positionSec, false);
     }
 
-    public void resumeAfterVideoHandoff(float positionSec, boolean prewarm) {
+    /**
+     * @return {@code true} when in-place resume already seeked and started playback
+     *         (JS should skip redundant seekTo/play); {@code false} for prewarm or last-resort beginPlayback.
+     */
+    public boolean resumeAfterVideoHandoff(float positionSec, boolean prewarm) {
         lastKnownHandoffPositionSec = positionSec;
         long positionMs = (long) (positionSec * 1000f);
         if (prewarm) {
             playlistManager.setVideoHandoffForegroundRetain(true);
             playlistManager.beginPlayback(positionMs, true);
-            return;
+            return false;
         }
         if (tryResumeVideoHandoffInPlace(positionMs)) {
-            return;
+            return true;
         }
         // Service not foreground — last resort (may be muted on Android 17 when backgrounded).
         playlistManager.setVideoHandoffForegroundRetain(false);
         playlistManager.beginPlayback(positionMs, true);
+        return false;
     }
 
     /**

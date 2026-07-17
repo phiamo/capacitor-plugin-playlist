@@ -149,15 +149,15 @@ export interface PlaylistPlugin {
      * Re-arm native audio after video ends or, on Android, prewarm the media service before video starts.
      *
      * **Without `prewarm` (typical exit path):**
-     * - Android: re-acquires audio focus and prepares/resumes at `position` (seconds). Uses in-place resume when the foreground service was kept alive via prewarm.
-     * - iOS: reactivates `AVAudioSession`; call `play()` afterward to resume audible playback.
-     * - Web: stores position only (no native session).
+     * - Android: re-acquires audio focus and prepares/resumes at `position` (seconds). Uses in-place resume when the foreground service was kept alive via prewarm. When `resumed` is `true`, native already seeked and started playback — JS should skip redundant `seekTo`/`play`.
+     * - iOS: reactivates `AVAudioSession`; always returns `{ resumed: false }` — call `seekTo`/`play()` afterward to resume audible playback.
+     * - Web: stores position only (no native session); returns `{ resumed: false }`.
      *
-     * **With `prewarm: true` (Android, before video):** starts `MediaService` in foreground at `position` but stays silent — no audio focus, no audible playback. Prevents Android 14+/17 background FGS restrictions and stops video sound from being stolen by audio. Call `play()` after video closes (following a non-prewarm `resumeAfterVideoHandoff` or directly if already re-armed).
+     * **With `prewarm: true` (Android, before video):** starts `MediaService` in foreground at `position` but stays silent — no audio focus, no audible playback. Always returns `{ resumed: false }`. Prevents Android 14+/17 background FGS restrictions and stops video sound from being stolen by audio. Call `play()` after video closes (following a non-prewarm `resumeAfterVideoHandoff` or directly if already re-armed).
      *
      * On iOS, `prewarm` is accepted but is a no-op; use the standard prepare → video → resume → play sequence.
      */
-    resumeAfterVideoHandoff(options: ResumeAfterVideoHandoffOptions): Promise<void>;
+    resumeAfterVideoHandoff(options: ResumeAfterVideoHandoffOptions): Promise<ResumeAfterVideoHandoffResult>;
 
     /**
      * Return the audio head position (seconds) captured during the most recent `prepareForVideoHandoff`
@@ -176,6 +176,15 @@ export interface ResumeAfterVideoHandoffOptions {
      * Ignored on iOS (no-op). Not applicable on web.
      */
     prewarm?: boolean;
+}
+
+export interface ResumeAfterVideoHandoffResult {
+    /**
+     * `true` when native already seeked and started playback in place (Android in-place handoff).
+     * When `true`, JS should skip redundant `seekTo` / `play` to avoid a stutter.
+     * Always `false` on iOS, web, prewarm, and Android last-resort `beginPlayback`.
+     */
+    resumed: boolean;
 }
 
 export interface GetLastKnownPositionResult {

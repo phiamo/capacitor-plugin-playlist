@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.4
+
+- Feat: `resumeAfterVideoHandoff` resolves with `{ resumed: boolean }`. Android returns `true` when in-place resume already seeked and started playback so JS can skip redundant `seekTo`/`play` (smoother video→audio handoff). iOS and web always return `{ resumed: false }`.
+
 ## 0.10.3
 
 - Fix (Android): During video handoff prewarm, `AudioPlaylistHandler` no longer requests audio focus or plays audio while native video owns focus. Prevents video sound from dropping shortly after start.

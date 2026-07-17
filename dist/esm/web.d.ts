@@ -38,7 +38,9 @@ export declare class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     prepareForVideoHandoff(): Promise<void>;
     resumeAfterVideoHandoff(options: {
         position: number;
-    }): Promise<void>;
+    }): Promise<{
+        resumed: boolean;
+    }>;
     getLastKnownPosition(): Promise<{
         position: number;
     }>;
