@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.6
+
+- Fix (iOS): `playCommand` always re-activates `AVAudioSession` after video handoff (no longer skips when `isOtherAudioPlaying` is briefly true during AVPlayer teardown). `resumeAfterVideoHandoff` always calls `activateAudioSession()` for the same reason.
+
+## 0.10.5
+
+- Fix (Android): `resumePlaybackAfterVideoHandoff` plays before seek so playlistcore `onSeekComplete` does not pause after video→audio handoff (seek-while-paused race left UI “playing” with silent native audio).
+
 ## 0.10.4
 
 - Feat: `resumeAfterVideoHandoff` resolves with `{ resumed: boolean }`. Android returns `true` when in-place resume already seeked and started playback so JS can skip redundant `seekTo`/`play` (smoother video→audio handoff). iOS and web always return `{ resumed: false }`.

@@ -305,22 +305,9 @@ final class RmxAudioPlayer: NSObject {
         // Re-arm the periodic observer if it was removed by a prior releaseResources() call.
         installPlaybackTimeObserverIfNeeded()
         
-        // Ensure audio session is active before playing
-        // This is critical when resuming after video player has deactivated the session
-        let audioSession = AVAudioSession.sharedInstance()
-        if !audioSession.isOtherAudioPlaying {
-            // Only reactivate if no other audio is playing
-            do {
-                try audioSession.setActive(true)
-            } catch {
-                print("Warning: Could not activate audio session: \(error.localizedDescription)")
-                // Try to reactivate with category setup
-                activateAudioSession()
-            }
-        } else {
-            // If other audio is playing, ensure our category is set correctly
-            activateAudioSession()
-        }
+        // Always re-activate after native video handoff — `isOtherAudioPlaying` can still be true
+        // briefly while AVPlayerViewController tears down, which previously skipped setActive.
+        activateAudioSession()
 
         if resetStreamOnPause,
            let currentTrack = avQueuePlayer.currentAudioTrack,
@@ -1240,12 +1227,14 @@ final class RmxAudioPlayer: NSObject {
         if prewarm {
             return
         }
+        // Always re-arm session after native video (AVPlayer teardown can briefly look like other audio).
         activateAudioSession()
         // Reset lastTrackId so the timeControlStatus KVO guard does not suppress the PLAYING
         // event on same-track non-index-0 resume. The guard `lastTrackId != trackId || isAtBeginning`
         // (where isAtBeginning = currentIndex() == 0) would silently drop the PLAYING transition
         // for any audio track at playlist index > 0, leaving JS stuck in PAUSED.
         lastTrackId = nil
+        // JS `endVideoSession` still calls seekTo + play when resumeAudio is true.
     }
 
     func getLastKnownPosition() -> Float {

@@ -93,22 +93,21 @@ public class AudioPlaylistHandler<I extends PlaylistItem, M extends BasePlaylist
     }
 
     /**
-     * Resume at {@code positionMs} after native video ends. Re-requests focus and clears a stale
-     * isPlaying() state before {@link #play()}.
+     * Resume at {@code positionMs} after native video ends. Re-requests focus and starts playback.
+     * <p>
+     * Must {@link #play()} before {@link #seek(long)}: playlistcore {@code performSeek} sets
+     * {@code playingBeforeSeek = isPlaying()}. After video handoff the player is paused, so
+     * seek-then-play races with {@code onSeekComplete}, which calls {@code pause()} when
+     * {@code playingBeforeSeek} is false — UI briefly shows playing while native audio stays silent.
      */
     public void resumePlaybackAfterVideoHandoff(long positionMs) {
         ((PlaylistManager) getPlaylistManager()).setVideoHandoffForegroundRetain(false);
+        setStartPaused(false);
         getAudioFocusProvider().requestFocus();
-        com.devbrackets.android.playlistcore.api.MediaPlayerApi<I> mediaPlayer = getCurrentMediaPlayer();
-        if (mediaPlayer != null) {
-            if (positionMs > 0) {
-                seek(positionMs);
-            }
-            if (mediaPlayer.isPlaying()) {
-                mediaPlayer.pause();
-            }
-        }
         play();
+        if (positionMs > 0) {
+            seek(positionMs);
+        }
     }
 
     /**
