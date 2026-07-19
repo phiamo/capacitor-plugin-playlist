@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.8
+
+- Feat (iOS): `resumeAfterVideoHandoff` seek-then-play (when `play: true`) and returns `{ resumed: true }` so JS can skip redundant `playTrackById` after video exit.
+- Feat: `play` option on `resumeAfterVideoHandoff` — paused video exit must pass `play: false` so audio stays paused (Android clears handoff retain and returns `{ resumed: false }`).
+
+## 0.10.7
+
+- Fix (iOS): During video handoff, set `actionAtItemEnd = .none` and pin the current track id so a failed/ended HLS item cannot advance the queue to the next track while native video owns the session. `resumeAfterVideoHandoff` restores `.advance` and re-selects the pinned track if the queue drifted.
+
 ## 0.10.6
 
 - Fix (iOS): `playCommand` always re-activates `AVAudioSession` after video handoff (no longer skips when `isOtherAudioPlaying` is briefly true during AVPlayer teardown). `resumeAfterVideoHandoff` always calls `activateAudioSession()` for the same reason.

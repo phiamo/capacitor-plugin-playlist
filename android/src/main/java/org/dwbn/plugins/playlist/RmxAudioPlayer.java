@@ -472,19 +472,29 @@ public class RmxAudioPlayer implements PlaybackStatusListener<AudioTrack>,
     }
 
     public boolean resumeAfterVideoHandoff(float positionSec) {
-        return resumeAfterVideoHandoff(positionSec, false);
+        return resumeAfterVideoHandoff(positionSec, false, true);
     }
 
     /**
      * @return {@code true} when in-place resume already seeked and started playback
-     *         (JS should skip redundant seekTo/play); {@code false} for prewarm or last-resort beginPlayback.
+     *         (JS should skip redundant seekTo/play); {@code false} for prewarm, paused handoff,
+     *         or last-resort beginPlayback.
      */
     public boolean resumeAfterVideoHandoff(float positionSec, boolean prewarm) {
+        return resumeAfterVideoHandoff(positionSec, prewarm, true);
+    }
+
+    public boolean resumeAfterVideoHandoff(float positionSec, boolean prewarm, boolean play) {
         lastKnownHandoffPositionSec = positionSec;
         long positionMs = (long) (positionSec * 1000f);
         if (prewarm) {
             playlistManager.setVideoHandoffForegroundRetain(true);
             playlistManager.beginPlayback(positionMs, true);
+            return false;
+        }
+        if (!play) {
+            // Paused video exit — do not start audio; JS will seekTo only.
+            playlistManager.setVideoHandoffForegroundRetain(false);
             return false;
         }
         if (tryResumeVideoHandoffInPlace(positionMs)) {

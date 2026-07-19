@@ -1205,6 +1205,8 @@ final class RmxAudioPlayer: NSObject {
     // MARK: - Epic 45 video handoff
 
     private var lastKnownHandoffPosition: Float = 0
+    /// Track id at video open — AVQueuePlayer can advance while video owns the session.
+    private var handoffPinnedTrackId: String?
 
     func prepareForVideoHandoff() {
         pauseCommand(false)
@@ -1212,9 +1214,14 @@ final class RmxAudioPlayer: NSObject {
         // true stopped head, not a value that may have ticked during the pause call.
         if let track = avQueuePlayer.currentAudioTrack {
             lastKnownHandoffPosition = getTrackCurrentTime(track)
+            handoffPinnedTrackId = track.trackId
         } else {
             lastKnownHandoffPosition = 0
+            handoffPinnedTrackId = nil
         }
+        // Freeze queue: HLS item failure while paused still triggers .advance otherwise.
+        avQueuePlayer.actionAtItemEnd = .none
+        print("prepareForVideoHandoff: pinned=\(handoffPinnedTrackId ?? "nil") actionAtItemEnd=none")
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
         } catch {
@@ -1222,11 +1229,31 @@ final class RmxAudioPlayer: NSObject {
         }
     }
 
-    func resumeAfterVideoHandoff(position: Float, prewarm: Bool = false) {
+    /// Completes with `true` when native handled seek (and play when requested) so JS can skip redundant seek/play.
+    func resumeAfterVideoHandoff(
+        position: Float,
+        prewarm: Bool = false,
+        play: Bool = false,
+        completion: @escaping (Bool) -> Void
+    ) {
         lastKnownHandoffPosition = position
         if prewarm {
+            completion(false)
             return
         }
+        avQueuePlayer.actionAtItemEnd = .advance
+        let currentId = avQueuePlayer.currentAudioTrack?.trackId
+        if let pinned = handoffPinnedTrackId, !pinned.isEmpty, currentId != pinned {
+            print("resumeAfterVideoHandoff: restoring pinned=\(pinned) (was \(currentId ?? "nil"))")
+            do {
+                try selectTrack(id: pinned)
+            } catch {
+                print("resumeAfterVideoHandoff: selectTrack failed: \(error.localizedDescription)")
+            }
+        } else {
+            print("resumeAfterVideoHandoff: pinned=\(handoffPinnedTrackId ?? "nil") current=\(currentId ?? "nil")")
+        }
+        handoffPinnedTrackId = nil
         // Always re-arm session after native video (AVPlayer teardown can briefly look like other audio).
         activateAudioSession()
         // Reset lastTrackId so the timeControlStatus KVO guard does not suppress the PLAYING
@@ -1234,7 +1261,29 @@ final class RmxAudioPlayer: NSObject {
         // (where isAtBeginning = currentIndex() == 0) would silently drop the PLAYING transition
         // for any audio track at playlist index > 0, leaving JS stuck in PAUSED.
         lastTrackId = nil
-        // JS `endVideoSession` still calls seekTo + play when resumeAudio is true.
+
+        let finish: () -> Void = { [weak self] in
+            guard let self = self else {
+                completion(true)
+                return
+            }
+            if play {
+                self.playCommand(false)
+                NSLog("[Playlist] resumeAfterVideoHandoff: seek-then-play at %.3f", position)
+            } else {
+                NSLog("[Playlist] resumeAfterVideoHandoff: seek-only at %.3f", position)
+            }
+            completion(true)
+        }
+
+        if position > 0 {
+            let seekToTime = CMTimeMakeWithSeconds(Float64(position), preferredTimescale: 1000)
+            avQueuePlayer.seek(to: seekToTime, toleranceBefore: .zero, toleranceAfter: .zero) { _ in
+                finish()
+            }
+        } else {
+            finish()
+        }
     }
 
     func getLastKnownPosition() -> Float {

@@ -410,11 +410,13 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         Handler(Looper.getMainLooper()).post {
             val position = call.getFloat("position", 0f)!!
             val prewarm = call.getBoolean("prewarm", false) ?: false
-            val resumed = audioPlayerImpl!!.resumeAfterVideoHandoff(position, prewarm)
+            // Default true preserves legacy Android in-place play when `play` is omitted.
+            val play = call.getBoolean("play", true) ?: true
+            val resumed = audioPlayerImpl!!.resumeAfterVideoHandoff(position, prewarm, play)
             val result = JSObject()
             result.put("resumed", resumed)
             call.resolve(result)
-            Log.i(TAG, "resumeAfterVideoHandoff prewarm=$prewarm resumed=$resumed")
+            Log.i(TAG, "resumeAfterVideoHandoff prewarm=$prewarm play=$play resumed=$resumed")
         }
     }
 

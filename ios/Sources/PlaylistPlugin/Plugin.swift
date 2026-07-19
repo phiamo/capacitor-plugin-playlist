@@ -215,9 +215,12 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     @objc func resumeAfterVideoHandoff(_ call: CAPPluginCall) {
         let position = call.getFloat("position", 0)
         let prewarm = call.getBool("prewarm", false)
-        audioPlayerImpl.resumeAfterVideoHandoff(position: position, prewarm: prewarm)
-        // iOS only reactivates AVAudioSession — JS must still seekTo + play.
-        call.resolve(["resumed": false])
+        let play = call.getBool("play", false)
+        audioPlayerImpl.resumeAfterVideoHandoff(position: position, prewarm: prewarm, play: play) { resumed in
+            NSLog("[Playlist] resumeAfterVideoHandoff resolved prewarm=%@ play=%@ resumed=%@",
+                  prewarm ? "true" : "false", play ? "true" : "false", resumed ? "true" : "false")
+            call.resolve(["resumed": resumed])
+        }
     }
 
     @objc func getLastKnownPosition(_ call: CAPPluginCall) {
