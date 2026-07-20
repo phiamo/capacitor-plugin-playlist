@@ -52,6 +52,7 @@ final class RmxAudioPlayer: NSObject {
     private var resetStreamOnPause = false
     private var updatedNowPlayingInfo: [String : Any]?
     private let nowPlayingInfoQueue = DispatchQueue(label: "RMXAudioPlayerNowPlayingQueue")
+    private let coverArtworkCache = NSCache<NSURL, MPMediaItemArtwork>()
     private var isReplacingItems = false
     private var isWaitingToStartPlayback = false
     private var loop = false
@@ -701,9 +702,7 @@ final class RmxAudioPlayer: NSObject {
                 updatedNowPlayingInfo![MPMediaItemPropertyTitle] = currentItem?.title
                 updatedNowPlayingInfo![MPMediaItemPropertyAlbumTitle] = currentItem?.album
 
-                if let mediaItemArtwork = createCoverArtwork(currentItem?.albumArt?.absoluteString) {
-                    updatedNowPlayingInfo![MPMediaItemPropertyArtwork] = mediaItemArtwork
-                }
+                updateNowPlayingArtwork(currentItem?.albumArt?.absoluteString)
             }
             updatedNowPlayingInfo![MPMediaItemPropertyPlaybackDuration] = duration ?? 0.0
             updatedNowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime ?? 0.0
@@ -717,52 +716,76 @@ final class RmxAudioPlayer: NSObject {
         commandCenter.previousTrackCommand.isEnabled = !avQueuePlayer.isAtBeginning
     }
 
-    func createCoverArtwork(_ coverUriOrNil: String?) -> MPMediaItemArtwork? {
+    private func updateNowPlayingArtwork(_ coverUriOrNil: String?) {
         guard let coverUri = coverUriOrNil else {
+            updatedNowPlayingInfo?.removeValue(forKey: MPMediaItemPropertyArtwork)
+            return
+        }
+
+        if coverUri.hasPrefix("http://") || coverUri.hasPrefix("https://") {
+            guard let coverImageUrl = URL(string: coverUri) else {
+                updatedNowPlayingInfo?.removeValue(forKey: MPMediaItemPropertyArtwork)
+                return
+            }
+
+            if let cachedArtwork = coverArtworkCache.object(forKey: coverImageUrl as NSURL) {
+                updatedNowPlayingInfo?[MPMediaItemPropertyArtwork] = cachedArtwork
+                return
+            }
+
+            updatedNowPlayingInfo?.removeValue(forKey: MPMediaItemPropertyArtwork)
+
+            URLSession.shared.dataTask(with: coverImageUrl) { [weak self] data, response, error in
+                guard
+                    error == nil,
+                    let httpResponse = response as? HTTPURLResponse,
+                    (200..<300).contains(httpResponse.statusCode),
+                    let self = self,
+                    let data = data,
+                    let coverImage = UIImage(data: data),
+                    self.isCoverImageValid(coverImage)
+                else {
+                    return
+                }
+
+                DispatchQueue.main.async {
+                    let artwork = MPMediaItemArtwork(boundsSize: coverImage.size) { _ in coverImage }
+                    self.coverArtworkCache.setObject(artwork, forKey: coverImageUrl as NSURL)
+
+                    guard self.avQueuePlayer.currentAudioTrack?.albumArt?.absoluteString == coverUri else {
+                        return
+                    }
+
+                    self.nowPlayingInfoQueue.sync {
+                        self.updatedNowPlayingInfo?[MPMediaItemPropertyArtwork] = artwork
+                        MPNowPlayingInfoCenter.default().nowPlayingInfo = self.updatedNowPlayingInfo
+                    }
+                }
+            }.resume()
+            return
+        }
+
+        if let mediaItemArtwork = createCoverArtwork(coverUri) {
+            updatedNowPlayingInfo?[MPMediaItemPropertyArtwork] = mediaItemArtwork
+        } else {
+            updatedNowPlayingInfo?.removeValue(forKey: MPMediaItemPropertyArtwork)
+        }
+    }
+
+    private func createCoverArtwork(_ coverUri: String) -> MPMediaItemArtwork? {
+        guard
+            FileManager.default.fileExists(atPath: coverUri),
+            let coverImage = UIImage(contentsOfFile: coverUri),
+            isCoverImageValid(coverImage)
+        else {
             return nil
         }
-        var coverImage: UIImage? = nil
-        if coverUri.hasPrefix("http://") || coverUri.hasPrefix("https://") {
-            let coverImageUrl = URL(string: coverUri)!
 
-            do {
-                let coverImageData = try Data(contentsOf: coverImageUrl)
-                coverImage = UIImage(data: coverImageData)
-            } catch {
-                print("Error creating the coverImageData");
-            }
-        } else {
-            if FileManager.default.fileExists(atPath: coverUri) {
-                coverImage = UIImage(contentsOfFile: coverUri)
-            }
-        }
-
-        if isCoverImageValid(coverImage) {
-            return MPMediaItemArtwork.init(boundsSize: coverImage!.size, requestHandler: { (size) -> UIImage in
-                return coverImage!
-            })
-        }
-        return nil;
+        return MPMediaItemArtwork(boundsSize: coverImage.size) { _ in coverImage }
     }
 
-    func downloadImage(url: URL, completion: @escaping ((_ image: UIImage?) -> Void)){
-        print("Started downloading \"\(url.deletingPathExtension().lastPathComponent)\".")
-        self.getImageDataFromUrl(url) { (_ data: Data?) in
-            DispatchQueue.main.async {
-                print("Finished downloading \"\(url.deletingPathExtension().lastPathComponent)\".")
-                completion(UIImage(data: data!))
-            }
-        }
-    }
-
-    func getImageDataFromUrl(_ url: URL, completion: @escaping ((_ data: Data?) -> Void)) {
-        URLSession.shared.dataTask(with: url) { (data, response, error) in
-            completion(data)
-        }.resume()
-    }
-
-    func isCoverImageValid(_ coverImage: UIImage?) -> Bool {
-        return coverImage != nil && (coverImage?.ciImage != nil || coverImage?.cgImage != nil)
+    private func isCoverImageValid(_ coverImage: UIImage) -> Bool {
+        return coverImage.ciImage != nil || coverImage.cgImage != nil
     }
 
     func handleCurrentItemChanged(_ playerItem: AudioTrack?) {
