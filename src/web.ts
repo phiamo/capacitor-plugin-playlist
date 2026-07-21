@@ -201,47 +201,40 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async skipForward(): Promise<void> {
-        let found: number | null = null;
-        this.playlistItems.forEach((item, index) => {
-            if (found === null && this.getCurrentTrackId() === item.trackId) {
-                found = index;
+        const currentIndex = this.getCurrentIndex();
+        if (currentIndex < 0) {
+            return;
+        }
+
+        let targetIndex = currentIndex + 1;
+        if (targetIndex >= this.playlistItems.length) {
+            if (!this.loop) {
+                return;
             }
-        });
-
-        if (found === this.playlistItems.length - 1) {
-            found = -1;
+            targetIndex = 0;
         }
 
-        if (found !== null) {
-            const targetIndex = found + 1;
-            this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_FORWARD, {
-                currentIndex: targetIndex,
-                currentItem: this.playlistItems[targetIndex]
-            }, this.playlistItems[targetIndex].trackId);
-            return this.setCurrent(this.playlistItems[targetIndex]);
-        }
-
-        return Promise.reject();
+        const targetTrack = this.playlistItems[targetIndex];
+        await this.setCurrent(targetTrack);
+        this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_FORWARD, {
+            currentIndex: targetIndex,
+            currentItem: targetTrack
+        }, targetTrack.trackId);
     }
 
     async skipBack(): Promise<void> {
-        let found: number | null = null;
-        this.playlistItems.forEach((item, index) => {
-            if (found === null && this.getCurrentTrackId() === item.trackId) {
-                found = index;
-            }
-        });
-
-        if (found !== null) {
-            const targetIndex = found === 0 ? this.playlistItems.length - 1 : found - 1;
-            this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK, {
-                currentIndex: targetIndex,
-                currentItem: this.playlistItems[targetIndex]
-            }, this.playlistItems[targetIndex].trackId);
-            return this.setCurrent(this.playlistItems[targetIndex]);
+        const currentIndex = this.getCurrentIndex();
+        if (currentIndex <= 0) {
+            return;
         }
 
-        return Promise.reject();
+        const targetIndex = currentIndex - 1;
+        const targetTrack = this.playlistItems[targetIndex];
+        await this.setCurrent(targetTrack);
+        this.updateStatus(RmxAudioStatusMessage.RMX_STATUS_SKIP_BACK, {
+            currentIndex: targetIndex,
+            currentItem: targetTrack
+        }, targetTrack.trackId);
     }
 
     setPlaybackRate(options: SetPlaybackRateOptions): Promise<void> {
@@ -394,14 +387,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     protected getCurrentIndex() {
-        if (this.currentTrack) {
-            for (let i = 0; i < this.playlistItems.length; i++) {
-                if (this.playlistItems[i].trackId === this.currentTrack.trackId) {
-                    return i;
-                }
-            }
-        }
-        return -1;
+        return this.currentTrack ? this.playlistItems.indexOf(this.currentTrack) : -1;
     }
 
     protected getCurrentTrackStatus(currentState: string) {
