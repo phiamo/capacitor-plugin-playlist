@@ -162,16 +162,17 @@ final class RmxAudioPlayer: NSObject {
         var removed = 0
         if items.count > 0 {
             for item in items {
-                guard let item = item as? [String: String] else {
+                guard let item = item as? [String: Any] else {
                     continue
                 }
-                if let id = item["trackId"] {
+
+                if let id = item["id"] as? String {
                     do {
                         try removeItem(id)
                         removed += 1
                     } catch {}
                 }
-                else if let index = Int(item["trackIndex"]!) {
+                else if let index = (item["index"] as? NSNumber)?.intValue {
                     do {
                         try removeItem(index)
                         removed += 1

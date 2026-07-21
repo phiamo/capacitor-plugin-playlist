@@ -159,8 +159,8 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             val removals = ArrayList<TrackRemovalItem>()
             for (index in 0 until items.length()) {
                 val entry = items.optJSONObject(index) ?: continue
-                val trackIndex = entry.optInt("trackIndex", -1)
-                val trackId = entry.optString("trackId", "")
+                val trackIndex = entry.optInt("index", -1)
+                val trackId = entry.optString("id", "")
                 removals.add(TrackRemovalItem(trackIndex, trackId))
             }
 
