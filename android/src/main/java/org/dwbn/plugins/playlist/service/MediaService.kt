@@ -1,20 +1,17 @@
 package org.dwbn.plugins.playlist.service
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
+import android.annotation.SuppressLint
 import android.app.PendingIntent
-import android.app.Service
 import android.content.Intent
-import android.content.pm.ServiceInfo
 import android.os.Build
 import android.util.Log
 import androidx.annotation.OptIn
-import androidx.core.app.NotificationCompat
+import androidx.annotation.RequiresApi
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import org.dwbn.plugins.playlist.PlaylistRuntime
@@ -22,13 +19,12 @@ import org.dwbn.plugins.playlist.manager.PlaylistManager
 
 /**
  * Media3 [MediaSessionService] hosting one [ExoPlayer] and one [MediaSession] for audio playlists.
+ * Foreground notification is owned by [DefaultMediaNotificationProvider].
  */
 @OptIn(UnstableApi::class)
 class MediaService : MediaSessionService() {
     companion object {
         private const val TAG = "MediaService"
-        private const val NOTIFICATION_ID = 0x504C4159 // "PLAY"
-        private const val CHANNEL_ID = "org.dwbn.plugins.playlist.media"
 
         @JvmStatic
         @Volatile
@@ -45,7 +41,10 @@ class MediaService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        createNotificationChannel()
+        setListener(foregroundStartListener)
+        val notificationProvider = DefaultMediaNotificationProvider.Builder(this).build()
+        notificationProvider.setSmallIcon(android.R.drawable.ic_media_play)
+        setMediaNotificationProvider(notificationProvider)
 
         val player = ExoPlayer.Builder(this)
             .setAudioAttributes(
@@ -53,13 +52,16 @@ class MediaService : MediaSessionService() {
                     .setUsage(C.USAGE_MEDIA)
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                     .build(),
-                true
+                MediaNotificationPolicy.HANDLE_AUDIO_FOCUS
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
         exoPlayer = player
 
-        val session = MediaSession.Builder(this, player).build()
+        val sessionBuilder = MediaSession.Builder(this, player)
+            .setBitmapLoader(GlideBitmapLoader(this))
+        sessionActivityPendingIntent()?.let { sessionBuilder.setSessionActivity(it) }
+        val session = sessionBuilder.build()
         mediaSession = session
 
         playlistManager.attachPlayer(player)
@@ -70,17 +72,30 @@ class MediaService : MediaSessionService() {
         return mediaSession
     }
 
+    @SuppressLint("NewApi")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return try {
-            promoteToForeground()
-            START_STICKY
-        } catch (e: android.app.ForegroundServiceStartNotAllowedException) {
-            Log.w(TAG, "Cannot start foreground service: app is in background", e)
-            START_NOT_STICKY
+            val result = super.onStartCommand(intent, flags, startId)
+            val playing = exoPlayer?.playWhenReady == true
+            inForeground = playing
+            playlistManager.mediaServiceInForeground = playing
+            result
+        } catch (e: IllegalStateException) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                e is android.app.ForegroundServiceStartNotAllowedException
+            ) {
+                Log.w(TAG, "Cannot start foreground service: app is in background", e)
+                inForeground = false
+                playlistManager.mediaServiceInForeground = false
+                START_NOT_STICKY
+            } else {
+                throw e
+            }
         }
     }
 
     override fun onDestroy() {
+        clearListener()
         playlistManager.detachPlayer()
         mediaSession?.release()
         mediaSession = null
@@ -92,33 +107,18 @@ class MediaService : MediaSessionService() {
 
     fun isRunningInForeground(): Boolean = inForeground
 
+    /**
+     * Media3 owns FGS via [DefaultMediaNotificationProvider]. Do not call [startForeground] here:
+     * Android 12+ forbids restarting a foreground service from the background after video.
+     */
     fun promoteToForeground() {
-        if (inForeground) {
-            playlistManager.mediaServiceInForeground = true
+        if (!MediaNotificationPolicy.shouldStartForegroundOnPromote()) {
             return
-        }
-        inForeground = true
-        try {
-            val notification = buildNotification()
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                startForeground(NOTIFICATION_ID, notification)
-            } else {
-                startForeground(
-                    NOTIFICATION_ID,
-                    notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-                )
-            }
-            playlistManager.mediaServiceInForeground = true
-        } catch (e: android.app.ForegroundServiceStartNotAllowedException) {
-            Log.w(TAG, "Cannot start foreground service: app is in background", e)
-            inForeground = false
-            playlistManager.mediaServiceInForeground = false
         }
     }
 
     fun endForeground(removeNotification: Boolean) {
-        if (playlistManager.videoHandoffForegroundRetain) {
+        if (MediaNotificationPolicy.shouldSkipEndForeground(playlistManager.videoHandoffForegroundRetain)) {
             return
         }
         inForeground = false
@@ -131,55 +131,26 @@ class MediaService : MediaSessionService() {
     }
 
     fun updateForegroundNotification() {
-        if (!inForeground) {
-            return
-        }
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.notify(NOTIFICATION_ID, buildNotification())
+        // Media3 updates the session notification from MediaItem.MediaMetadata.
     }
 
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return
-        }
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Audio playback",
-            NotificationManager.IMPORTANCE_LOW
+    private fun sessionActivityPendingIntent(): PendingIntent? {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName) ?: return null
+        launchIntent.addFlags(MediaNotificationPolicy.sessionLaunchIntentFlags())
+        return PendingIntent.getActivity(
+            this,
+            0,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.createNotificationChannel(channel)
     }
 
-    private fun buildNotification(): Notification {
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-        val pendingIntent = launchIntent?.let {
-            it.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            PendingIntent.getActivity(
-                this,
-                0,
-                it,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+    private val foregroundStartListener = object : Listener {
+        @RequiresApi(Build.VERSION_CODES.S)
+        override fun onForegroundServiceStartNotAllowedException() {
+            Log.w(TAG, "Cannot start foreground service: app is in background")
+            inForeground = false
+            playlistManager.mediaServiceInForeground = false
         }
-
-        val track = playlistManager.currentItem
-        val title = track?.title?.takeIf { it.isNotEmpty() } ?: "Audio playback"
-        val artist = track?.artist?.takeIf { it.isNotEmpty() }
-
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle(title)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-
-        if (artist != null) {
-            builder.setContentText(artist)
-        }
-        if (pendingIntent != null) {
-            builder.setContentIntent(pendingIntent)
-        }
-        return builder.build()
     }
 }

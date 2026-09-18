@@ -1,11 +1,10 @@
 package org.dwbn.plugins.playlist.playlist;
 
 import android.content.Context;
-import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.media3.common.Player;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
-import org.dwbn.plugins.playlist.service.MediaService;
+import org.dwbn.plugins.playlist.service.MediaNotificationPolicy;
 
 /**
  * ExoPlayer playback facade for {@link org.dwbn.plugins.playlist.PlaylistPlugin}. Story 55.4
@@ -13,8 +12,6 @@ import org.dwbn.plugins.playlist.service.MediaService;
  * full video handoff behaviour is Story 55.6.
  */
 public class AudioPlaylistHandler {
-
-    private static final String TAG = "PlaylistAudioPlaylistHandler";
 
     private final Context context;
     private final PlaylistManager playlistManager;
@@ -40,7 +37,9 @@ public class AudioPlaylistHandler {
         }
         playlistManager.ensureServiceStarted();
         playlistManager.ensureForeground();
-        playlistManager.requestAudioFocus();
+        if (MediaNotificationPolicy.shouldRequestLegacyAudioFocus()) {
+            // Media3 handleAudioFocus owns pause/resume; do not call AudioManager.requestAudioFocus.
+        }
         Player player = playlistManager.getPlayer();
         if (player != null) {
             player.setPlayWhenReady(true);
@@ -48,22 +47,9 @@ public class AudioPlaylistHandler {
     }
 
     public void pause(boolean isTemporary) {
-        if (playlistManager.getVideoHandoffForegroundRetain()) {
-            Player player = playlistManager.getPlayer();
-            if (player != null && player.isPlaying()) {
-                player.setPlayWhenReady(false);
-            }
-            if (!isTemporary) {
-                playlistManager.abandonAudioFocus();
-            }
-            return;
-        }
         Player player = playlistManager.getPlayer();
         if (player != null) {
             player.setPlayWhenReady(false);
-        }
-        if (!isTemporary) {
-            playlistManager.abandonAudioFocus();
         }
     }
 
@@ -94,24 +80,23 @@ public class AudioPlaylistHandler {
     }
 
     /**
-     * Resume at {@code positionMs} after native video ends. Re-requests focus and starts playback.
+     * Resume at {@code positionMs} after native video ends. Media3 {@code handleAudioFocus} owns
+     * focus; Story 55.6 rewrites full handoff behaviour.
      */
     public void resumePlaybackAfterVideoHandoff(long positionMs) {
         playlistManager.setVideoHandoffForegroundRetain(false);
-        playlistManager.requestAudioFocus();
         play();
         if (positionMs > 0) {
             seek(positionMs);
         }
     }
 
-    /** Release audio focus for video without tearing down the foreground service (Epic 45). */
+    /** Pause for video without tearing down the foreground service (Epic 45). */
     public void pauseForVideoHandoff() {
         Player player = playlistManager.getPlayer();
         if (player != null && player.isPlaying()) {
             player.setPlayWhenReady(false);
         }
-        playlistManager.abandonAudioFocus();
     }
 
     public void updateMediaControls() {

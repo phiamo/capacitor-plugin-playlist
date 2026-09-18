@@ -2,15 +2,11 @@ package org.dwbn.plugins.playlist.manager
 
 import android.app.Application
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioManager
 import android.os.Build
 import android.util.Log
 import androidx.annotation.FloatRange
 import androidx.annotation.IntRange
 import androidx.annotation.OptIn
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -21,6 +17,7 @@ import org.dwbn.plugins.playlist.RmxAudioPlayer
 import org.dwbn.plugins.playlist.TrackRemovalItem
 import org.dwbn.plugins.playlist.data.AudioTrack
 import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler
+import org.dwbn.plugins.playlist.service.MediaNotificationPolicy
 import org.dwbn.plugins.playlist.service.MediaService
 import java.lang.ref.WeakReference
 import java.util.ArrayList
@@ -49,7 +46,6 @@ class PlaylistManager(private val application: Application) {
     private var handlerInstance: AudioPlaylistHandler? = null
     private var seeking = false
     private var rmxPlaybackState = RmxPlaybackState.STOPPED
-    private var audioFocusRequest: AudioFocusRequest? = null
     private var pendingBeginPlayback: PendingBegin? = null
 
     private data class PendingBegin(val seekPosition: Long, val startPaused: Boolean)
@@ -437,8 +433,8 @@ class PlaylistManager(private val application: Application) {
             exoPlayer.prepare()
             exoPlayer.playWhenReady = !startPaused && !videoHandoffForegroundRetain
             applyPlayerSettings()
-            if (!startPaused && !videoHandoffForegroundRetain) {
-                requestAudioFocus()
+            if (MediaNotificationPolicy.shouldRequestLegacyAudioFocus()) {
+                // Media3 handleAudioFocus owns pause/resume; do not call AudioManager.requestAudioFocus.
             }
             ensureForeground()
         } catch (e: IllegalStateException) {
@@ -462,49 +458,12 @@ class PlaylistManager(private val application: Application) {
     }
 
     fun ensureForeground() {
+        // Media3 MediaSessionService owns FGS; do not startForeground in parallel.
         mediaServiceRef.get()?.promoteToForeground()
     }
 
     fun updateForegroundNotification() {
         mediaServiceRef.get()?.updateForegroundNotification()
-    }
-
-    fun requestAudioFocus() {
-        val audioManager = application.getSystemService(AudioManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (audioFocusRequest == null) {
-                audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                    .setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build()
-                    )
-                    .setOnAudioFocusChangeListener { focusChange -> handleAudioFocusChange(focusChange) }
-                    .build()
-            }
-            audioManager.requestAudioFocus(audioFocusRequest!!)
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
-        }
-    }
-
-    fun abandonAudioFocus() {
-        val audioManager = application.getSystemService(AudioManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.abandonAudioFocus(null)
-        }
-    }
-
-    private fun handleAudioFocusChange(focusChange: Int) {
-        when (focusChange) {
-            AudioManager.AUDIOFOCUS_LOSS,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> player?.pause()
-        }
     }
 
     private fun applyPlayerSettings() {

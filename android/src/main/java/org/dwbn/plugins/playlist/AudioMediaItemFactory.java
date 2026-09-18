@@ -34,7 +34,9 @@ public final class AudioMediaItemFactory {
     if (track != null) {
       MediaMetadata.Builder metadata = new MediaMetadata.Builder();
       String title = track.getTitle();
-      if (title != null && !title.isEmpty()) {
+      if (title == null || title.isEmpty()) {
+        metadata.setTitle("Audio playback");
+      } else {
         metadata.setTitle(title);
       }
       String artist = track.getArtist();
@@ -45,13 +47,25 @@ public final class AudioMediaItemFactory {
       if (album != null && !album.isEmpty()) {
         metadata.setAlbumTitle(album);
       }
-      String artwork = track.getThumbnailUrl();
-      if (artwork != null && !artwork.isEmpty()) {
+      String artwork = artworkUriString(track);
+      if (artwork != null) {
         metadata.setArtworkUri(Uri.parse(artwork));
       }
       builder.setMediaMetadata(metadata.build());
     }
     return builder.build();
+  }
+
+  /** Artwork URI string passed to {@link MediaMetadata.Builder#setArtworkUri}. */
+  static String artworkUriString(AudioTrack track) {
+    if (track == null) {
+      return null;
+    }
+    String artwork = track.getThumbnailUrl();
+    if (artwork == null || artwork.isEmpty()) {
+      return null;
+    }
+    return artwork;
   }
 
   public static boolean shouldUseHlsMimeType(String url, boolean isStream) {
