@@ -1,26 +1,32 @@
 package org.dwbn.plugins.playlist.manager
 
 import android.app.Application
+import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.util.Log
 import androidx.annotation.FloatRange
 import androidx.annotation.IntRange
-import com.devbrackets.android.exomedia.listener.OnErrorListener
-import com.devbrackets.android.playlistcore.api.MediaPlayerApi
-import com.devbrackets.android.playlistcore.manager.ListPlaylistManager
+import androidx.annotation.OptIn
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import org.dwbn.plugins.playlist.AudioMediaItemFactory
 import org.dwbn.plugins.playlist.PlaylistItemOptions
+import org.dwbn.plugins.playlist.RmxAudioPlayer
 import org.dwbn.plugins.playlist.TrackRemovalItem
 import org.dwbn.plugins.playlist.data.AudioTrack
-import org.dwbn.plugins.playlist.playlist.AudioApi
+import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler
 import org.dwbn.plugins.playlist.service.MediaService
 import java.lang.ref.WeakReference
-import java.util.*
+import java.util.ArrayList
 
-/**
- * A PlaylistManager that extends the [ListPlaylistManager] for use with the
- * [MediaService] which extends [com.devbrackets.android.playlistcore.service.BasePlaylistService].
- */
-class PlaylistManager(application: Application) :
-    ListPlaylistManager<AudioTrack>(application, MediaService::class.java), OnErrorListener {
+@OptIn(UnstableApi::class)
+class PlaylistManager(private val application: Application) {
     private val audioTracks: MutableList<AudioTrack> = ArrayList()
     private var volumeLeft = 1.0f
     private var volumeRight = 1.0f
@@ -33,88 +39,171 @@ class PlaylistManager(application: Application) :
     var videoHandoffForegroundRetain = false
     var mediaServiceInForeground = false
 
-    // Really need a way to propagate the settings through the app
     var resetStreamOnPause = true
     var options: Options
     private var mediaControlsListener = WeakReference<MediaControlsListener?>(null)
-    private var errorListener = WeakReference<OnErrorListener?>(null)
-    private var currentMediaPlayer: WeakReference<MediaPlayerApi<AudioTrack>?>? =
-        WeakReference(null)
+    private var playbackStatusListener = WeakReference<RmxAudioPlayer?>(null)
 
-    fun setOnErrorListener(listener: OnErrorListener?) {
-        errorListener = WeakReference(listener)
+    private var player: ExoPlayer? = null
+    private var mediaServiceRef = WeakReference<MediaService?>(null)
+    private var handlerInstance: AudioPlaylistHandler? = null
+    private var seeking = false
+    private var rmxPlaybackState = RmxPlaybackState.STOPPED
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var pendingBeginPlayback: PendingBegin? = null
+
+    private data class PendingBegin(val seekPosition: Long, val startPaused: Boolean)
+
+    var currentPosition: Int = INVALID_POSITION
+
+    val currentItem: AudioTrack?
+        get() {
+            val index = player?.currentMediaItemIndex ?: currentPosition
+            return if (index in audioTracks.indices) audioTracks[index] else null
+        }
+
+    val isPlaying: Boolean
+        get() = player?.isPlaying == true
+
+    val playlistHandler: AudioPlaylistHandler?
+        get() {
+            if (handlerInstance == null) {
+                handlerInstance = AudioPlaylistHandler(application, this)
+            }
+            return handlerInstance
+        }
+
+    fun setOnErrorListener(listener: RmxAudioPlayer?) {
+        playbackStatusListener = WeakReference(listener)
     }
 
     fun setMediaControlsListener(listener: MediaControlsListener?) {
         mediaControlsListener = WeakReference(listener)
     }
 
-    val isPlaying: Boolean
-        get() = playlistHandler != null && playlistHandler!!.currentMediaPlayer != null && playlistHandler!!.currentMediaPlayer!!.isPlaying
-
-    override fun onError(e: Exception?): Boolean {
-
-        if (e != null && errorListener.get() != null) {
-            Log.i(TAG, "onError: $e")
-            errorListener.get()!!.onError(e)
-        }
-        return true
+    fun setPlaybackStatusListener(listener: RmxAudioPlayer?) {
+        playbackStatusListener = WeakReference(listener)
     }
 
-    /*
-     * isNextAvailable, getCurrentItem, and next() are overridden because there is
-     * a glaring bug in playlist core where when an item completes, isNextAvailable and
-     * getCurrentItem return wildly contradictory things, resulting in endless repeat
-     * of the last item in the playlist.
-     */
-    override val isNextAvailable: Boolean
-        get() {
-            if (itemCount <= 1) {
-                return false;
-            }
-            val isAtEnd = currentPosition + 1 >= itemCount
-            val isConstrained = currentPosition + 1 in 0 until itemCount
-            return if (isAtEnd) {
-                loop
-            } else isConstrained
-        }
+    @Suppress("UNUSED_PARAMETER")
+    fun setId(id: Int) {
+        // PlaylistCore required a playlist id; Media3 stack does not use it.
+    }
 
-    override operator fun next(): AudioTrack? {
-        if (isNextAvailable) {
-            val isAtEnd = currentPosition + 1 >= itemCount
-            currentPosition = if (isAtEnd && loop) {
-                0
-            } else {
-                (currentPosition + 1).coerceAtMost(itemCount)
+    fun attachPlayer(exoPlayer: ExoPlayer) {
+        player = exoPlayer
+        if (audioTracks.isNotEmpty()) {
+            exoPlayer.setMediaItems(audioTracks.map { AudioMediaItemFactory.fromAudioTrack(it) })
+            if (currentPosition in audioTracks.indices) {
+                exoPlayer.seekTo(currentPosition, 0)
             }
+        }
+        applyPlayerSettings()
+        exoPlayer.addListener(playerListener)
+        playbackStatusListener.get()?.onPlayerAttached(exoPlayer)
+        pendingBeginPlayback?.let { pending ->
+            pendingBeginPlayback = null
+            beginPlaybackAt(pending.seekPosition, pending.startPaused)
+        }
+    }
+
+    fun detachPlayer() {
+        player?.removeListener(playerListener)
+        playbackStatusListener.get()?.onPlayerDetached()
+        player = null
+    }
+
+    fun attachService(service: MediaService) {
+        mediaServiceRef = WeakReference(service)
+    }
+
+    fun getPlayer(): ExoPlayer? = player
+
+    fun isVideoHandoffPrewarmActive(): Boolean = videoHandoffForegroundRetain
+
+    fun getCurrentPlaybackState(): RmxPlaybackState = rmxPlaybackState
+
+    fun getCurrentProgress(): PlaybackProgress? {
+        val exoPlayer = player ?: return null
+        val duration = exoPlayer.duration.coerceAtLeast(0)
+        val position = exoPlayer.currentPosition.coerceAtLeast(0)
+        val buffered = if (duration > 0) {
+            ((exoPlayer.bufferedPosition.toFloat() / duration) * 100f).toInt().coerceIn(0, 100)
         } else {
-            if (loop) {
-                currentPosition = INVALID_POSITION
-            } else {
-                isShouldStopPlaylist = true
-                return null
-            }
+            0
         }
-
-        return currentItem
+        val bufferedFloat = if (duration > 0) {
+            (exoPlayer.bufferedPosition.toFloat() / duration).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        return PlaybackProgress(position, duration, buffered, bufferedFloat)
     }
 
+    val isNextAvailable: Boolean
+        get() {
+            if (audioTracks.size <= 1) {
+                return false
+            }
+            val index = player?.currentMediaItemIndex ?: currentPosition
+            val isAtEnd = index + 1 >= audioTracks.size
+            return if (isAtEnd) loop else index + 1 in audioTracks.indices
+        }
 
-    /*
-     * List management
-     */
+    val isPreviousAvailable: Boolean
+        get() {
+            val index = player?.currentMediaItemIndex ?: currentPosition
+            return index > 0 || loop
+        }
+
+    fun invokeNext() {
+        playlistHandler?.next()
+    }
+
+    fun invokePrevious() {
+        playlistHandler?.previous()
+    }
+
+    fun skipToNext() {
+        val exoPlayer = player ?: return
+        if (!isNextAvailable) {
+            return
+        }
+        val fromIndex = exoPlayer.currentMediaItemIndex
+        if (fromIndex + 1 >= audioTracks.size && loop) {
+            exoPlayer.seekTo(0, 0)
+        } else {
+            exoPlayer.seekToNextMediaItem()
+        }
+        notifySkipForward(fromIndex)
+    }
+
+    fun skipToPrevious() {
+        val exoPlayer = player ?: return
+        if (!isPreviousAvailable) {
+            return
+        }
+        val fromIndex = exoPlayer.currentMediaItemIndex
+        if (fromIndex <= 0 && loop) {
+            exoPlayer.seekTo(audioTracks.size - 1, 0)
+        } else {
+            exoPlayer.seekToPreviousMediaItem()
+        }
+        notifySkipBack(fromIndex)
+    }
+
     fun setAllItems(items: List<AudioTrack>?, options: PlaylistItemOptions) {
         val seekStart = when {
             options.playFromPosition >= 0 -> options.playFromPosition
-            options.retainPosition -> currentProgress?.position ?: 0
+            options.retainPosition -> getCurrentProgress()?.position ?: 0
             else -> 0
         }
 
         clearItems()
-        addAllItems(items)
+        audioTracks.addAll(items.orEmpty())
+        player?.setMediaItems(audioTracks.map { AudioMediaItemFactory.fromAudioTrack(it) })
         currentPosition = 0
 
-        // If the requested id exists, start there; otherwise keep the first track.
         options.playFromId?.let { trackId ->
             val position = findTrackPosition(trackId)
             if (position != INVALID_POSITION) {
@@ -122,10 +211,6 @@ class PlaylistManager(application: Application) :
             }
         }
 
-        // We assume that if the playlist is fully loaded in one go,
-        // that the next thing to happen will be to play. So let's start
-        // paused, which will allow the player to pre-buffer until the
-        // user says Go.
         beginPlayback(seekStart, options.startPaused)
     }
 
@@ -142,19 +227,20 @@ class PlaylistManager(application: Application) :
 
         if (insertIndex >= audioTracks.size) {
             audioTracks.add(item)
+            player?.addMediaItem(AudioMediaItemFactory.fromAudioTrack(item))
         } else {
             audioTracks.add(insertIndex, item)
+            player?.addMediaItem(insertIndex, AudioMediaItemFactory.fromAudioTrack(item))
             if (currentPosition >= insertIndex && currentPosition != INVALID_POSITION) {
                 currentPosition++
             }
         }
-        items = audioTracks
 
         if (countBefore == 0) {
             currentPosition = 0
             beginPlayback(1, true)
-        } else if (this.playlistHandler != null) {
-            this.playlistHandler!!.updateMediaControls()
+        } else {
+            playlistHandler?.updateMediaControls()
         }
     }
 
@@ -168,13 +254,10 @@ class PlaylistManager(application: Application) :
 
         val item = audioTracks.removeAt(from)
         audioTracks.add(to, item)
-        items = audioTracks
+        player?.moveMediaItem(from, to)
 
         currentPosition = adjustCurrentIndexForMove(currentPosition, from, to, INVALID_POSITION)
-
-        if (this.playlistHandler != null) {
-            this.playlistHandler!!.updateMediaControls()
-        }
+        playlistHandler?.updateMediaControls()
         return true
     }
 
@@ -192,113 +275,110 @@ class PlaylistManager(application: Application) :
 
         val isCurrent = existing == currentItem
         val wasPlaying = isPlaying
-        val progress = currentProgress
-        val seekPosition: Long = if (progress != null) progress.position else 0
+        val progress = getCurrentProgress()
+        val seekPosition: Long = progress?.position ?: 0
 
-        if (isCurrent && playlistHandler != null) {
-            playlistHandler!!.pause(true)
+        if (isCurrent) {
+            player?.pause()
         }
 
         audioTracks[resolvedIndex] = resolvedReplacement
-        items = audioTracks
+        player?.replaceMediaItem(resolvedIndex, AudioMediaItemFactory.fromAudioTrack(resolvedReplacement))
 
         if (isCurrent) {
             beginPlayback(seekPosition, !wasPlaying)
-        } else if (this.playlistHandler != null) {
-            this.playlistHandler!!.updateMediaControls()
+        } else {
+            playlistHandler?.updateMediaControls()
         }
 
         return resolvedReplacement
     }
 
-
     fun addAllItems(its: List<AudioTrack>?) {
-        val currentItem = currentItem // may be null
-        audioTracks.addAll(its.orEmpty())
-        items =
-            audioTracks // not *strictly* needed since they share the reference, but for good measure..
-        currentPosition = audioTracks.indexOf(currentItem)
+        val current = currentItem
+        its.orEmpty().forEach { track ->
+            audioTracks.add(track)
+            player?.addMediaItem(AudioMediaItemFactory.fromAudioTrack(track))
+        }
+        currentPosition = audioTracks.indexOf(current)
     }
 
     fun removeItem(index: Int, itemId: String): AudioTrack? {
         val wasPlaying = isPlaying
-        if (playlistHandler != null) {
-            playlistHandler!!.pause(true)
-        }
-        var currentPosition = currentPosition
-        var foundItem: AudioTrack? = null
+        player?.pause()
+
         var removingCurrent = false
+        val progress = getCurrentProgress()
+        val seekPosition: Long = progress?.position ?: 0
 
-        // Get the current playback position in milliseconds before removing items
-        val progress = currentProgress
-        val seekPosition: Long = if (progress != null) progress.position else 0
-
-        // If isPlaying is true, and currentItem is not null,
-        // that implies that currentItem is the currently playing item.
-        // If removingCurrent gets set to true, we are removing the currently playing item,
-        // and we need to restart playback once we do.
         val resolvedIndex = resolveItemPosition(index, itemId)
+        var foundItem: AudioTrack? = null
         if (resolvedIndex >= 0) {
             foundItem = audioTracks[resolvedIndex]
             if (foundItem == currentItem) {
                 removingCurrent = true
             }
             audioTracks.removeAt(resolvedIndex)
+            player?.removeMediaItem(resolvedIndex)
         }
-        items = audioTracks
-        currentPosition = if (removingCurrent) currentPosition else audioTracks.indexOf(currentItem)
-        // If removing the current item, start from beginning (0), otherwise preserve playback position
+
+        currentPosition = if (removingCurrent) {
+            (player?.currentMediaItemIndex ?: INVALID_POSITION).coerceAtLeast(0)
+        } else {
+            audioTracks.indexOf(currentItem)
+        }
+
         val seekStart = if (removingCurrent) 0 else seekPosition
         beginPlayback(seekStart, !wasPlaying)
-        if (this.playlistHandler != null) {
-            this.playlistHandler!!.updateMediaControls()
-        }
+        playlistHandler?.updateMediaControls()
         return foundItem
     }
 
     fun removeAllItems(its: ArrayList<TrackRemovalItem>): ArrayList<AudioTrack> {
         val removedTracks = ArrayList<AudioTrack>()
         val wasPlaying = isPlaying
-        if (playlistHandler != null) {
-            playlistHandler!!.pause(true)
-        }
-        var currentPosition = currentPosition
-        val currentItem = currentItem // may be null
+        player?.pause()
+
         var removingCurrent = false
+        val current = currentItem
+        val progress = getCurrentProgress()
+        val seekPosition: Long = progress?.position ?: 0
 
-        // Get the current playback position in milliseconds before removing items
-        val progress = currentProgress
-        val seekPosition: Long = if (progress != null) progress.position else 0
-
-        for (item in its) {
+        val indicesToRemove = its.mapNotNull { item ->
             val resolvedIndex = resolveItemPosition(item.trackIndex, item.trackId)
-            if (resolvedIndex >= 0) {
-                val foundItem = audioTracks[resolvedIndex]
-                if (foundItem == currentItem) {
-                    removingCurrent = true
-                }
-                removedTracks.add(foundItem)
-                audioTracks.removeAt(resolvedIndex)
+            if (resolvedIndex >= 0) resolvedIndex else null
+        }.distinct().sortedDescending()
+
+        for (resolvedIndex in indicesToRemove) {
+            val foundItem = audioTracks[resolvedIndex]
+            if (foundItem == current) {
+                removingCurrent = true
             }
+            removedTracks.add(foundItem)
+            audioTracks.removeAt(resolvedIndex)
+            player?.removeMediaItem(resolvedIndex)
         }
-        items = audioTracks
-        currentPosition = if (removingCurrent) currentPosition else audioTracks.indexOf(currentItem)
-        // If removing the current item, start from beginning (0), otherwise preserve playback position
+
+        currentPosition = if (removingCurrent) {
+            (player?.currentMediaItemIndex ?: INVALID_POSITION).coerceAtLeast(0)
+        } else {
+            audioTracks.indexOf(currentItem)
+        }
+
         val seekStart = if (removingCurrent) 0 else seekPosition
         beginPlayback(seekStart, !wasPlaying)
         return removedTracks
     }
 
     fun clearItems() {
-        playlistHandler?.stop()
+        player?.stop()
+        player?.clearMediaItems()
         audioTracks.clear()
-        items = audioTracks
         currentPosition = INVALID_POSITION
+        rmxPlaybackState = RmxPlaybackState.STOPPED
     }
 
-    fun getAllItems(): List<AudioTrack> {
-        return audioTracks.toList()
-    }
+    fun getAllItems(): List<AudioTrack> = audioTracks.toList()
 
     private fun resolveItemPosition(trackIndex: Int, trackId: String): Int {
         return when {
@@ -311,13 +391,9 @@ class PlaylistManager(application: Application) :
     internal fun findTrackPosition(trackId: String): Int =
         audioTracks.indexOfFirst { it.trackId == trackId }
 
-    fun getVolumeLeft(): Float {
-        return volumeLeft
-    }
+    fun getVolumeLeft(): Float = volumeLeft
 
-    fun getVolumeRight(): Float {
-        return volumeRight
-    }
+    fun getVolumeRight(): Float = volumeRight
 
     fun setVolume(
         @FloatRange(from = 0.0, to = 1.0) left: Float,
@@ -325,56 +401,215 @@ class PlaylistManager(application: Application) :
     ) {
         volumeLeft = left
         volumeRight = right
-        if (currentMediaPlayer != null && currentMediaPlayer!!.get() != null) {
-            Log.i("PlaylistManager", "setVolume completing with volume = $left")
-            currentMediaPlayer!!.get()!!.setVolume(volumeLeft, volumeRight)
-        }
+        player?.volume = (left + right) / 2f
     }
 
-    fun getPlaybackSpeed(): Float {
-        return playbackSpeed
-    }
+    fun getPlaybackSpeed(): Float = playbackSpeed
 
     fun setPlaybackSpeed(@FloatRange(from = 0.0625, to = 16.0) speed: Float) {
         val validSpeed = speed.coerceIn(0.0625f, 16.0f)
         playbackSpeed = validSpeed
-        playlistHandler?.let { handler ->
-            handler.currentMediaPlayer?.let { mediaPlayer ->
-                if (mediaPlayer is AudioApi) {
-                    Log.i(TAG, "setPlaybackSpeed completing with speed = $validSpeed")
-                    mediaPlayer.setPlaybackSpeed(playbackSpeed)
-                }
-            }
-        }
+        player?.setPlaybackSpeed(validSpeed)
     }
 
     fun beginPlayback(@IntRange(from = 0) seekPosition: Long, startPaused: Boolean) {
-        currentItem ?: return
-        try {
-            super.play(seekPosition, startPaused)
-        } catch (e: IllegalStateException) {
-            // Android 12+: BackgroundServiceStartNotAllowedException when app is backgrounded
-            Log.w(TAG, "beginPlayback: cannot start MediaService while backgrounded: ${e.message}")
+        if (audioTracks.isEmpty()) {
+            return
+        }
+        beginPlaybackAt(seekPosition, startPaused)
+    }
+
+    fun beginPlaybackAt(@IntRange(from = 0) seekPosition: Long, startPaused: Boolean) {
+        if (audioTracks.isEmpty()) {
             return
         }
         try {
-            setVolume(volumeLeft, volumeRight)
-            setPlaybackSpeed(playbackSpeed)
+            ensureServiceStarted()
+            val exoPlayer = player
+            if (exoPlayer == null) {
+                pendingBeginPlayback = PendingBegin(seekPosition, startPaused)
+                return
+            }
+            val index = currentPosition.coerceIn(0, audioTracks.size - 1)
+            currentPosition = index
+            exoPlayer.repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+            exoPlayer.seekTo(index, seekPosition)
+            exoPlayer.prepare()
+            exoPlayer.playWhenReady = !startPaused && !videoHandoffForegroundRetain
+            applyPlayerSettings()
+            if (!startPaused && !videoHandoffForegroundRetain) {
+                requestAudioFocus()
+            }
+            ensureForeground()
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "beginPlayback: cannot start MediaService while backgrounded: ${e.message}")
         } catch (e: Exception) {
-            Log.w(TAG, "beginPlayback: Error setting volume or playback speed: " + e.message)
+            Log.w(TAG, "beginPlayback: ${e.message}")
         }
     }
 
+    fun ensureServiceStarted() {
+        val intent = Intent(application, MediaService::class.java)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                application.startForegroundService(intent)
+            } else {
+                application.startService(intent)
+            }
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "ensureServiceStarted: ${e.message}")
+        }
+    }
+
+    fun ensureForeground() {
+        mediaServiceRef.get()?.promoteToForeground()
+    }
+
+    fun updateForegroundNotification() {
+        mediaServiceRef.get()?.updateForegroundNotification()
+    }
+
+    fun requestAudioFocus() {
+        val audioManager = application.getSystemService(AudioManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (audioFocusRequest == null) {
+                audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    .setOnAudioFocusChangeListener { focusChange -> handleAudioFocusChange(focusChange) }
+                    .build()
+            }
+            audioManager.requestAudioFocus(audioFocusRequest!!)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+        }
+    }
+
+    fun abandonAudioFocus() {
+        val audioManager = application.getSystemService(AudioManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
+    }
+
+    private fun handleAudioFocusChange(focusChange: Int) {
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> player?.pause()
+        }
+    }
+
+    private fun applyPlayerSettings() {
+        player?.let { exoPlayer ->
+            exoPlayer.volume = (volumeLeft + volumeRight) / 2f
+            exoPlayer.setPlaybackSpeed(playbackSpeed)
+            exoPlayer.repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+        }
+    }
+
+    private fun notifySkipForward(fromIndex: Int) {
+        val listener = mediaControlsListener.get()
+        val item = if (fromIndex in audioTracks.indices) audioTracks[fromIndex] else currentItem
+        listener?.onNext(item, fromIndex)
+    }
+
+    private fun notifySkipBack(fromIndex: Int) {
+        val listener = mediaControlsListener.get()
+        val item = if (fromIndex in audioTracks.indices) audioTracks[fromIndex] else currentItem
+        listener?.onPrevious(item, fromIndex)
+    }
+
+    private val playerListener = object : Player.Listener {
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            rmxPlaybackState = mapPlaybackState(playbackState)
+            playbackStatusListener.get()?.onNativePlaybackStateChanged(rmxPlaybackState)
+            if (playbackState == Player.STATE_ENDED) {
+                handleItemEnded()
+            }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) {
+                rmxPlaybackState = RmxPlaybackState.PLAYING
+            } else if (player?.playbackState == Player.STATE_READY) {
+                rmxPlaybackState = RmxPlaybackState.PAUSED
+            }
+            playbackStatusListener.get()?.onNativePlaybackStateChanged(rmxPlaybackState)
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            currentPosition = player?.currentMediaItemIndex ?: currentPosition
+            playbackStatusListener.get()?.onNativeTrackChanged(
+                currentItem,
+                isNextAvailable,
+                isPreviousAvailable
+            )
+        }
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                seeking = true
+                rmxPlaybackState = RmxPlaybackState.SEEKING
+                playbackStatusListener.get()?.onNativePlaybackStateChanged(rmxPlaybackState)
+            }
+        }
+
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            currentErrorTrack = currentItem
+            rmxPlaybackState = RmxPlaybackState.ERROR
+            playbackStatusListener.get()?.onNativePlayerError(error)
+        }
+    }
+
+    private fun mapPlaybackState(playbackState: Int): RmxPlaybackState {
+        return when (playbackState) {
+            Player.STATE_IDLE -> RmxPlaybackState.STOPPED
+            Player.STATE_BUFFERING -> {
+                if (player?.isPlaying == true) RmxPlaybackState.PLAYING else RmxPlaybackState.PREPARING
+            }
+            Player.STATE_READY -> {
+                if (seeking) {
+                    seeking = false
+                    if (player?.isPlaying == true) RmxPlaybackState.PLAYING else RmxPlaybackState.PAUSED
+                } else if (player?.isPlaying == true) {
+                    RmxPlaybackState.PLAYING
+                } else {
+                    RmxPlaybackState.PAUSED
+                }
+            }
+            Player.STATE_ENDED -> RmxPlaybackState.STOPPED
+            else -> RmxPlaybackState.PREPARING
+        }
+    }
+
+    private fun handleItemEnded() {
+        val track = currentItem
+        playbackStatusListener.get()?.onNativeItemCompleted(track)
+        if (!isNextAvailable) {
+            playbackStatusListener.get()?.onNativePlaylistCompleted()
+        }
+    }
+
+    init {
+        options = Options(application.baseContext)
+    }
+
     companion object {
+        const val INVALID_POSITION = -1
         private const val TAG = "PlaylistManager"
 
-        /**
-         * Computes the new position of the "current" item after moving an item from index
-         * [from] to index [to] (post-removal insertion semantics, i.e. matching
-         * `MutableList.removeAt(from)` followed by `MutableList.add(to, item)`).
-         *
-         * Pure function so it can be unit-tested without an Android/Application context.
-         */
         @JvmStatic
         fun adjustCurrentIndexForMove(currentIndex: Int, from: Int, to: Int, invalidPosition: Int): Int {
             if (currentIndex == invalidPosition) {
@@ -387,13 +622,6 @@ class PlaylistManager(application: Application) :
             return if (mid >= to) mid + 1 else mid
         }
 
-        /**
-         * Builds the [AudioTrack] that should replace [existing], backfilling `trackId` from
-         * [existing] when [replacement] doesn't specify one (an omitted id signals "keep the
-         * existing id" rather than "generate a new one").
-         *
-         * Pure function so it can be unit-tested without an Android/Application context.
-         */
         @JvmStatic
         fun mergeReplacementTrackId(existing: AudioTrack, replacement: AudioTrack): AudioTrack {
             val replacementConfig = replacement.toDict()
@@ -403,10 +631,4 @@ class PlaylistManager(application: Application) :
             return AudioTrack(replacementConfig)
         }
     }
-
-    init {
-        setParameters(audioTracks, 0)
-        options = Options(application.baseContext)
-    }
-
 }

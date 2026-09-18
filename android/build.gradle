@@ -84,15 +84,15 @@ dependencies {
     implementation "androidx.core:core-ktx:1.17.0"
     implementation "org.jetbrains.kotlin:kotlin-stdlib:${rootProject.ext.kotlin_version}"
 
-    // Image Exomedia
-    implementation 'com.devbrackets.android:exomedia:5.2.0'
+    def media3Version = '1.11.1'
+    implementation "androidx.media3:media3-exoplayer:$media3Version"
+    implementation "androidx.media3:media3-exoplayer-hls:$media3Version"
+    implementation "androidx.media3:media3-session:$media3Version"
 
-    // Image Loading
+    // Image Loading (artwork — Story 55.5 wires Glide into Media3 notification)
     implementation 'com.github.bumptech.glide:glide:5.0.5'
     annotationProcessor 'com.github.bumptech.glide:compiler:5.0.5'
 
-    // Playlist support
-    implementation 'com.devbrackets.android:playlistcore:2.2.0'
     implementation 'androidx.work:work-runtime-ktx:2.11.0'
 
 }

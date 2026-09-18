@@ -1,32 +1,29 @@
 package org.dwbn.plugins.playlist.data
 
-import com.devbrackets.android.playlistcore.annotation.SupportedMediaType
-import com.devbrackets.android.playlistcore.api.PlaylistItem
-import com.devbrackets.android.playlistcore.manager.BasePlaylistManager
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicLong
 
-class AudioTrack (private val config: JSONObject) : PlaylistItem {
+class AudioTrack(private val config: JSONObject) {
     companion object {
         private val nextPlaylistId = AtomicLong(1)
     }
 
-    override val id: Long = nextPlaylistId.getAndIncrement()
+    val id: Long = nextPlaylistId.getAndIncrement()
 
     var bufferPercentFloat = 0f
         set(buff) {
             // There is a bug in MediaProgress where if bufferPercent == 100 it sets bufferPercentFloat
             // to 100 instead of to 1.
-            field = Math.min(Math.max(bufferPercentFloat, buff), 1f)
+            field = minOf(maxOf(bufferPercentFloat, buff), 1f)
         }
     var bufferPercent = 0
         set(buff) {
-            field = Math.max(bufferPercent, buff)
+            field = maxOf(bufferPercent, buff)
         }
     var duration: Long = 0
         set(dur) {
-            field = Math.max(0, dur)
+            field = maxOf(0, dur)
         }
 
     fun toDict(): JSONObject {
@@ -39,7 +36,7 @@ class AudioTrack (private val config: JSONObject) : PlaylistItem {
             info.put("artist", artist)
             info.put("album", album)
             info.put("title", title)
-        } catch (e: JSONException) {
+        } catch (_: JSONException) {
             // I can think of no reason this would ever fail
         }
         return info
@@ -56,40 +53,32 @@ class AudioTrack (private val config: JSONObject) : PlaylistItem {
             } else trackId
         }
 
-    // Would really like to set this to true once the cache has it...
-    override val downloaded: Boolean
-        get() = false // Would really like to set this to true once the cache has it...
+    val downloaded: Boolean
+        get() = false
 
-    // ... at which point we can return a value here.
-    override val downloadedMediaUri: String?
-        get() = null // ... at which point we can return a value here.
+    val downloadedMediaUri: String?
+        get() = null
 
-    @get:SupportedMediaType
-    override val mediaType: Int
-        get() = BasePlaylistManager.AUDIO
-
-    override val mediaUrl: String
+    val mediaUrl: String
         get() = config.optString("assetUrl", "")
 
-    // we should have a good default here.
-    override val thumbnailUrl: String?
+    val thumbnailUrl: String?
         get() {
             val albumArt = config.optString("albumArt")
             return if (albumArt == "") {
                 null
-            } else albumArt // we should have a good default here.
+            } else albumArt
         }
 
-    override val artworkUrl: String?
+    val artworkUrl: String?
         get() = thumbnailUrl
 
-    override val title: String
+    val title: String
         get() = config.optString("title")
 
-    override val album: String
+    val album: String
         get() = config.optString("album")
 
-    override val artist: String
+    val artist: String
         get() = config.optString("artist")
-
 }

@@ -3,10 +3,10 @@ package org.dwbn.plugins.playlist
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import com.devbrackets.android.playlistcore.data.MediaProgress
 import com.getcapacitor.*
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.dwbn.plugins.playlist.data.AudioTrack
+import org.dwbn.plugins.playlist.manager.PlaybackProgress
 import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler
 import org.dwbn.plugins.playlist.service.MediaService
 import org.json.JSONArray
@@ -273,7 +273,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             val serviceForeground = MediaService.instance?.isRunningInForeground() == true
             if (handler == null || handler.currentMediaPlayer == null) {
                 val posMs = (audioPlayerImpl!!.getLastKnownPositionSec() * 1000f).toLong()
-                if (serviceForeground && handler is AudioPlaylistHandler<*, *>) {
+                if (serviceForeground && handler is AudioPlaylistHandler) {
                     handler.startItemPlayback(posMs, false)
                     Log.i(TAG, "play: re-armed via startItemPlayback at ${posMs}ms (FGS already foreground)")
                 } else {
@@ -407,7 +407,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     fun seekTo(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
             var position: Long = 0
-            val progress: MediaProgress? = audioPlayerImpl!!.playlistManager.currentProgress
+            val progress: PlaybackProgress? = audioPlayerImpl!!.playlistManager.getCurrentProgress()
             if (progress != null) {
                 position = progress.position
             }
