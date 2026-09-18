@@ -21,6 +21,10 @@ class MediaNotificationPolicyTest {
         assertTrue(MediaSessionService::class.java.isAssignableFrom(MediaService::class.java))
         assertFalse(MediaNotificationPolicy.shouldStartForegroundOnPromote())
         assertFalse(MediaNotificationPolicy.ALLOW_START_FOREGROUND_ON_PROMOTE)
+        assertEquals(
+            MediaSessionService.SHOW_NOTIFICATION_FOR_IDLE_PLAYER_ALWAYS,
+            MediaNotificationPolicy.SHOW_NOTIFICATION_WHEN_IDLE
+        )
     }
 
     @Test

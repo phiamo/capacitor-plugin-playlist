@@ -13,8 +13,17 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 object MediaNotificationPolicy {
     const val HANDLE_AUDIO_FOCUS = true
 
-    /** Media3 owns FGS; [MediaService.promoteToForeground] must not call [android.app.Service.startForeground]. */
+    /**
+     * [MediaService.promoteToForeground] must not call [android.app.Service.startForeground]
+     * (Android 12+ forbids restarting FGS from the background after video).
+     * [MediaService.onStartCommand] still must call [android.app.Service.startForeground]
+     * immediately after [android.content.Context.startForegroundService].
+     */
     const val ALLOW_START_FOREGROUND_ON_PROMOTE = false
+
+    /** Show Media3's session notification before playback is ready so FGS starts within the timeout. */
+    const val SHOW_NOTIFICATION_WHEN_IDLE =
+        androidx.media3.session.MediaSessionService.SHOW_NOTIFICATION_FOR_IDLE_PLAYER_ALWAYS
 
     val mediaNotificationProviderClass: Class<out DefaultMediaNotificationProvider>
         get() = DefaultMediaNotificationProvider::class.java

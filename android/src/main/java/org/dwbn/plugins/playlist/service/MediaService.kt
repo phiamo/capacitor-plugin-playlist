@@ -1,12 +1,17 @@
 package org.dwbn.plugins.playlist.service
 
 import android.annotation.SuppressLint
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.annotation.RequiresApi
+import androidx.core.app.NotificationCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
@@ -45,6 +50,7 @@ class MediaService : MediaSessionService() {
         val notificationProvider = DefaultMediaNotificationProvider.Builder(this).build()
         notificationProvider.setSmallIcon(android.R.drawable.ic_media_play)
         setMediaNotificationProvider(notificationProvider)
+        setShowNotificationForIdlePlayer(MediaNotificationPolicy.SHOW_NOTIFICATION_WHEN_IDLE)
 
         val player = ExoPlayer.Builder(this)
             .setAudioAttributes(
@@ -76,9 +82,9 @@ class MediaService : MediaSessionService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return try {
             val result = super.onStartCommand(intent, flags, startId)
-            val playing = exoPlayer?.playWhenReady == true
-            inForeground = playing
-            playlistManager.mediaServiceInForeground = playing
+            // startForegroundService requires startForeground before Android's timeout.
+            // Media3 may wait until STATE_READY; HLS buffering can exceed that window.
+            startForegroundImmediately()
             result
         } catch (e: IllegalStateException) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
@@ -132,6 +138,43 @@ class MediaService : MediaSessionService() {
 
     fun updateForegroundNotification() {
         // Media3 updates the session notification from MediaItem.MediaMetadata.
+    }
+
+    private fun startForegroundImmediately() {
+        val notification = buildImmediateNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID, notification)
+        }
+        inForeground = true
+        playlistManager.mediaServiceInForeground = true
+    }
+
+    private fun buildImmediateNotification(): Notification {
+        val channelId = DefaultMediaNotificationProvider.DEFAULT_CHANNEL_ID
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Audio playback",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+        val title = playlistManager.currentItem?.title?.takeIf { it.isNotEmpty() } ?: "Audio playback"
+        val builder = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(title)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        sessionActivityPendingIntent()?.let { builder.setContentIntent(it) }
+        return builder.build()
     }
 
     private fun sessionActivityPendingIntent(): PendingIntent? {
