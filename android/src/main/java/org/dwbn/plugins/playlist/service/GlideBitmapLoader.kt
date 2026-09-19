@@ -56,7 +56,7 @@ class GlideBitmapLoader(context: Context) : BitmapLoader {
             return null
         }
         val data = metadata.artworkData
-        if (data != null) {
+        if (data != null && data.isNotEmpty()) {
             return decodeBitmap(data)
         }
         val uri = metadata.artworkUri
@@ -109,8 +109,8 @@ class GlideBitmapLoader(context: Context) : BitmapLoader {
 
     companion object {
         @JvmStatic
-        fun isSupportedImageMimeType(mimeType: String): Boolean {
-            return mimeType.startsWith("image/", ignoreCase = true)
+        fun isSupportedImageMimeType(mimeType: String?): Boolean {
+            return !mimeType.isNullOrEmpty() && mimeType.startsWith("image/", ignoreCase = true)
         }
 
         @JvmStatic

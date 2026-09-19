@@ -54,7 +54,7 @@ object MediaNotificationPolicy {
 
     @JvmStatic
     fun hasNoLargeArtwork(artworkData: ByteArray?, artworkUri: String?): Boolean =
-        artworkData == null && !shouldLoadRemoteArtwork(artworkUri)
+        (artworkData == null || artworkData.isEmpty()) && !shouldLoadRemoteArtwork(artworkUri)
 
     @JvmStatic
     fun shouldSkipEndForeground(videoHandoffForegroundRetain: Boolean): Boolean =

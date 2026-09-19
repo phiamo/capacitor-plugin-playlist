@@ -38,6 +38,8 @@ class MediaNotificationPolicyTest {
     fun artworkMissing_hasNoLargeArt() {
         assertTrue(MediaNotificationPolicy.hasNoLargeArtwork(null, null))
         assertTrue(MediaNotificationPolicy.hasNoLargeArtwork(null, ""))
+        assertTrue(MediaNotificationPolicy.hasNoLargeArtwork(ByteArray(0), null))
+        assertFalse(MediaNotificationPolicy.hasNoLargeArtwork(ByteArray(0), "https://example.com/art.jpg"))
         assertFalse(MediaNotificationPolicy.shouldLoadRemoteArtwork(null))
         assertFalse(MediaNotificationPolicy.shouldLoadRemoteArtwork(""))
     }

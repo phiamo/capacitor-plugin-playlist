@@ -4,21 +4,33 @@ Capacitor plugin for **Android**, **iOS**, and **Web** with native audio playlis
 
 Requires **Capacitor 8+** (peer dependency `@capacitor/core >= 8.0.0`).
 
+## Versioning
+
+This plugin’s **npm version is not tied to the Capacitor major** (unlike `@brylsherbert/capacitor-video-player`, which uses Capacitor’s major in `8.x`). Pick a plugin release by feature line; satisfy the Capacitor peer in your app.
+
+| Plugin version | Meaning | Capacitor peer |
+|----------------|---------|----------------|
+| **0.11.x** | Last line on [npm](https://www.npmjs.com/package/capacitor-plugin-playlist) today (**0.11.4**). Android: ExoMedia + PlaylistCore. | 8+ |
+| **0.12.0** | Current release. Media3 Android stack (`MediaSessionService`); Capacitor 8+ peer; Capacitor JS API unchanged from 0.11.x. | 8+ |
+
+Older **0.8.x–0.10.x** entries in [CHANGELOG.md](./CHANGELOG.md) are historical release notes, not a target to “stay on 0.8 for Capacitor 8.”
+
 ## Index
 
 1. [Features](#features)
-2. [Background](#background)
-3. [Notes](#notes)
-4. [Installation](#installation)
-5. [Upgrading a host app (0.12.0)](#upgrading-a-host-app-0120)
-6. [Usage](#usage)
-7. [Events](#events)
-8. [Video handoff](#video-handoff)
-9. [API](#api)
-10. [Migrating from cordova-plugin-playlist](#migrating-from-cordova-plugin-playlist)
-11. [Changes](#changes)
-12. [Credits](#credits)
-13. [License](#license)
+2. [Versioning](#versioning)
+3. [Background](#background)
+4. [Notes](#notes)
+5. [Installation](#installation)
+6. [Upgrading a host app (0.12.0)](#upgrading-a-host-app-0120)
+7. [Usage](#usage)
+8. [Events](#events)
+9. [Video handoff](#video-handoff)
+10. [API](#api)
+11. [Migrating from cordova-plugin-playlist](#migrating-from-cordova-plugin-playlist)
+12. [Changes](#changes)
+13. [Credits](#credits)
+14. [License](#license)
 
 ## Features
 
@@ -234,6 +246,7 @@ Without `audio` background mode, iOS stops playback when the app backgrounds.
 
 ### From 0.11.x → 0.12.0
 
+For apps on the last **npm** line (**0.11.4**) moving to the Media3 line (**0.12.0**):
 - Remove host `implementation` lines for `com.devbrackets.android:playlistcore` and `com.devbrackets.android:exomedia` if you added them earlier. They are not used by 0.12.0 and reintroduce an old Media3 version.
 - Do **not** subclass PlaylistCore or call `startForeground` beside `MediaService` — Media3 owns the foreground service.
 - Remove `android:name="org.dwbn.plugins.playlist.App"` from `<application>` if still present (optional since 0.11.0).

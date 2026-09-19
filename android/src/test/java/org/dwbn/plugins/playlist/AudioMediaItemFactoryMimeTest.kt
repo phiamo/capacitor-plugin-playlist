@@ -43,6 +43,25 @@ class AudioMediaItemFactoryMimeTest {
     }
 
     @Test
+    fun fromAudioTrack_emptyTitle_fallsBackToAudioPlayback() {
+        val json = JSONObject()
+        json.put("assetUrl", "https://example.com/lecture.mp3")
+        val item = AudioMediaItemFactory.fromAudioTrack(AudioTrack(json))
+        assertEquals("Audio playback", item.mediaMetadata.title.toString())
+    }
+
+    @Test
+    fun fromAudioTrack_setsArtworkUriFromAlbumArt() {
+        val json = JSONObject()
+        json.put("assetUrl", "https://example.com/lecture.mp3")
+        json.put("albumArt", "https://example.com/art.jpg")
+        json.put("title", "Lecture")
+        val item = AudioMediaItemFactory.fromAudioTrack(AudioTrack(json))
+        assertEquals("https://example.com/art.jpg", item.mediaMetadata.artworkUri.toString())
+        assertEquals("Lecture", item.mediaMetadata.title.toString())
+    }
+
+    @Test
     fun nullUrl_doesNotThrow() {
         val item = AudioMediaItemFactory.fromUrl(null, true)
         assertNull(item.localConfiguration?.mimeType)
