@@ -45,6 +45,33 @@ class VideoPlayerBridgeTest {
         assertTrue(notifications > 0)
     }
 
+    @Test
+    fun reAttach_replacesPreviousPlayer() {
+        val first = dummyPlayer()
+        val second = dummyPlayer()
+        VideoPlayerBridge.attach(first)
+        VideoPlayerBridge.attach(second)
+        assertSame(second, VideoPlayerBridge.activePlayer())
+    }
+
+    @Test
+    fun detach_notifiesPlaybackChangedListeners() {
+        val player = dummyPlayer()
+        var notifications = 0
+        VideoPlayerBridge.addPlaybackChangedListener { notifications++ }
+        VideoPlayerBridge.attach(player)
+        val afterAttach = notifications
+        VideoPlayerBridge.detach(player)
+        assertTrue(notifications > afterAttach)
+    }
+
+    @Test
+    fun detachNull_clearsActivePlayer() {
+        VideoPlayerBridge.attach(dummyPlayer())
+        VideoPlayerBridge.detach(null)
+        assertFalse(VideoPlayerBridge.hasActivePlayer())
+    }
+
     private fun dummyPlayer(): Player =
         Proxy.newProxyInstance(Player::class.java.classLoader, arrayOf(Player::class.java)) { _, method, _ ->
             when (method.returnType) {

@@ -577,11 +577,8 @@ class PlaylistManager(private val application: Application) {
             return
         }
         val resume = PlaylistPlaybackPolicy.playWhenReadyAfterErrorSkip(exoPlayer.playWhenReady, failedIndex)
-        if (failedIndex + 1 >= audioTracks.size) {
-            exoPlayer.seekTo(0, 0)
-        } else {
-            exoPlayer.seekTo(failedIndex + 1, 0)
-        }
+        val targetIndex = PlaylistPlaybackPolicy.errorSkipWindowIndex(failedIndex, audioTracks.size)
+        exoPlayer.seekTo(targetIndex, 0)
         exoPlayer.prepare()
         exoPlayer.playWhenReady = resume && !videoHandoffForegroundRetain
     }

@@ -77,4 +77,25 @@ class PlaylistPlaybackPolicyTest {
         assertFalse(PlaylistPlaybackPolicy.shouldJumpToLiveEdge(false, isStream = true, isLive = true))
         assertFalse(PlaylistPlaybackPolicy.shouldJumpToLiveEdge(true, isStream = false, isLive = true))
     }
+
+    @Test
+    fun errorSkipWindowIndex_midListAndWrapToStart() {
+        assertEquals(2, PlaylistPlaybackPolicy.errorSkipWindowIndex(failedIndex = 1, itemCount = 5))
+        assertEquals(0, PlaylistPlaybackPolicy.errorSkipWindowIndex(failedIndex = 4, itemCount = 5))
+    }
+
+    @Test
+    fun errorSkipWindowIndex_emptyListReturnsZero() {
+        assertEquals(0, PlaylistPlaybackPolicy.errorSkipWindowIndex(failedIndex = 0, itemCount = 0))
+    }
+
+    @Test
+    fun nextAvailable_emptyPlaylist_isFalse() {
+        assertFalse(PlaylistPlaybackPolicy.nextAvailable(0, itemCount = 0, loop = true))
+    }
+
+    @Test
+    fun repeatMode_emptyPlaylist_isOff() {
+        assertEquals(Player.REPEAT_MODE_OFF, PlaylistPlaybackPolicy.repeatMode(loop = true, itemCount = 0))
+    }
 }

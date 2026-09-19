@@ -27,6 +27,18 @@ object PlaylistPlaybackPolicy {
         return if (isAtEnd) loop else index + 1 in 0 until itemCount
     }
 
+    /**
+     * Window index for [Player.seekTo] after a failed item, matching [PlaylistManager.skipFailedItem]:
+     * next item, or wrap to 0 at the end of the list.
+     */
+    @JvmStatic
+    fun errorSkipWindowIndex(failedIndex: Int, itemCount: Int): Int {
+        if (itemCount <= 0) {
+            return 0
+        }
+        return if (failedIndex + 1 >= itemCount) 0 else failedIndex + 1
+    }
+
     @JvmStatic
     fun previousAvailable(index: Int, loop: Boolean): Boolean = index > 0 || loop
 

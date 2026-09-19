@@ -80,6 +80,7 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
+    testImplementation "org.robolectric:robolectric:4.17"
     // Real org.json implementation for plain JVM unit tests: the android.jar stub used for
     // compilation throws "Stub!" for org.json.* at runtime outside instrumented/Robolectric tests.
     testImplementation "org.json:json:20260814"
