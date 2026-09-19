@@ -93,7 +93,11 @@ public class AudioPlaylistHandler {
 
     /** Pause for video without tearing down the foreground service (Epic 45 / Story 55.6). */
     public void pauseForVideoHandoff() {
-        Player player = playlistManager.getPlayer();
+        pauseForVideoHandoff(playlistManager.getPlayer());
+    }
+
+    /** Visible for JVM tests — pauses even when {@code isPlaying} is false. */
+    static void pauseForVideoHandoff(@Nullable Player player) {
         if (player != null && MediaNotificationPolicy.shouldPauseForVideoHandoff(player.isPlaying())) {
             player.setPlayWhenReady(false);
         }

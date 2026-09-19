@@ -14,7 +14,6 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.DefaultMediaNotificationProvider
@@ -65,7 +64,10 @@ class MediaService : MediaSessionService() {
             .build()
         exoPlayer = player
 
-        val sessionBuilder = MediaSession.Builder(this, HandoffForwardingPlayer(player))
+        val sessionBuilder = MediaSession.Builder(
+            this,
+            HandoffForwardingPlayer(player) { playlistManager.videoHandoffForegroundRetain }
+        )
             .setBitmapLoader(GlideBitmapLoader(this))
         sessionActivityPendingIntent()?.let { sessionBuilder.setSessionActivity(it) }
         val session = sessionBuilder.build()
@@ -135,10 +137,8 @@ class MediaService : MediaSessionService() {
         )
         try {
             super.onUpdateNotification(session, required)
-            if (required) {
-                inForeground = true
-                playlistManager.mediaServiceInForeground = true
-            }
+            inForeground = required
+            playlistManager.mediaServiceInForeground = required
         } catch (e: IllegalStateException) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                 e is android.app.ForegroundServiceStartNotAllowedException
@@ -226,22 +226,4 @@ class MediaService : MediaSessionService() {
         }
     }
 
-    /** Blocks MediaSession / notification play while video owns focus (Story 55.6). */
-    private inner class HandoffForwardingPlayer(player: ExoPlayer) : ForwardingPlayer(player) {
-        override fun play() {
-            if (MediaNotificationPolicy.shouldIgnoreSessionPlay(playlistManager.videoHandoffForegroundRetain)) {
-                return
-            }
-            super.play()
-        }
-
-        override fun setPlayWhenReady(playWhenReady: Boolean) {
-            if (playWhenReady &&
-                MediaNotificationPolicy.shouldIgnoreSessionPlay(playlistManager.videoHandoffForegroundRetain)
-            ) {
-                return
-            }
-            super.setPlayWhenReady(playWhenReady)
-        }
-    }
 }

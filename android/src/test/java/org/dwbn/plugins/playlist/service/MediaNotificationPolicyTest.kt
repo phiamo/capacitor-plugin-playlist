@@ -165,4 +165,9 @@ class MediaNotificationPolicyTest {
             )
         )
     }
+
+    @Test
+    fun failedInPlaceResume_doesNotBeginPlayback() {
+        assertFalse(MediaNotificationPolicy.shouldBeginPlaybackWhenInPlaceUnavailable())
+    }
 }

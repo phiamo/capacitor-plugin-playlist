@@ -405,7 +405,7 @@ await Playlist.play(); // when ready
 |------|---------|-----|-----|
 | `prepareForVideoHandoff` | Pause, abandon audio focus, store position via `MediaProgress` | Pause, store track time, `AVAudioSession.setActive(false)` | Pause HTMLAudioElement, store `currentTime` |
 | `getLastKnownPosition` | Returns stored handoff position (seconds) | Same | Same |
-| `resumeAfterVideoHandoff` (no prewarm) | Re-request focus; in-place resume if FGS still foreground from prewarm, else `beginPlayback` | Reactivate audio session; reset track-id guard for PLAYING events | Store position only |
+| `resumeAfterVideoHandoff` (no prewarm) | In-place play-then-seek if FGS still foreground (retain starts on `prepareForVideoHandoff`); otherwise `{ resumed: false }` so JS may play/seek | Reactivate audio session; reset track-id guard for PLAYING events | Store position only |
 | `resumeAfterVideoHandoff` (prewarm) | Silent FGS + prepare at position, no focus/play | No-op | N/A |
 | After resume | Call `play()` to start audible playback | Call `play()` to start audible playback | Call `play()` on web player |
 
@@ -1188,7 +1188,7 @@ that were in the previous list.
 
 | Prop          | Type                 | Description                                                                                                                                                                                                                                       |
 | ------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`resumed`** | <code>boolean</code> | `true` when native already handled seek (and play when requested) in place. When `true`, JS should skip redundant `seekTo` / `play` to avoid a stutter. `false` on web, prewarm, paused Android handoff, and Android last-resort `beginPlayback`. |
+| **`resumed`** | <code>boolean</code> | `true` when native already handled seek (and play when requested) in place. When `true`, JS should skip redundant `seekTo` / `play` to avoid a stutter. `false` on web, prewarm, paused Android handoff, and when in-place resume is unavailable (JS may play/seek; native does not last-resort `beginPlayback`). |
 
 
 #### ResumeAfterVideoHandoffOptions

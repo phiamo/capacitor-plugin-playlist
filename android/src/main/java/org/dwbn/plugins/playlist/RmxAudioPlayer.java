@@ -472,6 +472,9 @@ public class RmxAudioPlayer implements MediaControlsListener {
             return true;
         }
         playlistManager.setVideoHandoffForegroundRetain(false);
+        if (MediaNotificationPolicy.shouldBeginPlaybackWhenInPlaceUnavailable()) {
+            playlistManager.beginPlayback(positionMs, true);
+        }
         return false;
     }
 

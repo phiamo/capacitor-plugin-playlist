@@ -98,6 +98,13 @@ object MediaNotificationPolicy {
     @JvmStatic
     fun lastKnownPositionSec(handoffPositionSec: Float): Float = handoffPositionSec
 
+    /**
+     * Failed in-place resume must not last-resort [org.dwbn.plugins.playlist.manager.PlaylistManager.beginPlayback]
+     * (Android 12+ forbids starting FGS from the background after video). JS may play/seek.
+     */
+    @JvmStatic
+    fun shouldBeginPlaybackWhenInPlaceUnavailable(): Boolean = false
+
     @JvmStatic
     fun sessionLaunchIntentFlags(): Int =
         Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
