@@ -68,4 +68,101 @@ class MediaNotificationPolicyTest {
         assertTrue(MediaNotificationPolicy.shouldSkipEndForeground(true))
         assertFalse(MediaNotificationPolicy.shouldSkipEndForeground(false))
     }
+
+    @Test
+    fun prepareForVideoHandoff_pausesRegardlessOfIsPlaying() {
+        assertTrue(MediaNotificationPolicy.shouldPauseForVideoHandoff(true))
+        assertTrue(MediaNotificationPolicy.shouldPauseForVideoHandoff(false))
+    }
+
+    @Test
+    fun prepareForVideoHandoff_retainsForeground() {
+        assertTrue(MediaNotificationPolicy.shouldRetainForegroundOnPrepare())
+    }
+
+    @Test
+    fun retain_forcesNotificationForegroundPastMedia3Timeout() {
+        assertTrue(MediaNotificationPolicy.shouldForceNotificationForeground(true))
+        assertFalse(MediaNotificationPolicy.shouldForceNotificationForeground(false))
+        assertTrue(
+            MediaNotificationPolicy.startInForegroundRequired(
+                videoHandoffForegroundRetain = true,
+                media3Requested = false
+            )
+        )
+        assertTrue(
+            MediaNotificationPolicy.startInForegroundRequired(
+                videoHandoffForegroundRetain = true,
+                media3Requested = true
+            )
+        )
+        assertFalse(
+            MediaNotificationPolicy.startInForegroundRequired(
+                videoHandoffForegroundRetain = false,
+                media3Requested = false
+            )
+        )
+        assertTrue(
+            MediaNotificationPolicy.startInForegroundRequired(
+                videoHandoffForegroundRetain = false,
+                media3Requested = true
+            )
+        )
+        assertTrue(
+            MediaService::class.java.declaredMethods.any { it.name == "onUpdateNotification" }
+        )
+    }
+
+    @Test
+    fun retain_ignoresSessionPlay() {
+        assertTrue(MediaNotificationPolicy.shouldIgnoreSessionPlay(true))
+        assertFalse(MediaNotificationPolicy.shouldIgnoreSessionPlay(false))
+    }
+
+    @Test
+    fun audibleResume_playsThenSeeks() {
+        assertTrue(MediaNotificationPolicy.shouldPlayThenSeekOnResume())
+    }
+
+    @Test
+    fun lastKnownPosition_isHandoffSnapshot() {
+        assertEquals(42.5f, MediaNotificationPolicy.lastKnownPositionSec(42.5f), 0f)
+        assertEquals(0f, MediaNotificationPolicy.lastKnownPositionSec(0f), 0f)
+    }
+
+    @Test
+    fun resume_reportsInPlaceOnlyWhenForegroundUp() {
+        assertTrue(
+            MediaNotificationPolicy.shouldReportInPlaceResumed(
+                prewarm = false,
+                play = true,
+                retain = true,
+                serviceInForeground = true
+            )
+        )
+        assertFalse(
+            MediaNotificationPolicy.shouldReportInPlaceResumed(
+                prewarm = true,
+                play = true,
+                retain = true,
+                serviceInForeground = true
+            )
+        )
+        assertFalse(
+            MediaNotificationPolicy.shouldReportInPlaceResumed(
+                prewarm = false,
+                play = true,
+                retain = true,
+                serviceInForeground = false
+            )
+        )
+        assertFalse(
+            MediaNotificationPolicy.shouldReportInPlaceResumed(
+                prewarm = false,
+                play = false,
+                retain = true,
+                serviceInForeground = true
+            )
+        )
+    }
 }

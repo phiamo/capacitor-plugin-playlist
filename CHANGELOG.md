@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.12.0
+
+- Feat (Android): Media3 video handoff — retain the foreground service on `prepareForVideoHandoff` (teaching-sequence path has no prewarm), pause even while buffering so audio focus drops, keep the notification in the foreground past Media3's 10-minute FGS cap, ignore MediaSession play during video, and play-then-seek on audible in-place resume. JS API unchanged (`prepareForVideoHandoff` / `resumeAfterVideoHandoff` / `getLastKnownPosition`).
+
 ## 0.11.4
 
 - Fix (Android): apply `kotlin-android` only for standalone/CI builds (AGP < 9); AGP 9+ consuming apps use built-in Kotlin.

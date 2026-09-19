@@ -31,7 +31,7 @@ public class AudioPlaylistHandler {
     }
 
     public void play() {
-        if (playlistManager.isVideoHandoffPrewarmActive()) {
+        if (MediaNotificationPolicy.shouldIgnoreSessionPlay(playlistManager.isVideoHandoffPrewarmActive())) {
             playlistManager.ensureForeground();
             return;
         }
@@ -81,7 +81,7 @@ public class AudioPlaylistHandler {
 
     /**
      * Resume at {@code positionMs} after native video ends. Media3 {@code handleAudioFocus} owns
-     * focus; Story 55.6 rewrites full handoff behaviour.
+     * focus. Clears retain before audible play, then play-then-seek.
      */
     public void resumePlaybackAfterVideoHandoff(long positionMs) {
         playlistManager.setVideoHandoffForegroundRetain(false);
@@ -91,10 +91,10 @@ public class AudioPlaylistHandler {
         }
     }
 
-    /** Pause for video without tearing down the foreground service (Epic 45). */
+    /** Pause for video without tearing down the foreground service (Epic 45 / Story 55.6). */
     public void pauseForVideoHandoff() {
         Player player = playlistManager.getPlayer();
-        if (player != null && player.isPlaying()) {
+        if (player != null && MediaNotificationPolicy.shouldPauseForVideoHandoff(player.isPlaying())) {
             player.setPlayWhenReady(false);
         }
     }

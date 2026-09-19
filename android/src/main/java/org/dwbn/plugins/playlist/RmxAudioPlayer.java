@@ -20,6 +20,7 @@ import org.dwbn.plugins.playlist.manager.PlaybackProgress;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
 import org.dwbn.plugins.playlist.manager.RmxPlaybackState;
 import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler;
+import org.dwbn.plugins.playlist.service.MediaNotificationPolicy;
 import org.dwbn.plugins.playlist.service.MediaService;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -434,6 +435,9 @@ public class RmxAudioPlayer implements MediaControlsListener {
             lastKnownHandoffPositionSec = progress.getPosition() / 1000f;
         } else {
             lastKnownHandoffPositionSec = 0f;
+        }
+        if (MediaNotificationPolicy.shouldRetainForegroundOnPrepare()) {
+            playlistManager.setVideoHandoffForegroundRetain(true);
         }
         AudioPlaylistHandler handler = playlistManager.getPlaylistHandler();
         if (handler != null) {

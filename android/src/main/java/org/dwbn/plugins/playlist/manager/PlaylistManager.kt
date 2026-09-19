@@ -495,6 +495,14 @@ class PlaylistManager(private val application: Application) {
             }
         }
 
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (playWhenReady &&
+                MediaNotificationPolicy.shouldIgnoreSessionPlay(videoHandoffForegroundRetain)
+            ) {
+                player?.playWhenReady = false
+            }
+        }
+
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (isPlaying) {
                 rmxPlaybackState = RmxPlaybackState.PLAYING
