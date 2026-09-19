@@ -27,7 +27,8 @@ public final class AudioMediaItemFactory {
   }
 
   private static MediaItem fromUrl(String url, boolean isStream, AudioTrack track) {
-    MediaItem.Builder builder = new MediaItem.Builder().setUri(Uri.parse(url));
+    Uri uri = (url == null || url.isEmpty()) ? Uri.EMPTY : Uri.parse(url);
+    MediaItem.Builder builder = new MediaItem.Builder().setUri(uri);
     if (track != null && track.getTrackId() != null) {
       builder.setMediaId(track.getTrackId());
     }

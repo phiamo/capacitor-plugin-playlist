@@ -10,14 +10,15 @@ Requires **Capacitor 8+** (peer dependency `@capacitor/core >= 8.0.0`).
 2. [Background](#background)
 3. [Notes](#notes)
 4. [Installation](#installation)
-5. [Usage](#usage)
-6. [Events](#events)
-7. [Video handoff](#video-handoff)
-8. [API](#api)
-9. [Migrating from cordova-plugin-playlist](#migrating-from-cordova-plugin-playlist)
-10. [Changes](#changes)
-11. [Credits](#credits)
-12. [License](#license)
+5. [Upgrading a host app (0.12.0)](#upgrading-a-host-app-0120)
+6. [Usage](#usage)
+7. [Events](#events)
+8. [Video handoff](#video-handoff)
+9. [API](#api)
+10. [Migrating from cordova-plugin-playlist](#migrating-from-cordova-plugin-playlist)
+11. [Changes](#changes)
+12. [Credits](#credits)
+13. [License](#license)
 
 ## Features
 
@@ -45,7 +46,7 @@ Requires **Capacitor 8+** (peer dependency `@capacitor/core >= 8.0.0`).
 
 | Platform | Engine | OS controls |
 |----------|--------|-------------|
-| Android | [ExoMedia](https://github.com/brianwernick/ExoMedia) + [PlaylistCore](https://github.com/brianwernick/PlaylistCore) | MediaStyle notification, MediaSession, foreground `mediaPlayback` service |
+| Android | [androidx.media3](https://developer.android.com/jetpack/androidx/releases/media3) **1.11.1** (`ExoPlayer` + `MediaSessionService` + `DefaultMediaNotificationProvider`) | MediaStyle notification, MediaSession, foreground `mediaPlayback` service |
 | iOS | Custom `AVBidirectionalQueuePlayer` | Lock screen + Control Center via `MPNowPlayingInfoCenter` / `MPRemoteCommandCenter` |
 | Web | HTMLAudioElement + optional HLS.js | Browser media controls only |
 
@@ -97,7 +98,7 @@ Forked from [cordova-plugin-playlist](https://github.com/Rolamix/cordova-plugin-
 
 ### Android
 
-Uses ExoMedia (ExoPlayer wrapper) with PlaylistCore for notification and MediaSession integration.
+Uses Media3 `ExoPlayer` inside `MediaService` (`MediaSessionService`). Notification and lock-screen controls come from Media3 `DefaultMediaNotificationProvider`. Media session id is `org.dwbn.playlist` (keep distinct from video plugins that use `org.dwbn.video`). The notification channel (`Audio playback`) is created by the plugin — hosts do not configure it.
 
 ### iOS
 
@@ -147,24 +148,7 @@ Keep your application's existing Android `Application` class. The legacy `org.dw
 
 #### Gradle 9+
 
-Ensure the Kotlin plugin is declared in your root `android/build.gradle` (this plugin no longer ships its own `buildscript` block):
-
-```gradle
-buildscript {
-    ext.kotlin_version = '2.3.0'
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.2'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-    }
-}
-ext {
-    kotlin_version = '2.3.0'
-}
-```
+On **AGP 9+**, Kotlin is built into the Android Gradle Plugin — do **not** add an extra `kotlin-android` plugin in your host app because of this plugin (see [CHANGELOG 0.11.4](./CHANGELOG.md)). Match your project's existing AGP/Kotlin setup.
 
 #### Glide (notification album art)
 
@@ -212,6 +196,52 @@ Add to `Info.plist`:
 ```
 
 Without `audio` background mode, iOS stops playback when the app backgrounds.
+
+## Upgrading a host app (0.12.0)
+
+**Capacitor / JavaScript:** no changes — `Playlist`, `RmxAudioPlayer`, status events, and video handoff method names behave as before.
+
+**Android host app:** update Gradle and manifest as below, then `npx cap sync android`.
+
+### Always (Android 0.12.0+)
+
+1. Bump the plugin to **0.12.0** (or newer) and run `npx cap sync android`.
+2. **Pin one Media3 version** if your app also uses `@brylsherbert/capacitor-video-player` or other Media3 libraries. Gradle can otherwise unify to an old transitive (pre-0.12.0 ExoMedia pulled Media3 1.5.1). In `android/variables.gradle` (or `ext`):
+
+   ```gradle
+   media3Version = '1.11.1'
+   ```
+
+   In the root `android/build.gradle`:
+
+   ```gradle
+   allprojects {
+       configurations.configureEach {
+           resolutionStrategy {
+               eachDependency { details ->
+                   if (details.requested.group == 'androidx.media3') {
+                       details.useVersion rootProject.ext.media3Version
+                   }
+               }
+           }
+       }
+   }
+   ```
+
+3. **Do not** add `com.google.android.exoplayer:exoplayer-*:2.x` in your app module.
+4. **Android 13+ (API 33+):** declare `android.permission.POST_NOTIFICATIONS` in your **host** `AndroidManifest.xml` and request it at runtime when not granted. This plugin does not merge that permission — without it, media notifications may not appear.
+5. Minimum SDK **24** (unchanged).
+
+### From 0.11.x → 0.12.0
+
+- Remove host `implementation` lines for `com.devbrackets.android:playlistcore` and `com.devbrackets.android:exomedia` if you added them earlier. They are not used by 0.12.0 and reintroduce an old Media3 version.
+- Do **not** subclass PlaylistCore or call `startForeground` beside `MediaService` — Media3 owns the foreground service.
+- Remove `android:name="org.dwbn.plugins.playlist.App"` from `<application>` if still present (optional since 0.11.0).
+- **Video handoff:** from 0.12.0, foreground retain starts on `prepareForVideoHandoff`. Existing JS that uses `prewarm: true` still works; prewarm is optional, not required for every flow.
+
+### Audio + video in one app
+
+Ship playlist **0.12.0** and video **8.3.0** in the **same** app release. Mixed Media3 versions in one APK are unsupported. Keep session ids distinct: playlist `org.dwbn.playlist`, video `org.dwbn.video`.
 
 ## Usage
 
@@ -364,9 +394,11 @@ await Playlist.resumeAfterVideoHandoff({ position: videoPosition });
 await Playlist.play(); // if user should resume audible playback
 ```
 
-### Recommended Android sequence (with prewarm)
+### Optional Android sequence (prewarm)
 
-On Android 14+ (especially Android 17), starting or re-promoting the media foreground service from the background can fail or mute playback. **Prewarm while the app is still visible** before video starts:
+From **0.12.0**, the foreground service is retained when you call `prepareForVideoHandoff`, so many apps can use the [basic sequence](#basic-sequence) only. On older Android versions or if you still see focus/FGS edge cases, you may **optionally** prewarm before video:
+
+On Android 14+ (especially Android 17), starting or re-promoting the media foreground service from the background can still fail in some flows. **Prewarm while the app is still visible** if you need it:
 
 ```typescript
 // 1. Release audio focus
@@ -418,7 +450,7 @@ await Playlist.play(); // when ready
 ### Integration checklist
 
 1. Call `prepareForVideoHandoff()` **immediately before** your native video player starts — never after.
-2. On Android, call `resumeAfterVideoHandoff({ position, prewarm: true })` **after prepare and before video init**, while the WebView is still foregrounded.
+2. **(Optional, Android)** Call `resumeAfterVideoHandoff({ position, prewarm: true })` after prepare and before video init while the WebView is foregrounded — only if you need prewarm (see [0.12.0 retain](#platform-behaviour)).
 3. On video exit, call `resumeAfterVideoHandoff({ position })` **without** `prewarm`, then `play()` if playback should resume.
 4. `resumeAfterVideoHandoff` must complete before `seekTo()` / `play()` on the audio side.
 5. Do not call `Playlist.release()` between prepare and resume unless you intend to tear down the native player entirely.
@@ -428,8 +460,8 @@ await Playlist.play(); // when ready
 
 | Symptom | Likely cause |
 |---------|----------------|
-| Video has no sound shortly after start | Audio re-requested focus after prepare; use Android `prewarm: true` before video starts |
-| Audio silent after long video session | FGS stopped while backgrounded; prewarm before video + in-place resume on exit (0.8.10+) |
+| Video has no sound shortly after start | Audio re-requested focus after prepare; try optional Android `prewarm: true` before video, or ensure 0.12.0+ retain on `prepareForVideoHandoff` |
+| Audio silent after long video session | FGS stopped while backgrounded; use 0.12.0+ retain and in-place resume on exit; optional prewarm before long video |
 | JS stuck in PAUSED after video (iOS, index > 0) | Missing `play()` after resume, or PLAYING event suppressed — fixed in 0.8.11 |
 | `PLAYBACK_POSITION` flood after background | Expected — position events suppressed while WebView backgrounded (0.9.1+) |
 
@@ -1235,8 +1267,7 @@ Inspired by:
 
 - [cordova-plugin-playlist](https://github.com/Rolamix/cordova-plugin-playlist)
 - [cordova-plugin-media](https://github.com/apache/cordova-plugin-media)
-- [ExoMedia](https://github.com/brianwernick/ExoMedia)
-- [PlaylistCore](https://github.com/brianwernick/PlaylistCore)
+- [ExoMedia](https://github.com/brianwernick/ExoMedia) and [PlaylistCore](https://github.com/brianwernick/PlaylistCore) — pre-0.12.0 Android stack only; replaced by Media3 in 0.12.0
 - [Bi-Directional AVQueuePlayer](https://github.com/jrtaal/AVBidirectionalQueuePlayer)
 - [cordova-music-controls-plugin](https://github.com/homerours/cordova-music-controls-plugin)
 

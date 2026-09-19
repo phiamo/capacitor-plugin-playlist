@@ -4,7 +4,17 @@
 
 ## 0.12.0
 
+- Feat (Android): Replace ExoMedia + PlaylistCore with **androidx.media3** 1.11.1 — `MediaService` extends `MediaSessionService`, playlist is ExoPlayer `MediaItem` list, notification via `DefaultMediaNotificationProvider`. Capacitor JS API unchanged.
 - Feat (Android): Media3 video handoff — retain the foreground service on `prepareForVideoHandoff` (teaching-sequence path has no prewarm), pause even while buffering so audio focus drops, keep the notification in the foreground past Media3's 10-minute FGS cap, ignore MediaSession play during video, and play-then-seek on audible in-place resume. JS API unchanged (`prepareForVideoHandoff` / `resumeAfterVideoHandoff` / `getLastKnownPosition`).
+
+### Notes for host apps
+
+- Run `npx cap sync android` after bumping to 0.12.0.
+- Pin `media3Version = '1.11.1'` and force every `androidx.media3` module in the host Gradle (see README [Upgrading a host app (0.12.0)](./README.md#upgrading-a-host-app-0120)).
+- Remove host dependencies on `playlistcore` / `exomedia` if present. Do not add ExoPlayer 2.x artifacts.
+- Declare `POST_NOTIFICATIONS` in the host manifest and request at runtime on API 33+.
+- Remove `android:name="org.dwbn.plugins.playlist.App"` if still set. Do not call `startForeground` beside `MediaService`.
+- If the app also uses `@brylsherbert/capacitor-video-player`, ship video **8.3.0** in the same release. No Capacitor/JS changes required.
 
 ## 0.11.4
 

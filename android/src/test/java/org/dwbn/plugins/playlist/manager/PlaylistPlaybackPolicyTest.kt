@@ -34,9 +34,14 @@ class PlaylistPlaybackPolicyTest {
 
     @Test
     fun previousAvailable_atStartOnlyWhenLooping() {
-        assertFalse(PlaylistPlaybackPolicy.previousAvailable(0, loop = false))
-        assertTrue(PlaylistPlaybackPolicy.previousAvailable(0, loop = true))
-        assertTrue(PlaylistPlaybackPolicy.previousAvailable(1, loop = false))
+        assertFalse(PlaylistPlaybackPolicy.previousAvailable(0, loop = false, itemCount = 3))
+        assertTrue(PlaylistPlaybackPolicy.previousAvailable(0, loop = true, itemCount = 3))
+        assertTrue(PlaylistPlaybackPolicy.previousAvailable(1, loop = false, itemCount = 3))
+    }
+
+    @Test
+    fun previousAvailable_emptyPlaylist_isFalse() {
+        assertFalse(PlaylistPlaybackPolicy.previousAvailable(0, loop = true, itemCount = 0))
     }
 
     @Test

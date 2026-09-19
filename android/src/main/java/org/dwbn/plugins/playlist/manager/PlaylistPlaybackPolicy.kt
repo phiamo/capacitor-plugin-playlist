@@ -40,7 +40,12 @@ object PlaylistPlaybackPolicy {
     }
 
     @JvmStatic
-    fun previousAvailable(index: Int, loop: Boolean): Boolean = index > 0 || loop
+    fun previousAvailable(index: Int, loop: Boolean, itemCount: Int): Boolean {
+        if (itemCount <= 0) {
+            return false
+        }
+        return index > 0 || loop
+    }
 
     /** An item played to its end and the player moved on by itself (not a seek or list change). */
     @JvmStatic

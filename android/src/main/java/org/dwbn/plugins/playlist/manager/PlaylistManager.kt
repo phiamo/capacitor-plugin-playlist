@@ -156,7 +156,8 @@ class PlaylistManager(private val application: Application) {
     val isPreviousAvailable: Boolean
         get() = PlaylistPlaybackPolicy.previousAvailable(
             player?.currentMediaItemIndex ?: currentPosition,
-            loop
+            loop,
+            audioTracks.size
         )
 
     fun invokeNext() {
@@ -313,6 +314,7 @@ class PlaylistManager(private val application: Application) {
         player?.pause()
 
         var removingCurrent = false
+        val current = currentItem
         val progress = getCurrentProgress()
         val seekPosition: Long = progress?.position ?: 0
 
@@ -320,7 +322,7 @@ class PlaylistManager(private val application: Application) {
         var foundItem: AudioTrack? = null
         if (resolvedIndex >= 0) {
             foundItem = audioTracks[resolvedIndex]
-            if (foundItem == currentItem) {
+            if (foundItem == current) {
                 removingCurrent = true
             }
             audioTracks.removeAt(resolvedIndex)
@@ -330,7 +332,7 @@ class PlaylistManager(private val application: Application) {
         currentPosition = if (removingCurrent) {
             (player?.currentMediaItemIndex ?: INVALID_POSITION).coerceAtLeast(0)
         } else {
-            audioTracks.indexOf(currentItem)
+            audioTracks.indexOf(current)
         }
 
         val seekStart = if (removingCurrent) 0 else seekPosition
@@ -368,7 +370,7 @@ class PlaylistManager(private val application: Application) {
         currentPosition = if (removingCurrent) {
             (player?.currentMediaItemIndex ?: INVALID_POSITION).coerceAtLeast(0)
         } else {
-            audioTracks.indexOf(currentItem)
+            audioTracks.indexOf(current)
         }
 
         val seekStart = if (removingCurrent) 0 else seekPosition

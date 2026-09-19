@@ -150,27 +150,10 @@ public class RmxAudioPlayer implements MediaControlsListener {
 
     @OptIn(markerClass = UnstableApi.class)
     public void onNativePlayerError(PlaybackException e) {
-        String errorMsg = e.toString();
-        RmxAudioErrorType errorType = RmxAudioErrorType.RMXERR_NONE_SUPPORTED;
-
-        switch (e.errorCode) {
-            case PlaybackException.ERROR_CODE_DECODER_INIT_FAILED:
-            case PlaybackException.ERROR_CODE_DECODING_FAILED:
-            case PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED:
-                errorType = RmxAudioErrorType.RMXERR_DECODE;
-                errorMsg = "PlaybackException: " + e.getMessage();
-                break;
-            case PlaybackException.ERROR_CODE_IO_UNSPECIFIED:
-            case PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED:
-            case PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT:
-            case PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS:
-            case PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND:
-                errorMsg = "PlaybackException.TYPE_SOURCE: " + e.getMessage();
-                break;
-            default:
-                errorMsg = "PlaybackException: " + e.getMessage();
-                break;
-        }
+        RmxAudioErrorType errorType = RmxPlaybackErrorMapper.fromMedia3ErrorCode(e.errorCode);
+        String errorMsg = RmxPlaybackErrorMapper.isSourceError(e.errorCode)
+            ? "PlaybackException.TYPE_SOURCE: " + e.getMessage()
+            : "PlaybackException: " + e.getMessage();
 
         AudioTrack errorItem = playlistManager.getCurrentErrorTrack();
         String trackId = errorItem != null ? errorItem.getTrackId() : "INVALID";
