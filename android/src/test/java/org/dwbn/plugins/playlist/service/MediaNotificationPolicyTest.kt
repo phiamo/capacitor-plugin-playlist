@@ -172,6 +172,25 @@ class MediaNotificationPolicyTest {
     }
 
     @Test
+    fun pausedVideoExit_doesNotClaimInPlaceResume() {
+        assertFalse(
+            MediaNotificationPolicy.shouldReportInPlaceResumed(
+                prewarm = false,
+                play = false,
+                retain = true,
+                serviceInForeground = true
+            )
+        )
+        assertFalse(MediaNotificationPolicy.shouldBeginPlaybackWhenInPlaceUnavailable())
+    }
+
+    @Test
+    fun retainMustClearBeforeAudiblePlay() {
+        assertTrue(MediaNotificationPolicy.shouldIgnoreSessionPlay(true))
+        assertFalse(MediaNotificationPolicy.shouldIgnoreSessionPlay(false))
+    }
+
+    @Test
     fun mediaSessionId_isDistinctFromEmptyDefault() {
         assertEquals("org.dwbn.playlist", MediaNotificationPolicy.MEDIA_SESSION_ID)
         assertFalse(MediaNotificationPolicy.MEDIA_SESSION_ID.isEmpty())

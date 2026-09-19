@@ -81,13 +81,30 @@ public class AudioPlaylistHandler {
 
     /**
      * Resume at {@code positionMs} after native video ends. Media3 {@code handleAudioFocus} owns
-     * focus. Clears retain before audible play, then play-then-seek.
+     * focus. Clears retain before audible play, then play-then-seek (seek-while-paused stays silent).
      */
     public void resumePlaybackAfterVideoHandoff(long positionMs) {
         playlistManager.setVideoHandoffForegroundRetain(false);
-        play();
-        if (positionMs > 0) {
-            seek(positionMs);
+        playlistManager.ensureServiceStarted();
+        playlistManager.ensureForeground();
+        applyAudibleResume(playlistManager.getPlayer(), positionMs);
+    }
+
+    /** Visible for JVM tests — play then seek so audio is not left paused after video. */
+    static void applyAudibleResume(@Nullable Player player, long positionMs) {
+        if (player == null) {
+            return;
+        }
+        if (MediaNotificationPolicy.shouldPlayThenSeekOnResume()) {
+            player.setPlayWhenReady(true);
+            if (positionMs > 0) {
+                player.seekTo(positionMs);
+            }
+        } else {
+            if (positionMs > 0) {
+                player.seekTo(positionMs);
+            }
+            player.setPlayWhenReady(true);
         }
     }
 

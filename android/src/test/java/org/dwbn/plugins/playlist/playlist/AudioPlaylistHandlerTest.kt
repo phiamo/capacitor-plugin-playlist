@@ -18,8 +18,27 @@ class AudioPlaylistHandlerTest {
         assertEquals(listOf(false), recording.setPlayWhenReadyCalls)
     }
 
+    @Test
+    fun audibleResume_playsBeforeSeekSoAudioIsNotSilent() {
+        val recording = RecordingPlayer(isPlaying = false)
+
+        AudioPlaylistHandler.applyAudibleResume(recording.proxy, 175_000L)
+
+        assertEquals(listOf("playWhenReady:true", "seek:175000"), recording.calls)
+    }
+
+    @Test
+    fun audibleResume_atZero_playsWithoutSeek() {
+        val recording = RecordingPlayer(isPlaying = false)
+
+        AudioPlaylistHandler.applyAudibleResume(recording.proxy, 0L)
+
+        assertEquals(listOf("playWhenReady:true"), recording.calls)
+    }
+
     private class RecordingPlayer(private val isPlaying: Boolean) {
         val setPlayWhenReadyCalls = mutableListOf<Boolean>()
+        val calls = mutableListOf<String>()
         val proxy: Player = Proxy.newProxyInstance(
             Player::class.java.classLoader,
             arrayOf(Player::class.java)
@@ -27,7 +46,17 @@ class AudioPlaylistHandlerTest {
             when (method.name) {
                 "isPlaying" -> isPlaying
                 "setPlayWhenReady" -> {
-                    setPlayWhenReadyCalls.add(args[0] as Boolean)
+                    val ready = args[0] as Boolean
+                    setPlayWhenReadyCalls.add(ready)
+                    calls.add("playWhenReady:$ready")
+                    null
+                }
+                "seekTo" -> {
+                    val pos = when (args.size) {
+                        1 -> args[0] as Long
+                        else -> args[1] as Long
+                    }
+                    calls.add("seek:$pos")
                     null
                 }
                 else -> defaultValue(method.returnType)

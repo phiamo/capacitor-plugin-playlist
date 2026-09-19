@@ -20,6 +20,21 @@ class HandoffForwardingPlayerTest {
         assertTrue(recording.setPlayWhenReadyCalls.isEmpty())
     }
 
+    @Test
+    fun afterRetainCleared_playReachesPlayer() {
+        var retain = true
+        val recording = RecordingPlayer()
+        val forwarding = HandoffForwardingPlayer(recording.proxy) { retain }
+
+        forwarding.setPlayWhenReady(true)
+        assertTrue(recording.setPlayWhenReadyCalls.isEmpty())
+
+        retain = false
+        forwarding.setPlayWhenReady(true)
+
+        assertEquals(listOf(true), recording.setPlayWhenReadyCalls)
+    }
+
     private class RecordingPlayer {
         var playCount = 0
         val setPlayWhenReadyCalls = mutableListOf<Boolean>()
