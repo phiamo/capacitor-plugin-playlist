@@ -14,7 +14,7 @@
 - Remove host dependencies on `playlistcore` / `exomedia` if present. Do not add ExoPlayer 2.x artifacts.
 - Declare `POST_NOTIFICATIONS` in the host manifest and request at runtime on API 33+.
 - Remove `android:name="org.dwbn.plugins.playlist.App"` if still set. Do not call `startForeground` beside `MediaService`.
-- If the app also uses `@brylsherbert/capacitor-video-player`, ship video **8.3.0** in the same release. No Capacitor/JS changes required.
+- If the APK also uses another Media3 library (for example native video), pin one `media3Version` in Gradle (see README). No Capacitor/JS changes required.
 
 ## 0.11.4
 

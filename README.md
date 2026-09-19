@@ -6,7 +6,7 @@ Requires **Capacitor 8+** (peer dependency `@capacitor/core >= 8.0.0`).
 
 ## Versioning
 
-This plugin’s **npm version is not tied to the Capacitor major** (unlike `@brylsherbert/capacitor-video-player`, which uses Capacitor’s major in `8.x`). Pick a plugin release by feature line; satisfy the Capacitor peer in your app.
+This plugin’s version number is **independent of the Capacitor major**. Many Capacitor plugins use `8.x` when they target Capacitor 8; this one stays on **0.x** and declares `@capacitor/core >= 8.0.0` as a peer. Pick a release by feature line (see table below).
 
 | Plugin version | Meaning | Capacitor peer |
 |----------------|---------|----------------|
@@ -110,7 +110,7 @@ Forked from [cordova-plugin-playlist](https://github.com/Rolamix/cordova-plugin-
 
 ### Android
 
-Uses Media3 `ExoPlayer` inside `MediaService` (`MediaSessionService`). Notification and lock-screen controls come from Media3 `DefaultMediaNotificationProvider`. Media session id is `org.dwbn.playlist` (keep distinct from video plugins that use `org.dwbn.video`). The notification channel (`Audio playback`) is created by the plugin — hosts do not configure it.
+Uses Media3 `ExoPlayer` inside `MediaService` (`MediaSessionService`). Notification and lock-screen controls come from Media3 `DefaultMediaNotificationProvider`. Media session id is **`org.dwbn.playlist`**. The notification channel (`Audio playback`) is created by the plugin — hosts do not configure it.
 
 ### iOS
 
@@ -215,10 +215,25 @@ Without `audio` background mode, iOS stops playback when the app backgrounds.
 
 **Android host app:** update Gradle and manifest as below, then `npx cap sync android`.
 
+### From 0.11.x → 0.12.0
+
+For apps on the last **npm** line (**0.11.4**) moving to **0.12.0**:
+
+**Remove from the host app** (if you added these when following older docs or samples):
+
+- `implementation` of `com.devbrackets.android:playlistcore` and `com.devbrackets.android:exomedia` — 0.12.0 uses Media3 inside the plugin; leftover host deps pull an old Media3 version
+- `android:name="org.dwbn.plugins.playlist.App"` on `<application>` — unused since 0.11.0; keep your own `Application` class
+
+**Stop doing** on 0.12.0: subclassing PlaylistCore, calling `startForeground` beside `MediaService`, or adding `com.google.android.exoplayer:exoplayer-*:2.x` in the app module.
+
+**Then apply** the steps under [Always (Android 0.12.0+)](#always-android-0120) below.
+
+**Video handoff:** from 0.12.0, foreground retain starts on `prepareForVideoHandoff`. Existing JS that uses `prewarm: true` still works; prewarm is optional, not required for every flow.
+
 ### Always (Android 0.12.0+)
 
 1. Bump the plugin to **0.12.0** (or newer) and run `npx cap sync android`.
-2. **Pin one Media3 version** if your app also uses `@brylsherbert/capacitor-video-player` or other Media3 libraries. Gradle can otherwise unify to an old transitive (pre-0.12.0 ExoMedia pulled Media3 1.5.1). In `android/variables.gradle` (or `ext`):
+2. **Pin one Media3 version** when the same APK also uses another Media3 library (for example a native fullscreen video player). Gradle can otherwise unify to an old transitive (pre-0.12.0 ExoMedia pulled Media3 1.5.1). In `android/variables.gradle` (or `ext`):
 
    ```gradle
    media3Version = '1.11.1'
@@ -240,21 +255,14 @@ Without `audio` background mode, iOS stops playback when the app backgrounds.
    }
    ```
 
-3. **Do not** add `com.google.android.exoplayer:exoplayer-*:2.x` in your app module.
-4. **Android 13+ (API 33+):** declare `android.permission.POST_NOTIFICATIONS` in your **host** `AndroidManifest.xml` and request it at runtime when not granted. This plugin does not merge that permission — without it, media notifications may not appear.
-5. Minimum SDK **24** (unchanged).
-
-### From 0.11.x → 0.12.0
-
-For apps on the last **npm** line (**0.11.4**) moving to the Media3 line (**0.12.0**):
-- Remove host `implementation` lines for `com.devbrackets.android:playlistcore` and `com.devbrackets.android:exomedia` if you added them earlier. They are not used by 0.12.0 and reintroduce an old Media3 version.
-- Do **not** subclass PlaylistCore or call `startForeground` beside `MediaService` — Media3 owns the foreground service.
-- Remove `android:name="org.dwbn.plugins.playlist.App"` from `<application>` if still present (optional since 0.11.0).
-- **Video handoff:** from 0.12.0, foreground retain starts on `prepareForVideoHandoff`. Existing JS that uses `prewarm: true` still works; prewarm is optional, not required for every flow.
+3. **Android 13+ (API 33+):** declare `android.permission.POST_NOTIFICATIONS` in your **host** `AndroidManifest.xml` and request it at runtime when not granted. This plugin does not merge that permission — without it, media notifications may not appear.
+4. Minimum SDK **24** (unchanged).
 
 ### Audio + video in one app
 
-Ship playlist **0.12.0** and video **8.3.0** in the **same** app release. Mixed Media3 versions in one APK are unsupported. Keep session ids distinct: playlist `org.dwbn.playlist`, video `org.dwbn.video`.
+If the same Android app plays background audio with this plugin **and** native video with Media3, use **one** `media3Version` in Gradle (snippet above). Mixed Media3 versions in one APK are unsupported.
+
+This plugin’s MediaSession id is **`org.dwbn.playlist`**. Any second Media3 session in the same process (typical for a fullscreen video player) must use a **different** id — **`org.dwbn.video`** is the usual pair for DWBN handoff setups. Media3 forbids two empty or duplicate session ids.
 
 ## Usage
 
