@@ -39,6 +39,11 @@ class MediaService : MediaSessionService() {
         @JvmStatic
         @Volatile
         var instance: MediaService? = null
+
+        /** Value [onUpdateNotificationAsync] must pass to super (retain forces FGS past Media3's 10-min cap). */
+        @JvmStatic
+        fun resolveHandoffNotificationForeground(retain: Boolean, media3Requested: Boolean): Boolean =
+            MediaNotificationPolicy.startInForegroundRequired(retain, media3Requested)
     }
 
     private var exoPlayer: ExoPlayer? = null
@@ -170,7 +175,7 @@ class MediaService : MediaSessionService() {
         session: MediaSession,
         startInForegroundRequired: Boolean
     ): ListenableFuture<Void?> {
-        val required = MediaNotificationPolicy.startInForegroundRequired(
+        val required = resolveHandoffNotificationForeground(
             playlistManager.videoHandoffForegroundRetain,
             startInForegroundRequired
         )

@@ -79,7 +79,9 @@ class MediaNotificationPolicyTest {
 
     @Test
     fun prepareForVideoHandoff_retainsForeground() {
-        assertTrue(MediaNotificationPolicy.shouldRetainForegroundOnPrepare())
+        val retainCalls = mutableListOf<Boolean>()
+        MediaNotificationPolicy.applyForegroundRetainOnPrepare { retainCalls.add(true) }
+        assertEquals(listOf(true), retainCalls)
     }
 
     @Test
@@ -110,9 +112,41 @@ class MediaNotificationPolicyTest {
                 media3Requested = true
             )
         )
-        assertTrue(
-            MediaService::class.java.declaredMethods.any { it.name == "onUpdateNotificationAsync" }
-        )
+        assertTrue(MediaService.resolveHandoffNotificationForeground(true, false))
+        assertFalse(MediaService.resolveHandoffNotificationForeground(false, false))
+    }
+
+    @Test
+    fun retain_playWhenReadyTrue_forcesPause() {
+        val pauses = mutableListOf<Boolean>()
+        MediaNotificationPolicy.applyRetainPlayWhenReadyGuard(
+            playWhenReady = true,
+            videoHandoffForegroundRetain = true,
+            videoHandoffPlayerAttached = false
+        ) { pauses.add(true) }
+        assertEquals(listOf(true), pauses)
+    }
+
+    @Test
+    fun retain_playWhenReadyFalse_doesNotForcePause() {
+        val pauses = mutableListOf<Boolean>()
+        MediaNotificationPolicy.applyRetainPlayWhenReadyGuard(
+            playWhenReady = false,
+            videoHandoffForegroundRetain = true,
+            videoHandoffPlayerAttached = false
+        ) { pauses.add(true) }
+        assertTrue(pauses.isEmpty())
+    }
+
+    @Test
+    fun retainWithVideoAttached_playWhenReadyTrue_doesNotForcePause() {
+        val pauses = mutableListOf<Boolean>()
+        MediaNotificationPolicy.applyRetainPlayWhenReadyGuard(
+            playWhenReady = true,
+            videoHandoffForegroundRetain = true,
+            videoHandoffPlayerAttached = true
+        ) { pauses.add(true) }
+        assertTrue(pauses.isEmpty())
     }
 
     @Test
@@ -170,6 +204,11 @@ class MediaNotificationPolicyTest {
 
     @Test
     fun failedInPlaceResume_doesNotBeginPlayback() {
+        val beginPlaybackCalls = mutableListOf<String>()
+        MediaNotificationPolicy.applyBeginPlaybackWhenInPlaceUnavailable {
+            beginPlaybackCalls.add("beginPlayback")
+        }
+        assertTrue(beginPlaybackCalls.isEmpty())
         assertFalse(MediaNotificationPolicy.shouldBeginPlaybackWhenInPlaceUnavailable())
     }
 

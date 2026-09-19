@@ -513,11 +513,10 @@ class PlaylistManager(private val application: Application) {
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-            if (playWhenReady &&
-                MediaNotificationPolicy.shouldIgnoreSessionPlay(
-                    videoHandoffForegroundRetain,
-                    VideoPlayerBridge.hasActivePlayer()
-                )
+            MediaNotificationPolicy.applyRetainPlayWhenReadyGuard(
+                playWhenReady,
+                videoHandoffForegroundRetain,
+                VideoPlayerBridge.hasActivePlayer()
             ) {
                 player?.playWhenReady = false
             }

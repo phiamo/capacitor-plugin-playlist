@@ -360,9 +360,9 @@ Works with any native Capacitor video plugin (or other player) that needs exclus
 
 | Method | Purpose |
 |--------|---------|
-| `prepareForVideoHandoff()` | Pause audio, capture head position, release audio focus / session |
+| `prepareForVideoHandoff()` | Pause audio, capture head position, release audio focus / session; Android retains FGS |
 | `getLastKnownPosition()` | Read captured position (seconds) after prepare |
-| `resumeAfterVideoHandoff({ position, prewarm? })` | Re-arm audio after video, or prewarm Android FGS before video |
+| `resumeAfterVideoHandoff({ position, prewarm? })` | Re-arm audio after video, or silently prepare at position (optional Android prewarm) |
 
 Call these on the `Playlist` plugin directly — they are **not** exposed on `RmxAudioPlayer`.
 
@@ -379,7 +379,7 @@ sequenceDiagram
     Playlist-->>App: audio paused, focus released
     App->>Playlist: getLastKnownPosition() optional
     App->>Playlist: resumeAfterVideoHandoff position prewarm true
-    Note over Playlist: Android only silent FGS prewarm
+    Note over Playlist: Android only optional silent prepare
     App->>VideoPlayer: initPlayer
     VideoPlayer-->>App: video playing
 
@@ -403,8 +403,10 @@ await nativeVideoPlayer.init({ /* url, fullscreen, … */ });
 
 // --- Exiting native video (use video head, not audioPosition) ---
 const videoPosition = 120; // from your video player's position events
-await Playlist.resumeAfterVideoHandoff({ position: videoPosition });
-await Playlist.play(); // if user should resume audible playback
+const { resumed } = await Playlist.resumeAfterVideoHandoff({ position: videoPosition });
+if (!resumed) {
+  await Playlist.play(); // in-place Android resume already played; skip to avoid a stutter
+}
 ```
 
 ### Optional Android sequence (prewarm)
@@ -429,14 +431,16 @@ await nativeVideoPlayer.init({ /* … */ });
 // … user watches video; track video position via player events …
 
 // 4. After video closes — re-arm without prewarm
-await Playlist.resumeAfterVideoHandoff({ position: Math.floor(videoExitSec) });
-await Playlist.play(); // when ready
+const { resumed } = await Playlist.resumeAfterVideoHandoff({ position: Math.floor(videoExitSec) });
+if (!resumed) {
+  await Playlist.play();
+}
 ```
 
 **What `prewarm: true` does on Android:**
 
-- Promotes `MediaService` to foreground (`mediaPlayback` FGS) while the app is foregrounded
 - Prepares the playlist item at `position` but stays **silent** — no audio focus request, no audible playback
+- Does **not** create FGS; retain already started on `prepareForVideoHandoff`
 - Prevents video sound from dropping when audio would otherwise re-request focus
 - During prewarm, `Playlist.play()` is a no-op for audible playback (only keeps FGS notification updated)
 
@@ -448,11 +452,11 @@ await Playlist.play(); // when ready
 
 | Step | Android | iOS | Web |
 |------|---------|-----|-----|
-| `prepareForVideoHandoff` | Pause, abandon audio focus, store position via `MediaProgress` | Pause, store track time, `AVAudioSession.setActive(false)` | Pause HTMLAudioElement, store `currentTime` |
+| `prepareForVideoHandoff` | Pause, abandon audio focus, store position, retain FGS (do not stop) | Pause, store track time, `AVAudioSession.setActive(false)` | Pause HTMLAudioElement, store `currentTime` |
 | `getLastKnownPosition` | Returns stored handoff position (seconds) | Same | Same |
 | `resumeAfterVideoHandoff` (no prewarm) | In-place play-then-seek if FGS still foreground (retain starts on `prepareForVideoHandoff`); otherwise `{ resumed: false }` so JS may play/seek | Reactivate audio session; reset track-id guard for PLAYING events | Store position only |
-| `resumeAfterVideoHandoff` (prewarm) | Silent FGS + prepare at position, no focus/play | No-op | N/A |
-| After resume | Call `play()` to start audible playback | Call `play()` to start audible playback | Call `play()` on web player |
+| `resumeAfterVideoHandoff` (prewarm) | Silent prepare at position; FGS already retained from prepare; `{ resumed: false }` | No-op | N/A |
+| After resume | If `{ resumed: true }`, skip `play()` / `seekTo`. If `false`, JS may play/seek | Call `play()` if audible resume is wanted | Call `play()` on web player |
 
 ### Position: audio vs video head
 
@@ -464,7 +468,7 @@ await Playlist.play(); // when ready
 
 1. Call `prepareForVideoHandoff()` **immediately before** your native video player starts — never after.
 2. **(Optional, Android)** Call `resumeAfterVideoHandoff({ position, prewarm: true })` after prepare and before video init while the WebView is foregrounded — only if you need prewarm (see [0.12.0 retain](#platform-behaviour)).
-3. On video exit, call `resumeAfterVideoHandoff({ position })` **without** `prewarm`, then `play()` if playback should resume.
+3. On video exit, call `resumeAfterVideoHandoff({ position })` **without** `prewarm`. If `{ resumed: true }`, skip `play()` / `seekTo`; if `false`, JS may play/seek.
 4. `resumeAfterVideoHandoff` must complete before `seekTo()` / `play()` on the audio side.
 5. Do not call `Playlist.release()` between prepare and resume unless you intend to tear down the native player entirely.
 6. Idempotent exit handling: guard against duplicate `resumeAfterVideoHandoff` calls from concurrent native exit events (merge to a single call with `max(position)`).
@@ -890,7 +894,7 @@ prepareForVideoHandoff() => Promise<void>
 
 Release native audio session / focus so a video player can own playback.
 
-**Android:** pauses current track, abandons audio focus, stores head position. Does not stop the foreground media service.
+**Android:** pauses current track, abandons audio focus, stores head position, and retains the foreground media service. Does not stop FGS.
 **iOS:** pauses, captures head position, deactivates `AVAudioSession` with `notifyOthersOnDeactivation`.
 **Web:** pauses HTMLAudioElement and stores `currentTime`.
 
@@ -912,7 +916,7 @@ Re-arm native audio after video ends or, on Android, prewarm the media service b
 - iOS: restores pinned track, reactivates `AVAudioSession`, seeks to `position`, and when `play` is true starts playback (seek-then-play). Returns `{ resumed: true }` when native handled the handoff.
 - Web: stores position only (no native session); returns `{ resumed: false }`.
 
-**With `prewarm: true` (Android, before video):** starts `MediaService` in foreground at `position` but stays silent — no audio focus, no audible playback. Always returns `{ resumed: false }`.
+**With `prewarm: true` (Android, before video):** prepares at `position` but stays silent — no audio focus, no audible playback. FGS retain starts on `prepareForVideoHandoff`, not here. Always returns `{ resumed: false }`.
 
 | Param         | Type                                                                                      |
 | ------------- | ----------------------------------------------------------------------------------------- |
@@ -1182,7 +1186,7 @@ that were in the previous list.
 
 | Prop          | Type                 | Description                                                                                                                                                                                                                                       |
 | ------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`resumed`** | <code>boolean</code> | `true` when native already handled seek (and play when requested) in place. When `true`, JS should skip redundant `seekTo` / `play` to avoid a stutter. `false` on web, prewarm, paused Android handoff, and Android last-resort `beginPlayback`. |
+| **`resumed`** | <code>boolean</code> | `true` when native already handled seek (and play when requested) in place. When `true`, JS should skip redundant `seekTo` / `play` to avoid a stutter. `false` on web, prewarm, paused Android handoff, and when in-place resume cannot run (JS may play/seek). |
 
 
 #### ResumeAfterVideoHandoffOptions
@@ -1190,7 +1194,7 @@ that were in the previous list.
 | Prop           | Type                 | Description                                                                                                                                                                                                                                                                                                       |
 | -------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`position`** | <code>number</code>  | Resume position in seconds (video exit head or saved audio position).                                                                                                                                                                                                                                             |
-| **`prewarm`**  | <code>boolean</code> | **Android only.** When `true`, promote `MediaService` to foreground and prepare at `position` without requesting audio focus or playing audio. Use immediately after `prepareForVideoHandoff` and before native video starts, while the app is still foregrounded. Ignored on iOS (no-op). Not applicable on web. |
+| **`prewarm`**  | <code>boolean</code> | **Android only.** When `true`, prepare at `position` without requesting audio focus or playing audio. FGS retain already started on `prepareForVideoHandoff`. Use optionally after prepare and before native video starts, while the app is still foregrounded. Ignored on iOS (no-op). Not applicable on web. |
 | **`play`**     | <code>boolean</code> | When `true`, native starts audible playback after seeking to `position`. When `false` (paused video exit), native must not start playback. iOS defaults to `false` when omitted; Android defaults to `true` for legacy callers.                                                                                   |
 
 

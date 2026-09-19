@@ -425,9 +425,9 @@ public class RmxAudioPlayer implements MediaControlsListener {
         } else {
             lastKnownHandoffPositionSec = 0f;
         }
-        if (MediaNotificationPolicy.shouldRetainForegroundOnPrepare()) {
-            playlistManager.setVideoHandoffForegroundRetain(true);
-        }
+        MediaNotificationPolicy.applyForegroundRetainOnPrepare(
+            () -> playlistManager.setVideoHandoffForegroundRetain(true)
+        );
         AudioPlaylistHandler handler = playlistManager.getPlaylistHandler();
         if (handler != null) {
             handler.pauseForVideoHandoff();
@@ -461,9 +461,9 @@ public class RmxAudioPlayer implements MediaControlsListener {
             return true;
         }
         playlistManager.setVideoHandoffForegroundRetain(false);
-        if (MediaNotificationPolicy.shouldBeginPlaybackWhenInPlaceUnavailable()) {
-            playlistManager.beginPlayback(positionMs, true);
-        }
+        MediaNotificationPolicy.applyBeginPlaybackWhenInPlaceUnavailable(
+            () -> playlistManager.beginPlayback(positionMs, true)
+        );
         return false;
     }
 

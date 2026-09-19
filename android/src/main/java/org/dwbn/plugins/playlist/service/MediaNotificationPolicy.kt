@@ -73,7 +73,7 @@ object MediaNotificationPolicy {
 
     /**
      * Media3 caps [androidx.media3.session.MediaSessionService.setForegroundServiceTimeoutMs]
-     * at 10 minutes, so [MediaService.onUpdateNotification] must force
+     * at 10 minutes, so [MediaService.onUpdateNotificationAsync] must force
      * `startInForegroundRequired=true` while retain is set.
      */
     @JvmStatic
@@ -153,6 +153,40 @@ object MediaNotificationPolicy {
      */
     @JvmStatic
     fun shouldBeginPlaybackWhenInPlaceUnavailable(): Boolean = false
+
+    /** Teaching-sequence retain starts on prepare — [org.dwbn.plugins.playlist.RmxAudioPlayer] must call this. */
+    @JvmStatic
+    fun applyForegroundRetainOnPrepare(setRetain: Runnable) {
+        if (shouldRetainForegroundOnPrepare()) {
+            setRetain.run()
+        }
+    }
+
+    /** Miss-path audible resume must not [org.dwbn.plugins.playlist.manager.PlaylistManager.beginPlayback]. */
+    @JvmStatic
+    fun applyBeginPlaybackWhenInPlaceUnavailable(beginPlayback: Runnable) {
+        if (shouldBeginPlaybackWhenInPlaceUnavailable()) {
+            beginPlayback.run()
+        }
+    }
+
+    /**
+     * [org.dwbn.plugins.playlist.manager.PlaylistManager] player listener must call this when
+     * [androidx.media3.common.Player.Listener.onPlayWhenReadyChanged] fires.
+     */
+    @JvmStatic
+    fun applyRetainPlayWhenReadyGuard(
+        playWhenReady: Boolean,
+        videoHandoffForegroundRetain: Boolean,
+        videoHandoffPlayerAttached: Boolean,
+        pausePlayer: Runnable
+    ) {
+        if (playWhenReady &&
+            shouldIgnoreSessionPlay(videoHandoffForegroundRetain, videoHandoffPlayerAttached)
+        ) {
+            pausePlayer.run()
+        }
+    }
 
     @JvmStatic
     fun sessionLaunchIntentFlags(): Int =
