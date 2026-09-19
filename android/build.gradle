@@ -58,6 +58,10 @@ android {
     }
 }
 
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs << '-Xlint:deprecation'
+}
+
 if (agpMajorVersion < 9) {
     kotlin {
         compilerOptions {
