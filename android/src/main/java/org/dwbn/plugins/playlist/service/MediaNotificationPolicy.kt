@@ -2,6 +2,7 @@ package org.dwbn.plugins.playlist.service
 
 import android.content.Intent
 import androidx.annotation.OptIn
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.DefaultMediaNotificationProvider
 
@@ -21,10 +22,14 @@ object MediaNotificationPolicy {
     /**
      * [MediaService.promoteToForeground] must not call [android.app.Service.startForeground]
      * (Android 12+ forbids restarting FGS from the background after video).
-     * [MediaService.onStartCommand] still must call [android.app.Service.startForeground]
-     * immediately after [android.content.Context.startForegroundService].
+     * FGS starts at the beginning of [MediaService.onCreate] so the startForegroundService
+     * timeout cannot fire while ExoPlayer / MediaSession are built. Media3 then replaces that
+     * notification; [MediaService.onStartCommand] must not post the title-only placeholder again.
      */
     const val ALLOW_START_FOREGROUND_ON_PROMOTE = false
+
+    /** Title-only FGS placeholder is only allowed before the session exists (onCreate start). */
+    const val ALLOW_TITLE_ONLY_NOTIFICATION_AFTER_SESSION = false
 
     /** Show Media3's session notification before playback is ready so FGS starts within the timeout. */
     const val SHOW_NOTIFICATION_WHEN_IDLE =
@@ -115,4 +120,45 @@ object MediaNotificationPolicy {
     @JvmStatic
     fun sessionLaunchIntentFlags(): Int =
         Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
+
+    @JvmStatic
+    fun shouldOverwriteMedia3NotificationOnStartCommand(): Boolean = false
+
+    @JvmStatic
+    fun shouldAllowTitleOnlyNotificationAfterSession(): Boolean =
+        ALLOW_TITLE_ONLY_NOTIFICATION_AFTER_SESSION
+
+    /** Mirrors [org.dwbn.plugins.playlist.manager.PlaylistManager.isPreviousAvailable] for JVM tests. */
+    @JvmStatic
+    fun mediaNotificationSkipPreviousEnabled(previousAvailable: Boolean): Boolean = previousAvailable
+
+    /** Mirrors [org.dwbn.plugins.playlist.manager.PlaylistManager.isNextAvailable] for JVM tests. */
+    @JvmStatic
+    fun mediaNotificationSkipNextEnabled(nextAvailable: Boolean): Boolean = nextAvailable
+
+    /**
+     * Starts from Media3 default / wrapped player commands so metadata and play-pause stay
+     * available. Skip is added or removed from that set — never replace it with a tiny list.
+     */
+    @JvmStatic
+    fun playerCommandsForMediaNotification(
+        base: Player.Commands,
+        previousAvailable: Boolean,
+        nextAvailable: Boolean
+    ): Player.Commands {
+        val builder = base.buildUpon().add(Player.COMMAND_PLAY_PAUSE)
+        if (mediaNotificationSkipPreviousEnabled(previousAvailable)) {
+            builder.add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+        } else {
+            builder.remove(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+            builder.remove(Player.COMMAND_SEEK_TO_PREVIOUS)
+        }
+        if (mediaNotificationSkipNextEnabled(nextAvailable)) {
+            builder.add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+        } else {
+            builder.remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+            builder.remove(Player.COMMAND_SEEK_TO_NEXT)
+        }
+        return builder.build()
+    }
 }

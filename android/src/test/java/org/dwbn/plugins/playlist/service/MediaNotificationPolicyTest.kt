@@ -109,7 +109,7 @@ class MediaNotificationPolicyTest {
             )
         )
         assertTrue(
-            MediaService::class.java.declaredMethods.any { it.name == "onUpdateNotification" }
+            MediaService::class.java.declaredMethods.any { it.name == "onUpdateNotificationAsync" }
         )
     }
 
@@ -200,5 +200,24 @@ class MediaNotificationPolicyTest {
     fun ensureService_skipsWhenAlreadyCreated() {
         assertFalse(MediaNotificationPolicy.shouldStartForegroundService(true))
         assertTrue(MediaNotificationPolicy.shouldStartForegroundService(false))
+    }
+
+    @Test
+    fun mediaNotificationSkipFlags_followPlaylistAvailability() {
+        assertFalse(MediaNotificationPolicy.mediaNotificationSkipPreviousEnabled(false))
+        assertTrue(MediaNotificationPolicy.mediaNotificationSkipPreviousEnabled(true))
+        assertFalse(MediaNotificationPolicy.mediaNotificationSkipNextEnabled(false))
+        assertTrue(MediaNotificationPolicy.mediaNotificationSkipNextEnabled(true))
+    }
+
+    @Test
+    fun onStartCommand_doesNotOverwriteMedia3Notification() {
+        assertFalse(MediaNotificationPolicy.shouldOverwriteMedia3NotificationOnStartCommand())
+        assertFalse(MediaNotificationPolicy.shouldAllowTitleOnlyNotificationAfterSession())
+        val methodNames = MediaService::class.java.declaredMethods.map { it.name }
+        assertTrue(methodNames.contains("startForegroundImmediately"))
+        assertTrue(methodNames.contains("startForegroundWithMedia3Notification"))
+        assertTrue(methodNames.contains("onUpdateNotificationAsync"))
+        assertTrue(methodNames.contains("onStartCommand"))
     }
 }

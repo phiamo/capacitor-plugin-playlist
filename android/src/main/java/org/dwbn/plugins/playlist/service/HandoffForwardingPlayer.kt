@@ -9,7 +9,11 @@ import androidx.media3.common.util.UnstableApi
 @OptIn(UnstableApi::class)
 internal class HandoffForwardingPlayer(
     player: Player,
-    private val retain: () -> Boolean
+    private val retain: () -> Boolean,
+    private val onSkipToNext: (() -> Unit)? = null,
+    private val onSkipToPrevious: (() -> Unit)? = null,
+    private val previousAvailable: (() -> Boolean)? = null,
+    private val nextAvailable: (() -> Boolean)? = null
 ) : ForwardingPlayer(player) {
     override fun play() {
         if (MediaNotificationPolicy.shouldIgnoreSessionPlay(retain())) {
@@ -23,5 +27,26 @@ internal class HandoffForwardingPlayer(
             return
         }
         super.setPlayWhenReady(playWhenReady)
+    }
+
+    override fun seekToNextMediaItem() {
+        onSkipToNext?.invoke() ?: super.seekToNextMediaItem()
+    }
+
+    override fun seekToPreviousMediaItem() {
+        onSkipToPrevious?.invoke() ?: super.seekToPreviousMediaItem()
+    }
+
+    override fun getAvailableCommands(): Player.Commands {
+        val previous = previousAvailable
+        val next = nextAvailable
+        if (previous == null && next == null) {
+            return super.getAvailableCommands()
+        }
+        return MediaNotificationPolicy.playerCommandsForMediaNotification(
+            super.getAvailableCommands(),
+            previous?.invoke() ?: false,
+            next?.invoke() ?: false
+        )
     }
 }

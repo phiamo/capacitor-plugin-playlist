@@ -1,9 +1,11 @@
 package org.dwbn.plugins.playlist;
 
 import android.net.Uri;
+import androidx.annotation.OptIn;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.util.UnstableApi;
 import java.util.Locale;
 import org.dwbn.plugins.playlist.data.AudioTrack;
 
@@ -11,6 +13,7 @@ import org.dwbn.plugins.playlist.data.AudioTrack;
  * Single factory for audio {@link MediaItem} instances. Story 55.4 — no DRM; later epics attach
  * {@link MediaItem.DrmConfiguration} here only.
  */
+@OptIn(markerClass = UnstableApi.class)
 public final class AudioMediaItemFactory {
 
   private AudioMediaItemFactory() {}

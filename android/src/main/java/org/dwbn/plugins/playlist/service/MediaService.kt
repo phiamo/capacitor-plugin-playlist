@@ -19,12 +19,15 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.MediaStyleNotificationHelper
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import org.dwbn.plugins.playlist.PlaylistRuntime
 import org.dwbn.plugins.playlist.manager.PlaylistManager
 
 /**
  * Media3 [MediaSessionService] hosting one [ExoPlayer] and one [MediaSession] for audio playlists.
- * Foreground notification is owned by [DefaultMediaNotificationProvider].
+ * Foreground notification is owned by [DefaultMediaNotificationProvider] after the session exists.
  */
 @OptIn(UnstableApi::class)
 class MediaService : MediaSessionService() {
@@ -46,7 +49,7 @@ class MediaService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        // startForegroundService timeout starts before onStartCommand; onCreate can exceed it.
+        // startForegroundService timeout starts before onCreate; player/session setup can exceed it.
         startForegroundImmediately()
         setListener(foregroundStartListener)
         val notificationProvider = DefaultMediaNotificationProvider.Builder(this).build()
@@ -65,19 +68,34 @@ class MediaService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
         exoPlayer = player
+        // Load items before the session is built so the notification controller sees a timeline.
+        playlistManager.attachPlayer(player)
 
-        val sessionBuilder = MediaSession.Builder(
-            this,
-            HandoffForwardingPlayer(player) { playlistManager.videoHandoffForegroundRetain }
+        val forwardingPlayer = HandoffForwardingPlayer(
+            player,
+            retain = { playlistManager.videoHandoffForegroundRetain },
+            onSkipToNext = { playlistManager.skipToNext() },
+            onSkipToPrevious = { playlistManager.skipToPrevious() },
+            previousAvailable = { playlistManager.isPreviousAvailable },
+            nextAvailable = { playlistManager.isNextAvailable }
         )
+        val sessionBuilder = MediaSession.Builder(this, forwardingPlayer)
             .setId(MediaNotificationPolicy.MEDIA_SESSION_ID)
             .setBitmapLoader(GlideBitmapLoader(this))
+            .setCallback(
+                PlaylistMediaSessionCallback {
+                    PlaylistMediaSessionCallback.SkipAvailability(
+                        playlistManager.isPreviousAvailable,
+                        playlistManager.isNextAvailable
+                    )
+                }
+            )
         sessionActivityPendingIntent()?.let { sessionBuilder.setSessionActivity(it) }
         val session = sessionBuilder.build()
         mediaSession = session
-
-        playlistManager.attachPlayer(player)
         playlistManager.attachService(this)
+
+        startForegroundWithMedia3Notification(session)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -87,11 +105,7 @@ class MediaService : MediaSessionService() {
     @SuppressLint("NewApi")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return try {
-            val result = super.onStartCommand(intent, flags, startId)
-            // startForegroundService requires startForeground before Android's timeout.
-            // Media3 may wait until STATE_READY; HLS buffering can exceed that window.
-            startForegroundImmediately()
-            result
+            super.onStartCommand(intent, flags, startId)
         } catch (e: IllegalStateException) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                 e is android.app.ForegroundServiceStartNotAllowedException
@@ -130,18 +144,22 @@ class MediaService : MediaSessionService() {
     }
 
     /**
-     * Media3 caps the paused-FGS timeout at 10 minutes. While video handoff retain is set,
-     * force [startInForegroundRequired] so the service is not stopped during a long lecture.
+     * Media3 1.11.1 posts the MediaStyle notification from [onUpdateNotificationAsync].
+     * Overriding the 2-arg [onUpdateNotification] and calling it from onCreate does not.
      */
-    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+    override fun onUpdateNotificationAsync(
+        session: MediaSession,
+        startInForegroundRequired: Boolean
+    ): ListenableFuture<Void?> {
         val required = MediaNotificationPolicy.startInForegroundRequired(
             playlistManager.videoHandoffForegroundRetain,
             startInForegroundRequired
         )
-        try {
-            super.onUpdateNotification(session, required)
+        return try {
+            val result = super.onUpdateNotificationAsync(session, required)
             inForeground = required
             playlistManager.mediaServiceInForeground = required
+            result
         } catch (e: IllegalStateException) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                 e is android.app.ForegroundServiceStartNotAllowedException
@@ -149,6 +167,7 @@ class MediaService : MediaSessionService() {
                 Log.w(TAG, "Cannot start foreground service: app is in background", e)
                 inForeground = false
                 playlistManager.mediaServiceInForeground = false
+                Futures.immediateFuture(null)
             } else {
                 throw e
             }
@@ -169,25 +188,30 @@ class MediaService : MediaSessionService() {
     }
 
     fun updateForegroundNotification() {
-        // Media3 updates the session notification from MediaItem.MediaMetadata.
+        // Media3 updates the session notification from Player / MediaItem.MediaMetadata.
     }
 
+    /** FGS within startForegroundService timeout; replaced by MediaStyle once the session exists. */
     private fun startForegroundImmediately() {
-        val notification = buildImmediateNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-            )
-        } else {
-            startForeground(DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID, notification)
-        }
-        inForeground = true
-        playlistManager.mediaServiceInForeground = true
+        startForegroundWith(buildImmediateNotification())
     }
 
     private fun buildImmediateNotification(): Notification {
+        return mediaNotificationBuilder().build()
+    }
+
+    /**
+     * Attach the Media3 session token so System UI shows play/pause/skip (API 33+ compact slots).
+     * Do not call [onUpdateNotification] here: Media3 1.11.1 only posts via [onUpdateNotificationAsync].
+     */
+    private fun startForegroundWithMedia3Notification(session: MediaSession) {
+        val notification = mediaNotificationBuilder()
+            .setStyle(MediaStyleNotificationHelper.MediaStyle(session))
+            .build()
+        startForegroundWith(notification)
+    }
+
+    private fun mediaNotificationBuilder(): NotificationCompat.Builder {
         val channelId = DefaultMediaNotificationProvider.DEFAULT_CHANNEL_ID
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -206,7 +230,21 @@ class MediaService : MediaSessionService() {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
         sessionActivityPendingIntent()?.let { builder.setContentIntent(it) }
-        return builder.build()
+        return builder
+    }
+
+    private fun startForegroundWith(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID, notification)
+        }
+        inForeground = true
+        playlistManager.mediaServiceInForeground = true
     }
 
     private fun sessionActivityPendingIntent(): PendingIntent? {

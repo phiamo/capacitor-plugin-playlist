@@ -25,6 +25,7 @@ import org.dwbn.plugins.playlist.service.MediaService;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+@OptIn(markerClass = UnstableApi.class)
 public class RmxAudioPlayer implements MediaControlsListener {
 
     public static String TAG = "PlaylistRmxAudioPlayer";

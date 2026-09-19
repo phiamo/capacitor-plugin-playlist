@@ -11,7 +11,7 @@ class HandoffForwardingPlayerTest {
     @Test
     fun retain_playAndSetPlayWhenReadyAreNoOps() {
         val recording = RecordingPlayer()
-        val forwarding = HandoffForwardingPlayer(recording.proxy) { true }
+        val forwarding = HandoffForwardingPlayer(recording.proxy, retain = { true })
 
         forwarding.play()
         forwarding.setPlayWhenReady(true)
@@ -24,7 +24,7 @@ class HandoffForwardingPlayerTest {
     fun afterRetainCleared_playReachesPlayer() {
         var retain = true
         val recording = RecordingPlayer()
-        val forwarding = HandoffForwardingPlayer(recording.proxy) { retain }
+        val forwarding = HandoffForwardingPlayer(recording.proxy, retain = { retain })
 
         forwarding.setPlayWhenReady(true)
         assertTrue(recording.setPlayWhenReadyCalls.isEmpty())
@@ -35,8 +35,42 @@ class HandoffForwardingPlayerTest {
         assertEquals(listOf(true), recording.setPlayWhenReadyCalls)
     }
 
+    @Test
+    fun seekToNextMediaItem_delegatesToCallback() {
+        var skipNextCount = 0
+        val recording = RecordingPlayer()
+        val forwarding = HandoffForwardingPlayer(
+            recording.proxy,
+            retain = { false },
+            onSkipToNext = { skipNextCount++ }
+        )
+
+        forwarding.seekToNextMediaItem()
+
+        assertEquals(1, skipNextCount)
+        assertEquals(0, recording.seekToNextCount)
+    }
+
+    @Test
+    fun seekToPreviousMediaItem_delegatesToCallback() {
+        var skipPreviousCount = 0
+        val recording = RecordingPlayer()
+        val forwarding = HandoffForwardingPlayer(
+            recording.proxy,
+            retain = { false },
+            onSkipToPrevious = { skipPreviousCount++ }
+        )
+
+        forwarding.seekToPreviousMediaItem()
+
+        assertEquals(1, skipPreviousCount)
+        assertEquals(0, recording.seekToPreviousCount)
+    }
+
     private class RecordingPlayer {
         var playCount = 0
+        var seekToNextCount = 0
+        var seekToPreviousCount = 0
         val setPlayWhenReadyCalls = mutableListOf<Boolean>()
         val proxy: Player = Proxy.newProxyInstance(
             Player::class.java.classLoader,
@@ -45,6 +79,8 @@ class HandoffForwardingPlayerTest {
             when (method.name) {
                 "play" -> playCount++
                 "setPlayWhenReady" -> setPlayWhenReadyCalls.add(args[0] as Boolean)
+                "seekToNextMediaItem" -> seekToNextCount++
+                "seekToPreviousMediaItem" -> seekToPreviousCount++
             }
             defaultValue(method.returnType)
         } as Player

@@ -2,7 +2,9 @@ package org.dwbn.plugins.playlist.playlist;
 
 import android.content.Context;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
 import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
 import org.dwbn.plugins.playlist.service.MediaNotificationPolicy;
 
@@ -11,6 +13,7 @@ import org.dwbn.plugins.playlist.service.MediaNotificationPolicy;
  * replaces PlaylistCore's {@code DefaultPlaylistHandler}; notification/focus polish is Story 55.5,
  * full video handoff behaviour is Story 55.6.
  */
+@OptIn(markerClass = UnstableApi.class)
 public class AudioPlaylistHandler {
 
     private final Context context;
