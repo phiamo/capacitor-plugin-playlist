@@ -37,6 +37,14 @@ class VideoPlayerBridgeTest {
         assertFalse(VideoPlayerBridge.hasActivePlayer())
     }
 
+    @Test
+    fun attach_notifiesPlaybackChangedListeners() {
+        var notifications = 0
+        VideoPlayerBridge.addPlaybackChangedListener { notifications++ }
+        VideoPlayerBridge.attach(dummyPlayer())
+        assertTrue(notifications > 0)
+    }
+
     private fun dummyPlayer(): Player =
         Proxy.newProxyInstance(Player::class.java.classLoader, arrayOf(Player::class.java)) { _, method, _ ->
             when (method.returnType) {

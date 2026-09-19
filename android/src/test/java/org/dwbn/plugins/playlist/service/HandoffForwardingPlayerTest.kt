@@ -97,6 +97,25 @@ class HandoffForwardingPlayerTest {
         assertTrue(forwarding.isPlaying())
     }
 
+    @Test
+    fun retainWithVideoAttached_notifiesSessionWhenVideoAttaches() {
+        val audio = RecordingPlayer()
+        val video = RecordingPlayer(playWhenReady = true, playbackState = Player.STATE_READY)
+        val forwarding = HandoffForwardingPlayer(audio.proxy, retain = { true })
+        var playingUpdates = 0
+        forwarding.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) {
+                    playingUpdates++
+                }
+            }
+        })
+
+        VideoPlayerBridge.attach(video.proxy)
+
+        assertTrue(playingUpdates > 0)
+    }
+
     private class RecordingPlayer(
         private val playWhenReady: Boolean = false,
         private val playbackState: Int = Player.STATE_IDLE,

@@ -4,6 +4,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import org.dwbn.plugins.playlist.service.MediaService
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Process-local link from the video plugin ExoPlayer to the playlist [MediaService] session.
@@ -15,6 +16,8 @@ object VideoPlayerBridge {
     private var activePlayer: Player? = null
 
     private var playbackListener: Player.Listener? = null
+
+    private val playbackChangedListeners = CopyOnWriteArrayList<() -> Unit>()
 
     @JvmStatic
     fun attach(player: Player) {
@@ -31,26 +34,27 @@ object VideoPlayerBridge {
                         Player.EVENT_POSITION_DISCONTINUITY
                     )
                 ) {
-                    requestNotificationRefresh()
+                    notifyPlaybackChanged()
                 }
             }
         }
         playbackListener = listener
         player.addListener(listener)
-        requestNotificationRefresh()
+        notifyPlaybackChanged()
     }
 
     @JvmStatic
     fun detach(player: Player?) {
         if (player == null) {
             detachInternal()
+            notifyPlaybackChanged()
             return
         }
         if (activePlayer !== player) {
             return
         }
         detachInternal()
-        requestNotificationRefresh()
+        notifyPlaybackChanged()
     }
 
     @JvmStatic
@@ -58,6 +62,16 @@ object VideoPlayerBridge {
 
     @JvmStatic
     fun hasActivePlayer(): Boolean = activePlayer != null
+
+    @JvmStatic
+    fun addPlaybackChangedListener(listener: () -> Unit) {
+        playbackChangedListeners.addIfAbsent(listener)
+    }
+
+    @JvmStatic
+    fun removePlaybackChangedListener(listener: () -> Unit) {
+        playbackChangedListeners.remove(listener)
+    }
 
     @JvmStatic
     fun requestNotificationRefresh() {
@@ -68,6 +82,12 @@ object VideoPlayerBridge {
     @JvmStatic
     internal fun clearForTests() {
         detachInternal()
+        playbackChangedListeners.clear()
+    }
+
+    private fun notifyPlaybackChanged() {
+        playbackChangedListeners.forEach { it() }
+        requestNotificationRefresh()
     }
 
     private fun detachInternal() {
