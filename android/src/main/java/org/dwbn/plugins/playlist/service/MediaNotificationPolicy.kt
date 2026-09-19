@@ -1,6 +1,7 @@
 package org.dwbn.plugins.playlist.service
 
 import android.content.Intent
+import android.os.Build
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Player
@@ -16,6 +17,15 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 @OptIn(UnstableApi::class)
 object MediaNotificationPolicy {
     const val HANDLE_AUDIO_FOCUS = true
+
+    /** FGS start blocked by notification permission or related security policy. */
+    @JvmStatic
+    fun isForegroundStartSecurityBlocked(error: Throwable): Boolean = error is SecurityException
+
+    @JvmStatic
+    fun isForegroundStartNotAllowedFromBackground(error: Throwable): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            error is android.app.ForegroundServiceStartNotAllowedException
 
     /** Distinct from the video plugin session (`org.dwbn.video`); Media3 forbids two empty IDs. */
     const val MEDIA_SESSION_ID = "org.dwbn.playlist"

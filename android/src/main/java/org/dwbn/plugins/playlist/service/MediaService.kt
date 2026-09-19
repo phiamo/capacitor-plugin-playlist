@@ -130,13 +130,12 @@ class MediaService : MediaSessionService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return try {
             super.onStartCommand(intent, flags, startId)
+        } catch (e: SecurityException) {
+            onForegroundStartBlocked(e)
+            START_NOT_STICKY
         } catch (e: IllegalStateException) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                e is android.app.ForegroundServiceStartNotAllowedException
-            ) {
-                Log.w(TAG, "Cannot start foreground service: app is in background", e)
-                inForeground = false
-                playlistManager.mediaServiceInForeground = false
+            if (MediaNotificationPolicy.isForegroundStartNotAllowedFromBackground(e)) {
+                onForegroundStartBlocked(e)
                 START_NOT_STICKY
             } else {
                 throw e
@@ -184,18 +183,23 @@ class MediaService : MediaSessionService() {
             inForeground = required
             playlistManager.mediaServiceInForeground = required
             result
+        } catch (e: SecurityException) {
+            onForegroundStartBlocked(e)
+            Futures.immediateFuture(null)
         } catch (e: IllegalStateException) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                e is android.app.ForegroundServiceStartNotAllowedException
-            ) {
-                Log.w(TAG, "Cannot start foreground service: app is in background", e)
-                inForeground = false
-                playlistManager.mediaServiceInForeground = false
+            if (MediaNotificationPolicy.isForegroundStartNotAllowedFromBackground(e)) {
+                onForegroundStartBlocked(e)
                 Futures.immediateFuture(null)
             } else {
                 throw e
             }
         }
+    }
+
+    private fun onForegroundStartBlocked(e: Throwable) {
+        Log.w(TAG, "Cannot start foreground service: app is in background", e)
+        inForeground = false
+        playlistManager.mediaServiceInForeground = false
     }
 
     fun endForeground(removeNotification: Boolean) {

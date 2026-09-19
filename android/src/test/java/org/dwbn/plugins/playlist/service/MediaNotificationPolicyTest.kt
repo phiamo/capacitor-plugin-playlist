@@ -78,6 +78,12 @@ class MediaNotificationPolicyTest {
     }
 
     @Test
+    fun foregroundStartFailure_securityExceptionIsRecoverable() {
+        assertTrue(MediaNotificationPolicy.isForegroundStartSecurityBlocked(SecurityException("denied")))
+        assertFalse(MediaNotificationPolicy.isForegroundStartSecurityBlocked(IllegalStateException()))
+    }
+
+    @Test
     fun prepareForVideoHandoff_retainsForeground() {
         val retainCalls = mutableListOf<Boolean>()
         MediaNotificationPolicy.applyForegroundRetainOnPrepare { retainCalls.add(true) }

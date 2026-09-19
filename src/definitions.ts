@@ -200,7 +200,7 @@ export interface ResumeAfterVideoHandoffResult {
     /**
      * `true` when native already handled seek (and play when requested) in place.
      * When `true`, JS should skip redundant `seekTo` / `play` to avoid a stutter.
-     * `false` on web, prewarm, paused Android handoff, and Android last-resort `beginPlayback`.
+     * `false` on web, prewarm, and paused Android handoff (native does not auto-play).
      */
     resumed: boolean;
 }
