@@ -1,4 +1,4 @@
-import {
+import type {
     RmxAudioErrorType,
     RmxAudioStatusMessage,
 } from './Constants';

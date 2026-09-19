@@ -2,7 +2,7 @@ import {
     RmxAudioStatusMessage,
     RmxAudioStatusMessageDescriptions
 } from './Constants';
-import {
+import type {
     AudioPlayerEventHandler,
     AudioPlayerEventHandlers,
     AudioPlayerOptions,
@@ -55,7 +55,7 @@ export class RmxAudioPlayer {
      * because they properly interpret the range of these values, but this field is exposed if you wish to observe
      * or interrogate it.
      */
-    get currentState() {
+    get currentState(): 'unknown' | 'ready' | 'error' | 'playing' | 'loading' | 'paused' | 'stopped' {
         return this._currentState;
     }
 
@@ -66,14 +66,14 @@ export class RmxAudioPlayer {
     /**
      * If the playlist is currently playling a track.
      */
-    get isPlaying() {
+    get isPlaying(): boolean {
         return this._currentState === 'playing';
     }
 
     /**
      * True if the playlist is currently paused
      */
-    get isPaused() {
+    get isPaused(): boolean {
         return this._currentState === 'paused' || this._currentState === 'stopped';
     }
 
@@ -86,14 +86,14 @@ export class RmxAudioPlayer {
      * On Android, tracks are only loaded as they begin playback, so this value and RMXSTATUS_LOADING should always
      * apply to the same track.
      */
-    get isLoading() {
+    get isLoading(): boolean {
         return this._currentState === 'loading';
     }
 
     /**
      * True if the *currently playing track* has been loaded and can be played (this includes if it is *currently playing*).
      */
-    get hasLoaded() {
+    get hasLoaded(): boolean {
         return this._hasLoaded;
     }
 
@@ -102,7 +102,7 @@ export class RmxAudioPlayer {
      * the playlist will automatically skip forward to the next track, in which case you will also receive
      * an RMXSTATUS_TRACK_CHANGED event.
      */
-    get hasError() {
+    get hasError(): boolean {
         return this._hasError;
     }
 
@@ -128,12 +128,12 @@ export class RmxAudioPlayer {
     /**
      * Returns a promise that resolves when the plugin is ready.
      */
-    ready = () => {
+    ready = (): Promise<void> => {
         return this._initPromise;
     };
 
 
-    initialize = async () => {
+    initialize = async (): Promise<void> => {
         Playlist.addListener(
             'status',
             (data: { action: string, status: OnStatusCallbackData }) => {
@@ -158,7 +158,7 @@ export class RmxAudioPlayer {
     /**
      * Sets the player options. This can be called at any time and is not required before playback can be initiated.
      */
-    setOptions = (options: AudioPlayerOptions) => {
+    setOptions = (options: AudioPlayerOptions): Promise<void> => {
         this.options = {...this.options, ...options};
         return Playlist.setOptions(this.options);
     };
@@ -174,14 +174,14 @@ export class RmxAudioPlayer {
      * recorded and used when playback restarts. This can be used, for example, to set the
      * playlist to a new set of tracks, but retain the currently-playing item to avoid skipping.
      */
-    setPlaylistItems = (items: AudioTrack[], options?: PlaylistItemOptions) => {
+    setPlaylistItems = (items: AudioTrack[], options?: PlaylistItemOptions): Promise<void> => {
         return Playlist.setPlaylistItems({items: validateTracks(items), options: options || {}});
     };
 
     /**
      * Add a single track to the end of the playlist, or at a specific index.
      */
-    addItem = (trackItem: AudioTrack, index?: number) => {
+    addItem = (trackItem: AudioTrack, index?: number): Promise<void> => {
         const validTrackItem = validateTrack(trackItem);
         if (!validTrackItem) {
             throw new Error('Provided track is null or not an audio track');
@@ -192,7 +192,7 @@ export class RmxAudioPlayer {
     /**
      * Move a track within the playlist without disrupting playback of the current track.
      */
-    moveItem = (from: number, to: number) => {
+    moveItem = (from: number, to: number): Promise<void> => {
         return Playlist.moveItem({ from, to });
     };
 
@@ -202,7 +202,7 @@ export class RmxAudioPlayer {
      * `replacement.trackId` intentionally signals "keep the existing id", and
      * validateTrack would otherwise auto-assign a new random UUID and defeat that.
      */
-    replaceItem = (replacement: AudioTrack, spec: { index?: number; trackId?: string }) => {
+    replaceItem = (replacement: AudioTrack, spec: { index?: number; trackId?: string }): Promise<void> => {
         if (!replacement) {
             throw new Error('Provided track is null or not an audio track');
         }
@@ -219,14 +219,14 @@ export class RmxAudioPlayer {
     /**
      * Adds the list of tracks to the end of the playlist.
      */
-    addAllItems = (items: AudioTrack[]) => {
+    addAllItems = (items: AudioTrack[]): Promise<void> => {
         return Playlist.addAllItems({items: validateTracks(items)});
     };
 
     /**
      * Removes a track from the playlist. If this is the currently playing item, the next item will automatically begin playback.
      */
-    removeItem = (removeItem: AudioTrackRemoval) => {
+    removeItem = (removeItem: AudioTrackRemoval): Promise<void> => {
         if (!removeItem) {
             throw new Error('Track removal spec is empty');
         }
@@ -243,7 +243,7 @@ export class RmxAudioPlayer {
      * Removes all given tracks from the playlist; these can be specified either by trackId or trackIndex. If the removed items
      * include the currently playing item, the next available item will automatically begin playing.
      */
-    removeItems = (items: AudioTrackRemoval[]) => {
+    removeItems = (items: AudioTrackRemoval[]): Promise<void> => {
         return Playlist.removeItems({
             items: (items || []).map((item) => ({
                 id: item?.trackId,
@@ -255,7 +255,7 @@ export class RmxAudioPlayer {
     /**
      * Clear the entire playlist. This will result in the STOPPED event being raised.
      */
-    clearAllItems = () => {
+    clearAllItems = (): Promise<void> => {
         return Playlist.clearAllItems();
     };
 
@@ -266,7 +266,7 @@ export class RmxAudioPlayer {
     /**
      * Begin playback. If no tracks have been added, this has no effect.
      */
-    play = () => {
+    play = (): Promise<void> => {
         return Playlist.play();
     };
 
@@ -274,35 +274,35 @@ export class RmxAudioPlayer {
      * Play the track at the given index. If the track does not exist, this has no effect.
      */
 
-    playTrackByIndex = (index: number, position?: number) => {
+    playTrackByIndex = (index: number, position?: number): Promise<void> => {
         return Playlist.playTrackByIndex({index, position: position || 0});
     };
 
     /**
      * Play the track matching the given trackId. If the track does not exist, this has no effect.
      */
-    playTrackById = (id: string, position?: number) => {
+    playTrackById = (id: string, position?: number): Promise<void> => {
         return Playlist.playTrackById({id, position: position || 0});
     };
 
     /**
      * Play the track matching the given trackId. If the track does not exist, this has no effect.
      */
-    selectTrackByIndex = (index: number, position?: number) => {
+    selectTrackByIndex = (index: number, position?: number): Promise<void> => {
         return Playlist.selectTrackByIndex({index, position: position || 0});
     };
 
     /**
      * Play the track matching the given trackId. If the track does not exist, this has no effect.
      */
-    selectTrackById = (id: string, position?: number) => {
+    selectTrackById = (id: string, position?: number): Promise<void> => {
         return Playlist.selectTrackById({id, position: position || 0});
     };
 
     /**
      * Pause playback
      */
-    pause = () => {
+    pause = (): Promise<void> => {
         return Playlist.pause();
     };
 
@@ -310,14 +310,14 @@ export class RmxAudioPlayer {
      * Skip to the next track. If you are already at the end, and loop is false, this has no effect.
      * If you are at the end, and loop is true, playback will begin at the beginning of the playlist.
      */
-    skipForward = () => {
+    skipForward = (): Promise<void> => {
         return Playlist.skipForward();
     };
 
     /**
      * Skip to the previous track. If you are already at the beginning, this has no effect.
      */
-    skipBack = () => {
+    skipBack = (): Promise<void> => {
         return Playlist.skipBack();
     };
 
@@ -325,14 +325,14 @@ export class RmxAudioPlayer {
      * Seek to the given position in the currently playing track. If the value exceeds the track length,
      * the track will complete and playback of the next track will begin.
      */
-    seekTo = (position: number) => {
+    seekTo = (position: number): Promise<void> => {
         return Playlist.seekTo({position});
     };
 
     /**
      * Set the playback speed; a float value between [-1, 1] inclusive. If set to 0, this pauses playback.
      */
-    setPlaybackRate = (rate: number) => {
+    setPlaybackRate = (rate: number): Promise<void> => {
         return Playlist.setPlaybackRate({rate});
     };
 
@@ -341,14 +341,14 @@ export class RmxAudioPlayer {
      * On both Android and iOS, this sets the volume of the media stream, which can be externally
      * controlled by setting the overall hardware volume.
      */
-    setVolume = (volume: number) => {
+    setVolume = (volume: number): Promise<void> => {
         return Playlist.setPlaybackVolume({volume});
     };
 
     /**
      * Sets a flag indicating whether the playlist should loop back to the beginning once it reaches the end.
      */
-    setLoop = (loop: boolean) => {
+    setLoop = (loop: boolean): Promise<void> => {
         return Playlist.setLoop({loop: loop});
     };
 
@@ -361,8 +361,8 @@ export class RmxAudioPlayer {
      * Call this function to emit an onStatus event via the on('status') handler.
      * Internal use only, to raise events received from the native interface.
      */
-    protected onStatus(trackId: string, type: RmxAudioStatusMessage, value: OnStatusCallbackUpdateData | OnStatusTrackChangedData | OnStatusErrorCallbackData) {
-        const status = <OnStatusCallbackData> {msgType: type, trackId: trackId, value: value};
+    protected onStatus(trackId: string, type: RmxAudioStatusMessage, value: OnStatusCallbackUpdateData | OnStatusTrackChangedData | OnStatusErrorCallbackData): void {
+        const status = {msgType: type, trackId: trackId, value: value} as OnStatusCallbackData;
         if (this.options.verbose) {
             console.debug(`RmxAudioPlayer.onStatus: ${RmxAudioStatusMessageDescriptions[type]}(${type}) [${trackId}]: `, value);
         }
@@ -379,8 +379,8 @@ export class RmxAudioPlayer {
             // Only change the plugin's *current status* if the event being raised is for the current active track.
             if (this._currentItem && this._currentItem.trackId === trackId) {
 
-                if (status.value && (<any> status.value).status) {
-                    this._currentState = (<any> status.value).status;
+                if (status.value && (status.value as any).status) {
+                    this._currentState = (status.value as any).status;
                 }
 
                 if (status.msgType === RmxAudioStatusMessage.RMXSTATUS_CANPLAY) {
@@ -404,7 +404,7 @@ export class RmxAudioPlayer {
      * @param callback The callback function to receive the event data
      */
     on(eventName: 'status', callback: OnStatusCallback): void;
-    on(eventName: string, callback: AudioPlayerEventHandler) {
+    on(eventName: string, callback: AudioPlayerEventHandler): void {
         if (!Object.prototype.hasOwnProperty.call(this.handlers, eventName)) {
             this.handlers[eventName] = [];
         }
@@ -417,7 +417,7 @@ export class RmxAudioPlayer {
      * @param handle The event handler to destroy. Ensure that this is the SAME INSTANCE as the handler
      * that was passed in to create the subscription!
      */
-    off(eventName: string, handle: AudioPlayerEventHandler) {
+    off(eventName: string, handle: AudioPlayerEventHandler): void {
         if (Object.prototype.hasOwnProperty.call(this.handlers, eventName)) {
             const handleIndex = this.handlers[eventName].indexOf(handle);
             if (handleIndex >= 0) {
@@ -431,7 +431,7 @@ export class RmxAudioPlayer {
      * Raises an event via the corresponding event handler. Internal use only.
      * @param args Event args to pass through to the handler.
      */
-    protected emit(...args: any[]) {
+    protected emit(...args: any[]): boolean {
         const eventName: string = args.shift();
         if (!Object.prototype.hasOwnProperty.call(this.handlers, eventName)) {
             return false;

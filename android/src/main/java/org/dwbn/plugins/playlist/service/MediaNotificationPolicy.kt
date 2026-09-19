@@ -2,6 +2,7 @@ package org.dwbn.plugins.playlist.service
 
 import android.content.Intent
 import androidx.annotation.OptIn
+import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.DefaultMediaNotificationProvider
@@ -163,6 +164,14 @@ object MediaNotificationPolicy {
     @JvmStatic
     fun shouldAllowTitleOnlyNotificationAfterSession(): Boolean =
         ALLOW_TITLE_ONLY_NOTIFICATION_AFTER_SESSION
+
+    /** CPU + Wi-Fi lock while playing, as PlaylistCore's WifiLock and ExoMedia's partial wake lock did. */
+    const val WAKE_MODE = C.WAKE_MODE_NETWORK
+
+    /** `setOptions({ options: { icon } })` names an app drawable; fall back to the platform play glyph. */
+    @JvmStatic
+    fun smallIconRes(resolvedIconRes: Int): Int =
+        if (resolvedIconRes != 0) resolvedIconRes else android.R.drawable.ic_media_play
 
     /** Mirrors [org.dwbn.plugins.playlist.manager.PlaylistManager.isPreviousAvailable] for JVM tests. */
     @JvmStatic

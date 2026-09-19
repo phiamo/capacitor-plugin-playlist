@@ -30,6 +30,10 @@ class PlaylistManager(private val application: Application) {
     private var volumeRight = 1.0f
     private var playbackSpeed = 1.0f
     var loop = false
+        set(value) {
+            field = value
+            applyPlayerSettings()
+        }
     var isShouldStopPlaylist = false
     var currentErrorTrack: AudioTrack? = null
 
@@ -38,7 +42,11 @@ class PlaylistManager(private val application: Application) {
     var mediaServiceInForeground = false
 
     var resetStreamOnPause = true
-    var options: Options
+    var options: Options = Options(application.baseContext)
+        set(value) {
+            field = value
+            mediaServiceRef.get()?.applyNotificationIcon()
+        }
     private var mediaControlsListener = WeakReference<MediaControlsListener?>(null)
     private var playbackStatusListener = WeakReference<RmxAudioPlayer?>(null)
 
@@ -46,6 +54,7 @@ class PlaylistManager(private val application: Application) {
     private var mediaServiceRef = WeakReference<MediaService?>(null)
     private var handlerInstance: AudioPlaylistHandler? = null
     private var seeking = false
+    private var sequentialErrors = 0
     private var rmxPlaybackState = RmxPlaybackState.STOPPED
     private var pendingBeginPlayback: PendingBegin? = null
 
@@ -138,20 +147,17 @@ class PlaylistManager(private val application: Application) {
     }
 
     val isNextAvailable: Boolean
-        get() {
-            if (audioTracks.size <= 1) {
-                return false
-            }
-            val index = player?.currentMediaItemIndex ?: currentPosition
-            val isAtEnd = index + 1 >= audioTracks.size
-            return if (isAtEnd) loop else index + 1 in audioTracks.indices
-        }
+        get() = PlaylistPlaybackPolicy.nextAvailable(
+            player?.currentMediaItemIndex ?: currentPosition,
+            audioTracks.size,
+            loop
+        )
 
     val isPreviousAvailable: Boolean
-        get() {
-            val index = player?.currentMediaItemIndex ?: currentPosition
-            return index > 0 || loop
-        }
+        get() = PlaylistPlaybackPolicy.previousAvailable(
+            player?.currentMediaItemIndex ?: currentPosition,
+            loop
+        )
 
     fun invokeNext() {
         playlistHandler?.next()
@@ -233,6 +239,7 @@ class PlaylistManager(private val application: Application) {
             }
         }
 
+        applyPlayerSettings()
         if (countBefore == 0) {
             currentPosition = 0
             beginPlayback(1, true)
@@ -298,6 +305,7 @@ class PlaylistManager(private val application: Application) {
             player?.addMediaItem(AudioMediaItemFactory.fromAudioTrack(track))
         }
         currentPosition = audioTracks.indexOf(current)
+        applyPlayerSettings()
     }
 
     fun removeItem(index: Int, itemId: String): AudioTrack? {
@@ -326,6 +334,7 @@ class PlaylistManager(private val application: Application) {
         }
 
         val seekStart = if (removingCurrent) 0 else seekPosition
+        applyPlayerSettings()
         beginPlayback(seekStart, !wasPlaying)
         playlistHandler?.updateMediaControls()
         return foundItem
@@ -363,6 +372,7 @@ class PlaylistManager(private val application: Application) {
         }
 
         val seekStart = if (removingCurrent) 0 else seekPosition
+        applyPlayerSettings()
         beginPlayback(seekStart, !wasPlaying)
         return removedTracks
     }
@@ -372,6 +382,7 @@ class PlaylistManager(private val application: Application) {
         player?.clearMediaItems()
         audioTracks.clear()
         currentPosition = INVALID_POSITION
+        sequentialErrors = 0
         rmxPlaybackState = RmxPlaybackState.STOPPED
     }
 
@@ -429,7 +440,7 @@ class PlaylistManager(private val application: Application) {
             }
             val index = currentPosition.coerceIn(0, audioTracks.size - 1)
             currentPosition = index
-            exoPlayer.repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+            exoPlayer.repeatMode = PlaylistPlaybackPolicy.repeatMode(loop, audioTracks.size)
             exoPlayer.seekTo(index, seekPosition)
             exoPlayer.prepare()
             exoPlayer.playWhenReady = !startPaused && !videoHandoffForegroundRetain
@@ -474,7 +485,7 @@ class PlaylistManager(private val application: Application) {
         player?.let { exoPlayer ->
             exoPlayer.volume = (volumeLeft + volumeRight) / 2f
             exoPlayer.setPlaybackSpeed(playbackSpeed)
-            exoPlayer.repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+            exoPlayer.repeatMode = PlaylistPlaybackPolicy.repeatMode(loop, audioTracks.size)
         }
     }
 
@@ -512,6 +523,7 @@ class PlaylistManager(private val application: Application) {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (isPlaying) {
+                sequentialErrors = 0
                 rmxPlaybackState = RmxPlaybackState.PLAYING
             } else if (player?.playbackState == Player.STATE_READY) {
                 rmxPlaybackState = RmxPlaybackState.PAUSED
@@ -520,7 +532,14 @@ class PlaylistManager(private val application: Application) {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            val previousIndex = currentPosition
             currentPosition = player?.currentMediaItemIndex ?: currentPosition
+            if (PlaylistPlaybackPolicy.isNaturalItemEnd(reason) && previousIndex in audioTracks.indices) {
+                notifyItemCompleted(
+                    audioTracks[previousIndex],
+                    PlaylistPlaybackPolicy.nextAvailable(previousIndex, audioTracks.size, loop)
+                )
+            }
             playbackStatusListener.get()?.onNativeTrackChanged(
                 currentItem,
                 isNextAvailable,
@@ -544,7 +563,32 @@ class PlaylistManager(private val application: Application) {
             currentErrorTrack = currentItem
             rmxPlaybackState = RmxPlaybackState.ERROR
             playbackStatusListener.get()?.onNativePlayerError(error)
+            skipFailedItem()
         }
+    }
+
+    /** PlaylistCore moved past a failing item (up to [PlaylistPlaybackPolicy.MAX_SEQUENTIAL_ERRORS] in a row). */
+    private fun skipFailedItem() {
+        val exoPlayer = player ?: return
+        sequentialErrors++
+        val failedIndex = exoPlayer.currentMediaItemIndex
+        val hasNext = PlaylistPlaybackPolicy.nextAvailable(failedIndex, audioTracks.size, loop)
+        if (!PlaylistPlaybackPolicy.shouldSkipAfterError(sequentialErrors, hasNext)) {
+            return
+        }
+        val resume = PlaylistPlaybackPolicy.playWhenReadyAfterErrorSkip(exoPlayer.playWhenReady, failedIndex)
+        if (failedIndex + 1 >= audioTracks.size) {
+            exoPlayer.seekTo(0, 0)
+        } else {
+            exoPlayer.seekTo(failedIndex + 1, 0)
+        }
+        exoPlayer.prepare()
+        exoPlayer.playWhenReady = resume && !videoHandoffForegroundRetain
+    }
+
+    /** Former PlaylistCore order on a natural item end: COMPLETED, PLAYLIST_COMPLETED when last, then STOPPED. */
+    private fun notifyItemCompleted(track: AudioTrack, nextAvailable: Boolean) {
+        playbackStatusListener.get()?.onNativeItemCompleted(track, nextAvailable)
     }
 
     private fun mapPlaybackState(playbackState: Int): RmxPlaybackState {
@@ -570,14 +614,11 @@ class PlaylistManager(private val application: Application) {
 
     private fun handleItemEnded() {
         val track = currentItem
-        playbackStatusListener.get()?.onNativeItemCompleted(track)
-        if (!isNextAvailable) {
+        val nextAvailable = isNextAvailable
+        track?.let { notifyItemCompleted(it, nextAvailable) }
+        if (!nextAvailable) {
             playbackStatusListener.get()?.onNativePlaylistCompleted()
         }
-    }
-
-    init {
-        options = Options(application.baseContext)
     }
 
     companion object {

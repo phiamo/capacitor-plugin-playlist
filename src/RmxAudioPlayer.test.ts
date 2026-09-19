@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AudioTrack } from './interfaces';
+
+import { RmxAudioPlayer } from './RmxAudioPlayer';
+import type { AudioTrack } from './interfaces';
+import { Playlist } from './plugin';
 
 vi.mock('./plugin', () => ({
     Playlist: {
@@ -10,9 +13,6 @@ vi.mock('./plugin', () => ({
         addListener: vi.fn(),
     },
 }));
-
-import { RmxAudioPlayer } from './RmxAudioPlayer';
-import { Playlist } from './plugin';
 
 const track = (overrides: Partial<AudioTrack> = {}): AudioTrack => ({
     assetUrl: 'https://example.com/track.mp3',

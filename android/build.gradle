@@ -8,8 +8,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.0'
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0'
+        classpath 'com.android.tools.build:gradle:9.4.1'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20'
     }
 }
 
@@ -21,13 +21,13 @@ ext {
     androidxEspressoCoreVersion = project.hasProperty('androidxEspressoCoreVersion') ? rootProject.ext.androidxEspressoCoreVersion : '3.7.0'
     // Only used when this module is built standalone (e.g. `npm run verify:android`); when
     // embedded, the consuming app's root build.gradle already sets rootProject.ext.kotlin_version.
-    kotlin_version = project.hasProperty('kotlinVersion') ? rootProject.ext.kotlinVersion : '2.1.0'
+    kotlin_version = project.hasProperty('kotlinVersion') ? rootProject.ext.kotlinVersion : '2.4.20'
 }
 
 apply plugin: 'com.android.library'
 
-// AGP 9+ (consuming apps) provides built-in Kotlin; applying kotlin-android there fails.
-// Standalone `./gradlew test` (CI) still uses AGP 8.x from this module's buildscript.
+// AGP 9+ provides built-in Kotlin; applying kotlin-android there fails. Hosts still on AGP 8
+// get the Kotlin plugin applied here.
 def agpMajorVersion = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION.tokenize('.')[0].toInteger()
 if (agpMajorVersion < 9) {
     apply plugin: 'kotlin-android'
@@ -49,7 +49,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-    lintOptions {
+    lint {
         abortOnError = false
     }
     compileOptions {
@@ -82,7 +82,7 @@ dependencies {
     testImplementation "junit:junit:$junitVersion"
     // Real org.json implementation for plain JVM unit tests: the android.jar stub used for
     // compilation throws "Stub!" for org.json.* at runtime outside instrumented/Robolectric tests.
-    testImplementation "org.json:json:20231013"
+    testImplementation "org.json:json:20260814"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation "androidx.core:core-ktx:1.17.0"
@@ -94,9 +94,9 @@ dependencies {
     implementation "androidx.media3:media3-session:$media3Version"
 
     // Image Loading (artwork — Story 55.5 wires Glide into Media3 notification)
-    implementation 'com.github.bumptech.glide:glide:5.0.5'
-    annotationProcessor 'com.github.bumptech.glide:compiler:5.0.5'
+    implementation 'com.github.bumptech.glide:glide:5.0.7'
+    annotationProcessor 'com.github.bumptech.glide:compiler:5.0.7'
 
-    implementation 'androidx.work:work-runtime-ktx:2.11.0'
+    implementation 'androidx.work:work-runtime-ktx:2.11.2'
 
 }

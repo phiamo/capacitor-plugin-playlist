@@ -1,6 +1,7 @@
 import { WebPlugin } from '@capacitor/core';
+
 import { RmxAudioStatusMessage } from './Constants';
-import {
+import type {
     AddAllItemOptions,
     AddItemOptions,
     MoveItemOptions,
@@ -18,10 +19,10 @@ import {
     SetPlaybackRateOptions,
     SetPlaybackVolumeOptions
 } from './definitions';
-import { AudioPlayerOptions, AudioTrack } from './interfaces';
+import type { AudioPlayerOptions, AudioTrack } from './interfaces';
 import { validateTrack, validateTracks } from './utils';
 
-declare var Hls: any;
+declare let Hls: any;
 
 export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     protected audio: HTMLAudioElement | undefined;
@@ -142,7 +143,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async playTrackById(options: PlayByIdOptions): Promise<void> {
-        for (let track of this.playlistItems) {
+        for (const track of this.playlistItems) {
             if (track.trackId === options.id) {
                 if (track !== this.currentTrack) {
                     await this.setCurrent(track);
@@ -157,7 +158,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async playTrackByIndex(options: PlayByIndexOptions): Promise<void> {
-        for (let { index, item } of this.playlistItems.map((item, index) => ({ index, item }))) {
+        for (const { index, item } of this.playlistItems.map((item, index) => ({ index, item }))) {
             if (index === options.index) {
                 if (item !== this.currentTrack) {
                     await this.setCurrent(item);
@@ -386,7 +387,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     // register events
     /*
-      private registerHlsListeners(hls: Hls, position?: number) {
+      private registerHlsListeners(hls: any, position?: number) {
         hls.on(Hls.Events.MANIFEST_PARSED, async () => {
           this.notifyListeners('status', {
             action: "status",
@@ -401,7 +402,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
           }
         });
       }*/
-    registerHtmlListeners(position?: number) {
+    registerHtmlListeners(position?: number): void {
         const canPlayListener = async () => {
             this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_CANPLAY, this.getCurrentTrackStatus('paused'));
             if (position) {
@@ -455,18 +456,25 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         }
     }
 
-    protected getCurrentTrackId() {
+    protected getCurrentTrackId(): string | undefined {
         if (this.currentTrack) {
             return this.currentTrack.trackId;
         }
         return 'INVALID';
     }
 
-    protected getCurrentIndex() {
+    protected getCurrentIndex(): number {
         return this.currentTrack ? this.playlistItems.indexOf(this.currentTrack) : -1;
     }
 
-    protected getCurrentTrackStatus(currentState: string) {
+    protected getCurrentTrackStatus(currentState: string): {
+        trackId: string | undefined;
+        isStream: boolean;
+        currentIndex: number;
+        status: string;
+        currentPosition: number;
+        duration: number;
+    } {
         this.lastState = currentState;
         return {
             trackId: this.getCurrentTrackId(),
@@ -478,7 +486,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         };
     }
 
-    protected async setCurrent(item: AudioTrack, position?: number, forceAutoplay: boolean = false) {
+    protected async setCurrent(item: AudioTrack, position?: number, forceAutoplay: boolean = false): Promise<void> {
         let wasPlaying = false;
         if (this.audio) {
             wasPlaying = !this.audio.paused;
@@ -519,7 +527,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         }
     }
 
-    protected updateStatus(msgType: RmxAudioStatusMessage, value: any, trackId?: string) {
+    protected updateStatus(msgType: RmxAudioStatusMessage, value: any, trackId?: string): void {
         this.notifyListeners('status', {
             action: 'status',
             status: {
@@ -532,8 +540,8 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     private hlsLoaded = false;
 
-    protected loadHlsJs() {
-        if (window.Hls !== undefined || this.hlsLoaded) {
+    protected loadHlsJs(): Promise<void> {
+        if (typeof Hls !== 'undefined' || this.hlsLoaded) {
             return Promise.resolve();
         }
         return new Promise(
@@ -541,7 +549,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                 console.log("LOADING HLS FROM CDN");
                 const script = document.createElement('script');
                 script.type = 'text/javascript';
-                script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.1.1';
+                script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.7.3';
                 document.getElementsByTagName('head')[0].appendChild(script);
                 script.onload = () => {
                     this.hlsLoaded = true;

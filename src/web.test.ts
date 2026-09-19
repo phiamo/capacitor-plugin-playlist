@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PlaylistWeb } from './web';
+
 import { RmxAudioStatusMessage } from './Constants';
-import { AudioTrack } from './interfaces';
+import type { AudioTrack } from './interfaces';
+import { PlaylistWeb } from './web';
 
 const track = (trackId: string, overrides: Partial<AudioTrack> = {}): AudioTrack => ({
     trackId,

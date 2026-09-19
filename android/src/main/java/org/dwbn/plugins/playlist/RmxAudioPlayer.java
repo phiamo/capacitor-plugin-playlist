@@ -103,14 +103,18 @@ public class RmxAudioPlayer implements MediaControlsListener {
         playlistManager.setVolume(left, right);
     }
 
-    public void onCompletion(AudioTrack item) {
+    /**
+     * A track played to its end. {@code nextAvailable} is judged from the finished track, because
+     * Media3 has already moved to the next item when it reports the transition.
+     */
+    public void onCompletion(AudioTrack item, boolean nextAvailable) {
         if (item != null) {
             String trackId = item.getTrackId();
             JSONObject trackStatus = getPlayerStatus(item);
             onStatus(RmxAudioStatusMessage.RMXSTATUS_COMPLETED, trackId, trackStatus);
         }
 
-        if (!playlistManager.isNextAvailable()) {
+        if (!nextAvailable) {
             onStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYLIST_COMPLETED, "INVALID", null);
         }
     }
@@ -176,7 +180,8 @@ public class RmxAudioPlayer implements MediaControlsListener {
         playlistManager.setCurrentErrorTrack(null);
     }
 
-    public void onNativeItemCompleted(@Nullable AudioTrack item) {
+    public void onNativeItemCompleted(@Nullable AudioTrack item, boolean nextAvailable) {
+        onCompletion(item, nextAvailable);
         if (item != null) {
             String trackId = item.getTrackId();
             JSONObject trackStatus = getPlayerStatus(item);

@@ -36,7 +36,66 @@ class AudioPlaylistHandlerTest {
         assertEquals(listOf("playWhenReady:true"), recording.calls)
     }
 
-    private class RecordingPlayer(private val isPlaying: Boolean) {
+    @Test
+    fun play_onIdlePlayer_preparesBeforePlaying() {
+        val recording = RecordingPlayer(isPlaying = false, playbackState = Player.STATE_IDLE)
+
+        AudioPlaylistHandler.startAudible(recording.proxy)
+
+        assertEquals(listOf("prepare", "playWhenReady:true"), recording.calls)
+    }
+
+    @Test
+    fun play_onEndedPlayer_rewindsCurrentItemBeforePlaying() {
+        val recording = RecordingPlayer(isPlaying = false, playbackState = Player.STATE_ENDED, currentIndex = 2)
+
+        AudioPlaylistHandler.startAudible(recording.proxy)
+
+        assertEquals(listOf("seekToDefault:2", "playWhenReady:true"), recording.calls)
+    }
+
+    @Test
+    fun play_onReadyPlayer_onlyPlays() {
+        val recording = RecordingPlayer(isPlaying = false, playbackState = Player.STATE_READY)
+
+        AudioPlaylistHandler.startAudible(recording.proxy)
+
+        assertEquals(listOf("playWhenReady:true"), recording.calls)
+    }
+
+    @Test
+    fun resetStreamOnPause_liveStream_resumesAtLiveEdge() {
+        val recording = RecordingPlayer(isPlaying = false, isLive = true)
+
+        AudioPlaylistHandler.jumpToLiveEdgeIfReset(recording.proxy, true, true)
+
+        assertEquals(listOf("seekToDefault:current"), recording.calls)
+    }
+
+    @Test
+    fun resetStreamOnPause_vodHlsLecture_keepsPosition() {
+        val recording = RecordingPlayer(isPlaying = false, isLive = false)
+
+        AudioPlaylistHandler.jumpToLiveEdgeIfReset(recording.proxy, true, true)
+
+        assertEquals(emptyList<String>(), recording.calls)
+    }
+
+    @Test
+    fun resetStreamOnPauseOff_liveStream_keepsPosition() {
+        val recording = RecordingPlayer(isPlaying = false, isLive = true)
+
+        AudioPlaylistHandler.jumpToLiveEdgeIfReset(recording.proxy, false, true)
+
+        assertEquals(emptyList<String>(), recording.calls)
+    }
+
+    private class RecordingPlayer(
+        private val isPlaying: Boolean,
+        private val playbackState: Int = Player.STATE_READY,
+        private val currentIndex: Int = 0,
+        private val isLive: Boolean = false
+    ) {
         val setPlayWhenReadyCalls = mutableListOf<Boolean>()
         val calls = mutableListOf<String>()
         val proxy: Player = Proxy.newProxyInstance(
@@ -45,6 +104,17 @@ class AudioPlaylistHandlerTest {
         ) { _, method, args ->
             when (method.name) {
                 "isPlaying" -> isPlaying
+                "getPlaybackState" -> playbackState
+                "getCurrentMediaItemIndex" -> currentIndex
+                "isCurrentMediaItemLive" -> isLive
+                "prepare" -> {
+                    calls.add("prepare")
+                    null
+                }
+                "seekToDefaultPosition" -> {
+                    calls.add("seekToDefault:" + (args?.getOrNull(0) ?: "current"))
+                    null
+                }
                 "setPlayWhenReady" -> {
                     val ready = args[0] as Boolean
                     setPlayWhenReadyCalls.add(ready)

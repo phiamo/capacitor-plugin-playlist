@@ -5,7 +5,9 @@ import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
+import org.dwbn.plugins.playlist.data.AudioTrack;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
+import org.dwbn.plugins.playlist.manager.PlaylistPlaybackPolicy;
 import org.dwbn.plugins.playlist.handoff.VideoPlayerBridge;
 import org.dwbn.plugins.playlist.service.MediaNotificationPolicy;
 
@@ -48,9 +50,32 @@ public class AudioPlaylistHandler {
             // Media3 handleAudioFocus owns pause/resume; do not call AudioManager.requestAudioFocus.
         }
         Player player = playlistManager.getPlayer();
-        if (player != null) {
-            player.setPlayWhenReady(true);
+        AudioTrack track = playlistManager.getCurrentItem();
+        jumpToLiveEdgeIfReset(player, playlistManager.getResetStreamOnPause(), track != null && track.isStream());
+        startAudible(player);
+    }
+
+    /** Visible for JVM tests — `resetStreamOnPause` resumes live streams at the live edge. */
+    static void jumpToLiveEdgeIfReset(@Nullable Player player, boolean resetStreamOnPause, boolean isStream) {
+        if (player != null
+            && PlaylistPlaybackPolicy.shouldJumpToLiveEdge(resetStreamOnPause, isStream, player.isCurrentMediaItemLive())) {
+            player.seekToDefaultPosition();
         }
+    }
+
+    /** Visible for JVM tests — PlaylistCore's play restarted an idle or finished player. */
+    static void startAudible(@Nullable Player player) {
+        if (player == null) {
+            return;
+        }
+        int state = player.getPlaybackState();
+        if (PlaylistPlaybackPolicy.needsRewindBeforePlay(state)) {
+            player.seekToDefaultPosition(player.getCurrentMediaItemIndex());
+        }
+        if (PlaylistPlaybackPolicy.needsPrepareBeforePlay(state)) {
+            player.prepare();
+        }
+        player.setPlayWhenReady(true);
     }
 
     public void pause(boolean isTemporary) {

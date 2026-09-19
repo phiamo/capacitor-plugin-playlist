@@ -24,7 +24,7 @@ internal class PlaylistMediaSessionCallback(
     ): MediaSession.ConnectionResult {
         if (session.isMediaNotificationController(controller)) {
             val availability = skipAvailability()
-            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
                 .setAvailablePlayerCommands(
                     MediaNotificationPolicy.playerCommandsForMediaNotification(
                         MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS,

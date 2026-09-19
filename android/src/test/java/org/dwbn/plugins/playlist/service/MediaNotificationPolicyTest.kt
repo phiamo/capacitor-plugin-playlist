@@ -220,4 +220,19 @@ class MediaNotificationPolicyTest {
         assertTrue(methodNames.contains("onUpdateNotificationAsync"))
         assertTrue(methodNames.contains("onStartCommand"))
     }
+
+    @Test
+    fun playback_holdsNetworkWakeLockLikePlaylistCore() {
+        assertEquals(androidx.media3.common.C.WAKE_MODE_NETWORK, MediaNotificationPolicy.WAKE_MODE)
+    }
+
+    @Test
+    fun smallIcon_usesAppDrawableFromOptions() {
+        assertEquals(0x7f080001, MediaNotificationPolicy.smallIconRes(0x7f080001))
+    }
+
+    @Test
+    fun smallIcon_missingDrawable_fallsBackToPlatformPlayGlyph() {
+        assertEquals(android.R.drawable.ic_media_play, MediaNotificationPolicy.smallIconRes(0))
+    }
 }

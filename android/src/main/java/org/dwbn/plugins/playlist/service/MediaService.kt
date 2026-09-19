@@ -22,6 +22,7 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import org.dwbn.plugins.playlist.FakeR
 import org.dwbn.plugins.playlist.PlaylistRuntime
 import org.dwbn.plugins.playlist.handoff.VideoPlayerBridge
 import org.dwbn.plugins.playlist.manager.PlaylistManager
@@ -42,6 +43,7 @@ class MediaService : MediaSessionService() {
 
     private var exoPlayer: ExoPlayer? = null
     private var mediaSession: MediaSession? = null
+    private var notificationProvider: DefaultMediaNotificationProvider? = null
     private var inForeground = false
 
     private val playlistManager: PlaylistManager
@@ -54,7 +56,8 @@ class MediaService : MediaSessionService() {
         startForegroundImmediately()
         setListener(foregroundStartListener)
         val notificationProvider = DefaultMediaNotificationProvider.Builder(this).build()
-        notificationProvider.setSmallIcon(android.R.drawable.ic_media_play)
+        notificationProvider.setSmallIcon(smallIconRes())
+        this.notificationProvider = notificationProvider
         setMediaNotificationProvider(notificationProvider)
         setShowNotificationForIdlePlayer(MediaNotificationPolicy.SHOW_NOTIFICATION_WHEN_IDLE)
 
@@ -67,6 +70,7 @@ class MediaService : MediaSessionService() {
                 MediaNotificationPolicy.HANDLE_AUDIO_FOCUS
             )
             .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(MediaNotificationPolicy.WAKE_MODE)
             .build()
         exoPlayer = player
         // Load items before the session is built so the notification controller sees a timeline.
@@ -107,6 +111,10 @@ class MediaService : MediaSessionService() {
         playlistManager.attachService(this)
 
         startForegroundWithMedia3Notification(session)
+        // The app drives the player directly, so no MediaController ever connects through
+        // onGetSession. Without addSession, Media3 never manages this session's notification and
+        // the placeholder above keeps the first title forever (no artist, no track changes).
+        addSession(session)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -202,6 +210,17 @@ class MediaService : MediaSessionService() {
         triggerNotificationUpdate()
     }
 
+    /** Re-reads `options.icon` after `setOptions` so a running service picks up the app's icon. */
+    fun applyNotificationIcon() {
+        notificationProvider?.setSmallIcon(smallIconRes())
+        triggerNotificationUpdate()
+    }
+
+    private fun smallIconRes(): Int =
+        MediaNotificationPolicy.smallIconRes(
+            FakeR.getId(this, "drawable", playlistManager.options.icon)
+        )
+
     /** FGS within startForegroundService timeout; replaced by MediaStyle once the session exists. */
     private fun startForegroundImmediately() {
         startForegroundWith(buildImmediateNotification())
@@ -234,7 +253,7 @@ class MediaService : MediaSessionService() {
         }
         val title = playlistManager.currentItem?.title?.takeIf { it.isNotEmpty() } ?: "Audio playback"
         val builder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(smallIconRes())
             .setContentTitle(title)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
