@@ -46,6 +46,8 @@ class MediaService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // startForegroundService timeout starts before onStartCommand; onCreate can exceed it.
+        startForegroundImmediately()
         setListener(foregroundStartListener)
         val notificationProvider = DefaultMediaNotificationProvider.Builder(this).build()
         notificationProvider.setSmallIcon(android.R.drawable.ic_media_play)
@@ -68,6 +70,7 @@ class MediaService : MediaSessionService() {
             this,
             HandoffForwardingPlayer(player) { playlistManager.videoHandoffForegroundRetain }
         )
+            .setId(MediaNotificationPolicy.MEDIA_SESSION_ID)
             .setBitmapLoader(GlideBitmapLoader(this))
         sessionActivityPendingIntent()?.let { sessionBuilder.setSessionActivity(it) }
         val session = sessionBuilder.build()

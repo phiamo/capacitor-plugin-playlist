@@ -15,6 +15,9 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 object MediaNotificationPolicy {
     const val HANDLE_AUDIO_FOCUS = true
 
+    /** Distinct from the video plugin session (`org.dwbn.video`); Media3 forbids two empty IDs. */
+    const val MEDIA_SESSION_ID = "org.dwbn.playlist"
+
     /**
      * [MediaService.promoteToForeground] must not call [android.app.Service.startForeground]
      * (Android 12+ forbids restarting FGS from the background after video).
@@ -32,6 +35,10 @@ object MediaNotificationPolicy {
 
     @JvmStatic
     fun shouldStartForegroundOnPromote(): Boolean = ALLOW_START_FOREGROUND_ON_PROMOTE
+
+    /** A second [android.content.Context.startForegroundService] while onCreate is still running trips the FGS timeout. */
+    @JvmStatic
+    fun shouldStartForegroundService(serviceAlreadyCreated: Boolean): Boolean = !serviceAlreadyCreated
 
     @JvmStatic
     fun shouldRequestLegacyAudioFocus(): Boolean = false

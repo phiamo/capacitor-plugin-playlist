@@ -170,4 +170,16 @@ class MediaNotificationPolicyTest {
     fun failedInPlaceResume_doesNotBeginPlayback() {
         assertFalse(MediaNotificationPolicy.shouldBeginPlaybackWhenInPlaceUnavailable())
     }
+
+    @Test
+    fun mediaSessionId_isDistinctFromEmptyDefault() {
+        assertEquals("org.dwbn.playlist", MediaNotificationPolicy.MEDIA_SESSION_ID)
+        assertFalse(MediaNotificationPolicy.MEDIA_SESSION_ID.isEmpty())
+    }
+
+    @Test
+    fun ensureService_skipsWhenAlreadyCreated() {
+        assertFalse(MediaNotificationPolicy.shouldStartForegroundService(true))
+        assertTrue(MediaNotificationPolicy.shouldStartForegroundService(false))
+    }
 }

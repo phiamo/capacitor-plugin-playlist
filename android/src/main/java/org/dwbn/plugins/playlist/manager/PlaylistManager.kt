@@ -445,6 +445,9 @@ class PlaylistManager(private val application: Application) {
     }
 
     fun ensureServiceStarted() {
+        if (!MediaNotificationPolicy.shouldStartForegroundService(MediaService.instance != null)) {
+            return
+        }
         val intent = Intent(application, MediaService::class.java)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
