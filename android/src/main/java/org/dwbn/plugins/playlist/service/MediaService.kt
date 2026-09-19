@@ -23,6 +23,7 @@ import androidx.media3.session.MediaStyleNotificationHelper
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import org.dwbn.plugins.playlist.PlaylistRuntime
+import org.dwbn.plugins.playlist.handoff.VideoPlayerBridge
 import org.dwbn.plugins.playlist.manager.PlaylistManager
 
 /**
@@ -84,9 +85,19 @@ class MediaService : MediaSessionService() {
             .setBitmapLoader(GlideBitmapLoader(this))
             .setCallback(
                 PlaylistMediaSessionCallback {
+                    val retain = playlistManager.videoHandoffForegroundRetain
+                    val videoAttached = VideoPlayerBridge.hasActivePlayer()
                     PlaylistMediaSessionCallback.SkipAvailability(
-                        playlistManager.isPreviousAvailable,
-                        playlistManager.isNextAvailable
+                        MediaNotificationPolicy.mediaNotificationSkipPreviousEnabled(
+                            playlistManager.isPreviousAvailable,
+                            retain,
+                            videoAttached
+                        ),
+                        MediaNotificationPolicy.mediaNotificationSkipNextEnabled(
+                            playlistManager.isNextAvailable,
+                            retain,
+                            videoAttached
+                        )
                     )
                 }
             )
@@ -188,7 +199,7 @@ class MediaService : MediaSessionService() {
     }
 
     fun updateForegroundNotification() {
-        // Media3 updates the session notification from Player / MediaItem.MediaMetadata.
+        triggerNotificationUpdate()
     }
 
     /** FGS within startForegroundService timeout; replaced by MediaStyle once the session exists. */

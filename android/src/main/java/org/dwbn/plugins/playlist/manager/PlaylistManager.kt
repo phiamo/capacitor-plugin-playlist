@@ -17,6 +17,7 @@ import org.dwbn.plugins.playlist.RmxAudioPlayer
 import org.dwbn.plugins.playlist.TrackRemovalItem
 import org.dwbn.plugins.playlist.data.AudioTrack
 import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler
+import org.dwbn.plugins.playlist.handoff.VideoPlayerBridge
 import org.dwbn.plugins.playlist.service.MediaNotificationPolicy
 import org.dwbn.plugins.playlist.service.MediaService
 import java.lang.ref.WeakReference
@@ -500,7 +501,10 @@ class PlaylistManager(private val application: Application) {
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (playWhenReady &&
-                MediaNotificationPolicy.shouldIgnoreSessionPlay(videoHandoffForegroundRetain)
+                MediaNotificationPolicy.shouldIgnoreSessionPlay(
+                    videoHandoffForegroundRetain,
+                    VideoPlayerBridge.hasActivePlayer()
+                )
             ) {
                 player?.playWhenReady = false
             }

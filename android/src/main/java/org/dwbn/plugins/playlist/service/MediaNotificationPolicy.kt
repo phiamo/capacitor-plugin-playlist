@@ -85,10 +85,46 @@ object MediaNotificationPolicy {
         media3Requested: Boolean
     ): Boolean = media3Requested || shouldForceNotificationForeground(videoHandoffForegroundRetain)
 
-    /** MediaSession / notification play must not start audible audio while retain is set. */
+    /** MediaSession / notification play must not start audible audio while retain is set and video is absent. */
     @JvmStatic
     fun shouldIgnoreSessionPlay(videoHandoffForegroundRetain: Boolean): Boolean =
-        videoHandoffForegroundRetain
+        shouldIgnoreSessionPlay(videoHandoffForegroundRetain, videoHandoffPlayerAttached = false)
+
+    @JvmStatic
+    fun shouldIgnoreSessionPlay(
+        videoHandoffForegroundRetain: Boolean,
+        videoHandoffPlayerAttached: Boolean
+    ): Boolean = videoHandoffForegroundRetain && !videoHandoffPlayerAttached
+
+    @JvmStatic
+    fun shouldDelegateNotificationToVideo(
+        videoHandoffForegroundRetain: Boolean,
+        videoHandoffPlayerAttached: Boolean
+    ): Boolean = videoHandoffForegroundRetain && videoHandoffPlayerAttached
+
+    @JvmStatic
+    fun mediaNotificationSkipPreviousEnabled(
+        previousAvailable: Boolean,
+        videoHandoffForegroundRetain: Boolean,
+        videoHandoffPlayerAttached: Boolean
+    ): Boolean {
+        if (shouldDelegateNotificationToVideo(videoHandoffForegroundRetain, videoHandoffPlayerAttached)) {
+            return false
+        }
+        return mediaNotificationSkipPreviousEnabled(previousAvailable)
+    }
+
+    @JvmStatic
+    fun mediaNotificationSkipNextEnabled(
+        nextAvailable: Boolean,
+        videoHandoffForegroundRetain: Boolean,
+        videoHandoffPlayerAttached: Boolean
+    ): Boolean {
+        if (shouldDelegateNotificationToVideo(videoHandoffForegroundRetain, videoHandoffPlayerAttached)) {
+            return false
+        }
+        return mediaNotificationSkipNextEnabled(nextAvailable)
+    }
 
     /** Android audible resume stays play then seek (not seek then play). */
     @JvmStatic

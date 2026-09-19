@@ -6,6 +6,7 @@ import androidx.annotation.OptIn;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
+import org.dwbn.plugins.playlist.handoff.VideoPlayerBridge;
 import org.dwbn.plugins.playlist.service.MediaNotificationPolicy;
 
 /**
@@ -34,7 +35,10 @@ public class AudioPlaylistHandler {
     }
 
     public void play() {
-        if (MediaNotificationPolicy.shouldIgnoreSessionPlay(playlistManager.isVideoHandoffPrewarmActive())) {
+        if (MediaNotificationPolicy.shouldIgnoreSessionPlay(
+            playlistManager.isVideoHandoffPrewarmActive(),
+            VideoPlayerBridge.hasActivePlayer()
+        )) {
             playlistManager.ensureForeground();
             return;
         }
