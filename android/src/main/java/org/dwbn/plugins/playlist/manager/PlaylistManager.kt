@@ -441,6 +441,13 @@ class PlaylistManager(private val application: Application) {
                 return
             }
             val index = currentPosition.coerceIn(0, audioTracks.size - 1)
+            // Snapshot the position of whatever track is being switched away from — covers the
+            // JS "tap a different playlist item" path (playTrackById), not just native skip, so a
+            // later native skip back to that track resumes correctly regardless of how it was left.
+            val fromIndex = exoPlayer.currentMediaItemIndex
+            if (fromIndex != index) {
+                audioTracks.getOrNull(fromIndex)?.startPositionMs = exoPlayer.currentPosition
+            }
             currentPosition = index
             exoPlayer.repeatMode = PlaylistPlaybackPolicy.repeatMode(loop, audioTracks.size)
             exoPlayer.seekTo(index, seekPosition)
