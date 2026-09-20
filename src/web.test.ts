@@ -273,6 +273,49 @@ describe('PlaylistWeb — stall detection (issue #143 parity)', () => {
         );
     });
 
+    it('does not stay stuck suppressing "waiting" after a seek is interrupted by an error, not "seeked"', async () => {
+        await web.addAllItems({ items: [track('a')] });
+        await web.playTrackById({ id: 'a' });
+        const audio = (web as any).audio as HTMLAudioElement;
+        audio.dispatchEvent(new Event('canplay'));
+        audio.dispatchEvent(new Event('seeking'));
+        // The seek target never became playable — 'error' fires instead of 'seeked'.
+        audio.dispatchEvent(new Event('error'));
+        const listener = vi.fn();
+        web.addListener('status', listener);
+
+        audio.dispatchEvent(new Event('waiting'));
+
+        expect(listener).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: expect.objectContaining({ msgType: RmxAudioStatusMessage.RMXSTATUS_STALLED }),
+            })
+        );
+    });
+
+    it('does not stay stuck suppressing "waiting" after switching tracks mid-seek', async () => {
+        await web.addAllItems({ items: [track('a'), track('b')] });
+        await web.playTrackById({ id: 'a' });
+        const firstAudio = (web as any).audio as HTMLAudioElement;
+        firstAudio.dispatchEvent(new Event('canplay'));
+        firstAudio.dispatchEvent(new Event('seeking'));
+
+        // Switching tracks tears down the old element before its 'seeked' ever fires.
+        await web.playTrackById({ id: 'b' });
+        const newAudio = (web as any).audio as HTMLAudioElement;
+        newAudio.dispatchEvent(new Event('canplay'));
+        const listener = vi.fn();
+        web.addListener('status', listener);
+
+        newAudio.dispatchEvent(new Event('waiting'));
+
+        expect(listener).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: expect.objectContaining({ msgType: RmxAudioStatusMessage.RMXSTATUS_STALLED }),
+            })
+        );
+    });
+
     it('suppresses "waiting" before the first "canplay" of a source', async () => {
         await web.addAllItems({ items: [track('a')] });
         await web.playTrackById({ id: 'a' });

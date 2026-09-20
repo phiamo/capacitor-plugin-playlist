@@ -654,7 +654,9 @@ final class RmxAudioPlayer: NSObject {
         
         if loop && avQueuePlayer.isAtEnd {
             print("Last music in playlist play ended, loop back.")
-            avQueuePlayer.setCurrentIndex(0)
+            // Native loop restart, not an explicit JS track selection — resume track 0 at its
+            // saved position, matching advanceToNextItem's wraparound.
+            avQueuePlayer.setCurrentIndex(0, completionHandler: { _ in }, resumeAtSavedPosition: true)
             avQueuePlayer.play()
         }
     }
@@ -950,7 +952,9 @@ final class RmxAudioPlayer: NSObject {
             }
 
             if loop && !avQueuePlayer.queuedAudioTracks.isEmpty {
-                avQueuePlayer.setCurrentIndex(0)
+                // Native loop restart, not an explicit JS track selection — resume track 0 at its
+                // saved position, matching advanceToNextItem's wraparound.
+                avQueuePlayer.setCurrentIndex(0, completionHandler: { _ in }, resumeAtSavedPosition: true)
                 // not playing here
             } else {
                 onStatus(.rmxstatus_STOPPED, trackId: "INVALID", param: nil)

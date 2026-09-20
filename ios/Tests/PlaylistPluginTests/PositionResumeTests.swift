@@ -1,3 +1,4 @@
+import AVFoundation
 import XCTest
 @testable import PlaylistPlugin
 
@@ -117,5 +118,51 @@ final class PositionResumeTests: XCTestCase {
         XCTAssertNoThrow(try player.selectTrack(index: 1, positionTime: 5))
 
         XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "b")
+    }
+
+    // MARK: - Actual seek target (captured directly, since AVPlayerItem.currentTime() doesn't
+    // reflect a seek against an unloaded/unplayable asset — see the tests above, which only check
+    // which track becomes current). `AudioTrack` is `final` and can't be subclassed to intercept
+    // its own `seek()`, but the final, authoritative seek in `setCurrentIndex`/`advanceToNextItem`
+    // is the *player-level* one (see the "not a typo" comments in AVBidirectionalQueuePlayer) —
+    // capturable by subclassing the player itself.
+
+    private final class SeekCapturingQueuePlayer: AVBidirectionalQueuePlayer {
+        private(set) var capturedSeekTimes: [CMTime] = []
+
+        override func seek(
+            to time: CMTime,
+            toleranceBefore: CMTime,
+            toleranceAfter: CMTime,
+            completionHandler: @escaping (Bool) -> Void
+        ) {
+            capturedSeekTimes.append(time)
+            completionHandler(true)
+        }
+    }
+
+    private func makeSeekCapturingPlayer(trackIds: [String]) -> SeekCapturingQueuePlayer {
+        let tracks = trackIds.map { makeTrackWithPosition(id: $0) }
+        let player = SeekCapturingQueuePlayer(items: [])
+        player.appendItems(tracks)
+        return player
+    }
+
+    func testSetCurrentIndex_defaultSeeksToZeroNotSavedPosition() {
+        let player = makeSeekCapturingPlayer(trackIds: ["a", "b"])
+        player.queuedAudioTracks[1].startPositionSeconds = 42
+
+        player.setCurrentIndex(1)
+
+        XCTAssertEqual(player.capturedSeekTimes.last?.seconds, 0)
+    }
+
+    func testSetCurrentIndex_resumeAtSavedPositionSeeksThere() {
+        let player = makeSeekCapturingPlayer(trackIds: ["a", "b"])
+        player.queuedAudioTracks[1].startPositionSeconds = 42
+
+        player.setCurrentIndex(1, completionHandler: { _ in }, resumeAtSavedPosition: true)
+
+        XCTAssertEqual(player.capturedSeekTimes.last?.seconds ?? -1, 42, accuracy: 0.001)
     }
 }
