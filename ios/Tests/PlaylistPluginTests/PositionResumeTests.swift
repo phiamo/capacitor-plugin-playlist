@@ -79,4 +79,43 @@ final class PositionResumeTests: XCTestCase {
         XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "a")
         XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.startPositionSeconds, 17)
     }
+
+    // MARK: - Explicit JS selection vs. native-skip default (code-review follow-up)
+    //
+    // `setCurrentIndex` backs both the native-skip paths (`playPreviousItem`,
+    // `advanceToNextItem`'s wraparound) and the explicit JS `playTrack`/`selectTrack` paths, which
+    // must NOT implicitly resume at a track's saved position — that would diverge from Android's
+    // `beginPlayback`, which always defaults to position 0 unless the caller supplies one
+    // (`PlaylistPlugin.kt`'s `selectTrackByIndex`/`playTrackByIndex`: `call.getFloat("position", 0f)`).
+    // Actual seek time isn't observable against an unloaded AVPlayerItem in this test target (no
+    // existing test in this suite asserts on `currentTime()`), so these lock in track selection and
+    // the API shape rather than the seek itself.
+
+    func testSetCurrentIndex_defaultsDoNotImplyNativeSkipResume() {
+        let player = makePlayer(trackIds: ["a", "b", "c"])
+        player.avQueuePlayer.queuedAudioTracks[2].startPositionSeconds = 99
+
+        player.avQueuePlayer.setCurrentIndex(2)
+
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "c")
+    }
+
+    func testAdvanceToNextItem_wraparoundStillSelectsFirstTrack() {
+        let player = makePlayer(trackIds: ["a", "b"])
+        player.avQueuePlayer.setCurrentIndex(1)
+        player.avQueuePlayer.queuedAudioTracks[0].startPositionSeconds = 8
+
+        player.avQueuePlayer.advanceToNextItem()
+
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "a")
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.startPositionSeconds, 8)
+    }
+
+    func testSelectTrack_acceptsOptionalPositionOverride() throws {
+        let player = makePlayer(trackIds: ["a", "b"])
+
+        XCTAssertNoThrow(try player.selectTrack(index: 1, positionTime: 5))
+
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "b")
+    }
 }

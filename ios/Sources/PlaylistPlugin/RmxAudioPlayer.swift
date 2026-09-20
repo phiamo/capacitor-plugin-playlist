@@ -364,14 +364,17 @@ final class RmxAudioPlayer: NSObject {
     /// These are basically just passing through to the core functionality of the queue and this player.
     ///
     /// These functions don't really do anything interesting by themselves.
-    func selectTrack(index: Int) throws {
+    func selectTrack(index: Int, positionTime: Float? = nil) throws {
         guard index >= 0 && index < avQueuePlayer.queuedAudioTracks.count else {
             throw RmxAudioPlayerError.indexOutOfPlaylistBounds
         }
         avQueuePlayer.setCurrentIndex(index)
+        if let positionTime = positionTime {
+            seek(to: positionTime, isCommand: false)
+        }
     }
 
-    func selectTrack(id: String) throws {
+    func selectTrack(id: String, positionTime: Float? = nil) throws {
         guard !avQueuePlayer.queuedAudioTracks.isEmpty else {
             throw RmxAudioPlayerError.queueEmpty
         }
@@ -380,6 +383,9 @@ final class RmxAudioPlayer: NSObject {
 
         if idx >= 0 {
             avQueuePlayer.setCurrentIndex(idx)
+            if let positionTime = positionTime {
+                seek(to: positionTime, isCommand: false)
+            }
         }
     }
 

@@ -158,7 +158,9 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
                 seek(to: resumeTime(for: track), toleranceBefore: .zero, toleranceAfter: .zero)
             }
         } else {
-            setCurrentIndex(0)
+            // Wraparound to the start of the queue is still a native-advance, not an explicit JS
+            // track selection, so it keeps native-skip semantics (resume at saved position).
+            setCurrentIndex(0, completionHandler: { _ in }, resumeAtSavedPosition: true)
         }
     }
 
@@ -166,7 +168,13 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         setCurrentIndex(currentIndex, completionHandler: { _ in })
     }
 
-    func setCurrentIndex(_ newCurrentIndex: Int, completionHandler: @escaping (Bool) -> Void) {
+    /// - Parameter resumeAtSavedPosition: When `true`, the new current item resumes at its saved
+    ///   `startPositionSeconds` — native skip/advance semantics. When `false` (the default), it
+    ///   starts at 0, matching Android's `beginPlayback`/explicit JS play-or-select default; callers
+    ///   that received an explicit JS `position` apply their own seek afterward (see `playTrack`/
+    ///   `selectTrack` in `RmxAudioPlayer`). Other queue items keep their own saved position
+    ///   regardless of this flag — they're untouched by this operation.
+    func setCurrentIndex(_ newCurrentIndex: Int, completionHandler: @escaping (Bool) -> Void, resumeAtSavedPosition: Bool = false) {
         let currentrate = rate
         if currentrate > 0 {
             pause()
@@ -184,14 +192,18 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         let newCurrentTrack: AudioTrack? = newCurrentIndex >= 0 && newCurrentIndex < tempPlaylist.count
             ? tempPlaylist[newCurrentIndex]
             : nil
+        let targetTime: CMTime = resumeAtSavedPosition ? resumeTime(for: newCurrentTrack) : .zero
         for i in newCurrentIndex..<(tempPlaylist.count) {
             let item = tempPlaylist[i]
-            item.seek(to: resumeTime(for: item), toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
+            // Only the new current item's target depends on resumeAtSavedPosition; every other
+            // (untouched) queue item keeps resuming at its own previously-saved position.
+            let itemSeekTime = (i == newCurrentIndex) ? targetTime : resumeTime(for: item)
+            item.seek(to: itemSeekTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
             super.insert(item, after: nil)
         }
-        // Not a typo; see above comment. Seeks the player itself to the new current item's saved
+        // Not a typo; see above comment. Seeks the player itself to the new current item's target
         // position — without this, AVQueuePlayer can override the per-item seek above.
-        seek(to: resumeTime(for: newCurrentTrack), toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
+        seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
     }
 
     func replaceAllItems(with items: [AudioTrack]) {

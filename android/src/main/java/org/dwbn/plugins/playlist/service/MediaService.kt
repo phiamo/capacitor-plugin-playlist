@@ -66,10 +66,17 @@ class MediaService : MediaSessionService() {
         setMediaNotificationProvider(notificationProvider)
         setShowNotificationForIdlePlayer(MediaNotificationPolicy.SHOW_NOTIFICATION_WHEN_IDLE)
 
-        // Static, process-wide flag: enables Media3's own STATE_READY-with-no-progress detector
-        // (StuckPlayerException via onPlayerError, already forwarded as RMXSTATUS_ERROR).
+        // experimentalEnableStuckPlayingDetection is a static, process-wide flag that Media3 reads
+        // once, inside the Builder constructor itself (not at build()), to seed the stuck-playing
+        // timeouts below — so any other ExoPlayer.Builder built elsewhere in the host app while it's
+        // true would silently inherit stuck-player detection too. Flip it only around the
+        // constructor call, then restore whatever value it had, to keep that window as small as
+        // possible instead of leaving the process-wide default changed for the rest of the process.
+        val previousStuckPlayingDetectionFlag = ExoPlayer.Builder.experimentalEnableStuckPlayingDetection
         ExoPlayer.Builder.experimentalEnableStuckPlayingDetection = true
-        val player = ExoPlayer.Builder(this)
+        val playerBuilder = ExoPlayer.Builder(this)
+        ExoPlayer.Builder.experimentalEnableStuckPlayingDetection = previousStuckPlayingDetectionFlag
+        val player = playerBuilder
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
