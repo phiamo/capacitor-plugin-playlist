@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.14.4
+
+Test-only, no behavior change.
+
+- Test (Android): added `PlaylistManagerAttachDrainTest` — a long-deferred item from the spec-55-4 review ("constructing `PlaylistManager`/`ExoPlayer` is more than a direct test") turned out to be feasible with Robolectric, which this repo already depends on for other tests. Confirms a `beginPlaybackAt` call that arrives before the player is attached (e.g. JS `play()`/`setPlaylistItems` racing `MediaService.onCreate()`) is replayed against a real `ExoPlayer` once `attachPlayer()` runs, asserting the actual `currentPosition`/`playWhenReady` outcome rather than just that no exception was thrown.
+
 ## 0.14.3
 
 Fixes from an automated review of the 0.14.1/0.14.2 diff.
