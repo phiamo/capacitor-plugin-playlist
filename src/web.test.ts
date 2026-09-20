@@ -209,3 +209,47 @@ describe('PlaylistWeb#replaceItem', () => {
         expect(newAudio.currentTime).toBe(42);
     });
 });
+
+describe('PlaylistWeb — stall detection (issue #143 parity)', () => {
+    let web: PlaylistWeb;
+
+    beforeEach(() => {
+        web = new PlaylistWeb();
+    });
+
+    it('emits RMXSTATUS_STALLED with status "stalled" on the native "waiting" event', async () => {
+        await web.addAllItems({ items: [track('a')] });
+        await web.playTrackById({ id: 'a' });
+        const listener = vi.fn();
+        web.addListener('status', listener);
+
+        const audio = (web as any).audio as HTMLAudioElement;
+        audio.dispatchEvent(new Event('waiting'));
+
+        expect(listener).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: expect.objectContaining({
+                    msgType: RmxAudioStatusMessage.RMXSTATUS_STALLED,
+                    trackId: 'a',
+                    value: expect.objectContaining({ status: 'stalled' }),
+                }),
+            })
+        );
+    });
+
+    it('emits RMXSTATUS_STALLED on the native "stalled" event', async () => {
+        await web.addAllItems({ items: [track('a')] });
+        await web.playTrackById({ id: 'a' });
+        const listener = vi.fn();
+        web.addListener('status', listener);
+
+        const audio = (web as any).audio as HTMLAudioElement;
+        audio.dispatchEvent(new Event('stalled'));
+
+        expect(listener).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: expect.objectContaining({ msgType: RmxAudioStatusMessage.RMXSTATUS_STALLED }),
+            })
+        );
+    });
+});

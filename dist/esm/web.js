@@ -348,6 +348,15 @@ export class PlaylistWeb extends WebPlugin {
             this.audio.addEventListener('error', () => {
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, this.getCurrentTrackStatus('error'));
             });
+            // Parity with Android (position-freeze polling) / iOS (AVPlayerItemPlaybackStalledNotification):
+            // the browser's own stall signals for "still trying, not necessarily failed" (issue #143).
+            // 'waiting' is the reliable one (temporary data underrun); 'stalled' is best-effort.
+            this.audio.addEventListener('waiting', () => {
+                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_STALLED, this.getCurrentTrackStatus('stalled'));
+            });
+            this.audio.addEventListener('stalled', () => {
+                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_STALLED, this.getCurrentTrackStatus('stalled'));
+            });
             this.audio.addEventListener('ended', () => {
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_COMPLETED, this.getCurrentTrackStatus('stopped'));
                 const currentTrackIndex = this.playlistItems.findIndex(i => i.trackId === this.getCurrentTrackId());

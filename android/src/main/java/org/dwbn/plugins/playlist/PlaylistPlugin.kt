@@ -371,9 +371,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     @PluginMethod
     fun pause(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
-            if (audioPlayerImpl!!.playlistManager.isPlaying) {
-                audioPlayerImpl!!.playlistManager.playlistHandler?.pause(false)
-            }
+            // Adapted from PR #142 (mustafa0x): gating on isPlaying dropped pause() while a track
+            // was still loading/preparing (isPlaying not yet true), so a later "ready" callback
+            // could start playback against an explicit pause request. AudioPlaylistHandler.pause()
+            // is already null-safe against no/not-yet-ready player, so call it unconditionally.
+            audioPlayerImpl!!.playlistManager.playlistHandler?.pause(false)
 
             call.resolve()
 
@@ -415,12 +417,13 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             val seekPosition =
                 (call.getFloat("position", position / 1000.0f)!! * 1000.0f).toLong()
 
-            val isPlaying: Boolean? =
-                audioPlayerImpl!!.playlistManager.playlistHandler?.currentMediaPlayer?.isPlaying
+            // Adapted from PR #141 (mustafa0x): this used to snapshot isPlaying, seek, then
+            // force-pause if it wasn't already playing — a race against the old PlaylistCore
+            // handler's own internal seek/resume bookkeeping. Media3's Player.seekTo() never
+            // touches playWhenReady on its own, so that second decision was redundant dead
+            // weight against the current handler (AudioPlaylistHandler.seek() is a thin
+            // ExoPlayer.seekTo() wrapper) rather than an active bug — removed.
             audioPlayerImpl!!.playlistManager.playlistHandler?.seek(seekPosition)
-            if (isPlaying === null || !isPlaying) {
-                audioPlayerImpl!!.playlistManager.playlistHandler?.pause(false)
-            }
 
             call.resolve()
 
@@ -530,6 +533,10 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         // (PLAYING, PAUSE, PLAYBACK_POSITION, etc.) because onStatus() would early-return.
         // Only clear the playback items so native memory is released.
         audioPlayerImpl!!.playlistManager.clearItems()
+        // release() is a definitive "done with playback" signal (unlike clearAllItems(), which
+        // may be about to load a new queue) — tear down the notification/FGS so it doesn't
+        // linger forever under SHOW_NOTIFICATION_FOR_IDLE_PLAYER_ALWAYS.
+        audioPlayerImpl!!.playlistManager.endForeground()
     }
 
     private fun getTrackItem(item: JSONObject?, requireTrackId: Boolean = true): AudioTrack? {
