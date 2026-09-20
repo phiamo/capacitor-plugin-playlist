@@ -32,7 +32,7 @@ class AudioTrack(private val config: JSONObject) {
      * whenever the player skips away from this track, so a later skip back within the same
      * session resumes correctly instead of restarting at 0.
      */
-    var startPositionMs: Long = (config.optDouble("startPosition", 0.0) * 1000.0).toLong()
+    var startPositionMs: Long = maxOf(0L, (config.optDouble("startPosition", 0.0) * 1000.0).toLong())
         set(value) {
             field = maxOf(0, value)
         }
@@ -47,6 +47,7 @@ class AudioTrack(private val config: JSONObject) {
             info.put("artist", artist)
             info.put("album", album)
             info.put("title", title)
+            info.put("startPosition", startPositionMs / 1000.0)
         } catch (_: JSONException) {
             // I can think of no reason this would ever fail
         }

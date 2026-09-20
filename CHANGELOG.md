@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.14.1
+
+Code-review follow-up on 0.14.0.
+
+- Fix (Web): the 0.14.0 `RMXSTATUS_STALLED` listeners set `lastState = 'stalled'` with nothing guaranteed to clear it back — `'playing'`/`'pause'`/`'error'`/`'canplay'`/`'ended'` now explicitly clear it, so a subsequent `RMXSTATUS_PLAYBACK_POSITION` tick can't get stuck reporting `status: "stalled"` after playback has actually resumed.
+- Fix (Web): the same listeners fired on the routine `'waiting'` a seek or the initial buffering of a new source causes, producing false `RMXSTATUS_STALLED` on ordinary use. Now suppressed while a seek is in flight and before the first `'canplay'` of the current source, and de-duplicated so only one `RMXSTATUS_STALLED` fires per stall episode.
+- Fix (Android): `AudioTrack.startPositionMs`'s negative-value clamp lived only in the property's custom setter, which Kotlin does not invoke for the property-initializer assignment — a negative JS-supplied `startPosition` was clamped on every later reassignment but not at construction. Fixed by clamping at the initializer too.
+- Fix (Android): `AudioTrack.toDict()` didn't include `startPosition`, unlike iOS's equivalent — JS read back a track's resume position on iOS but not Android. Added for parity.
+
 ## 0.14.0
 
 - Feat (Android): enable Media3's own stuck-player detector (`androidx.media3:media3-exoplayer` 1.9.0+, already present at the pinned 1.11.1) — `experimentalEnableStuckPlayingDetection = true` for the fast STATE_READY-no-progress case, and `setStuckBufferingDetectionTimeoutMs()` tightened from the 10-minute default to 60s for the STATE_BUFFERING case. Both report through the existing `onPlayerError` → `RMXSTATUS_ERROR` path as a "give up" backstop underneath 0.13.3's faster `RMXSTATUS_STALLED` signal.

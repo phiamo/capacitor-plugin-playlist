@@ -50,4 +50,18 @@ class AudioTrackTest {
 
         assertEquals(0L, track.startPositionMs)
     }
+
+    @Test
+    fun startPositionMs_clampsNegativeJsValueAtConstruction() {
+        val track = AudioTrack(trackConfig(startPosition = -12.0))
+
+        assertEquals(0L, track.startPositionMs)
+    }
+
+    @Test
+    fun toDict_includesStartPositionInSeconds() {
+        val track = AudioTrack(trackConfig(startPosition = 58.294))
+
+        assertEquals(58.294, track.toDict().getDouble("startPosition"), 0.001)
+    }
 }

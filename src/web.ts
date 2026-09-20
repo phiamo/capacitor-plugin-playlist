@@ -31,6 +31,9 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     protected options: AudioPlayerOptions = {};
     protected currentTrack: AudioTrack | null = null;
     protected lastState = 'stopped';
+    private isStalled = false;
+    private isSeeking = false;
+    private hasCanPlayed = false;
 
     addAllItems(options: AddAllItemOptions): Promise<void> {
         this.playlistItems = this.playlistItems.concat(validateTracks(options.items));
@@ -411,31 +414,49 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             this.audio?.removeEventListener('canplay', canPlayListener);
         };
         if (this.audio) {
-            this.audio.addEventListener('loadstart', () => {this.setMediaSessionRemoteControlMetadata()});
+            this.audio.addEventListener('loadstart', () => {
+                this.hasCanPlayed = false;
+                this.isStalled = false;
+                this.setMediaSessionRemoteControlMetadata();
+            });
             this.audio.addEventListener('canplay', canPlayListener);
+            this.audio.addEventListener('canplay', () => {
+                this.hasCanPlayed = true;
+                this.clearStalled();
+            });
             this.audio.addEventListener('playing', () => {
+                this.clearStalled();
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYING, this.getCurrentTrackStatus('playing'));
             });
 
             this.audio.addEventListener('pause', () => {
+                this.clearStalled();
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_PAUSE, this.getCurrentTrackStatus('paused'));
             });
 
             this.audio.addEventListener('error', () => {
+                this.clearStalled();
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, this.getCurrentTrackStatus('error'));
             });
 
             // Parity with Android (position-freeze polling) / iOS (AVPlayerItemPlaybackStalledNotification):
             // the browser's own stall signals for "still trying, not necessarily failed" (issue #143).
             // 'waiting' is the reliable one (temporary data underrun); 'stalled' is best-effort.
-            this.audio.addEventListener('waiting', () => {
+            // Suppressed during an in-flight seek and before the first 'canplay' of a source, since both
+            // routinely fire a spurious 'waiting' that isn't an actual playback stall. Only emitted once
+            // per stall episode; 'playing'/'pause'/'error'/'canplay'/'ended' all clear it again.
+            const stalledListener = () => {
+                if (this.isSeeking || !this.hasCanPlayed || this.isStalled) {
+                    return;
+                }
+                this.isStalled = true;
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_STALLED, this.getCurrentTrackStatus('stalled'));
-            });
-            this.audio.addEventListener('stalled', () => {
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_STALLED, this.getCurrentTrackStatus('stalled'));
-            });
+            };
+            this.audio.addEventListener('waiting', stalledListener);
+            this.audio.addEventListener('stalled', stalledListener);
 
             this.audio.addEventListener('ended', () => {
+                this.clearStalled();
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_COMPLETED, this.getCurrentTrackStatus('stopped'));
                 const currentTrackIndex = this.playlistItems.findIndex(i => i.trackId === this.getCurrentTrackId());
                 if (currentTrackIndex === this.playlistItems.length - 1) {
@@ -460,10 +481,18 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             });
 
             this.audio.addEventListener('seeking', () => {
+                this.isSeeking = true;
                 const status = this.getCurrentTrackStatus(this.lastState);
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_SEEK, status);
             });
+            this.audio.addEventListener('seeked', () => {
+                this.isSeeking = false;
+            });
         }
+    }
+
+    private clearStalled(): void {
+        this.isStalled = false;
     }
 
     protected getCurrentTrackId(): string | undefined {

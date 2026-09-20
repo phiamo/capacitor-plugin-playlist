@@ -220,10 +220,11 @@ describe('PlaylistWeb — stall detection (issue #143 parity)', () => {
     it('emits RMXSTATUS_STALLED with status "stalled" on the native "waiting" event', async () => {
         await web.addAllItems({ items: [track('a')] });
         await web.playTrackById({ id: 'a' });
+        const audio = (web as any).audio as HTMLAudioElement;
+        audio.dispatchEvent(new Event('canplay'));
         const listener = vi.fn();
         web.addListener('status', listener);
 
-        const audio = (web as any).audio as HTMLAudioElement;
         audio.dispatchEvent(new Event('waiting'));
 
         expect(listener).toHaveBeenCalledWith(
@@ -240,15 +241,73 @@ describe('PlaylistWeb — stall detection (issue #143 parity)', () => {
     it('emits RMXSTATUS_STALLED on the native "stalled" event', async () => {
         await web.addAllItems({ items: [track('a')] });
         await web.playTrackById({ id: 'a' });
+        const audio = (web as any).audio as HTMLAudioElement;
+        audio.dispatchEvent(new Event('canplay'));
         const listener = vi.fn();
         web.addListener('status', listener);
 
-        const audio = (web as any).audio as HTMLAudioElement;
         audio.dispatchEvent(new Event('stalled'));
 
         expect(listener).toHaveBeenCalledWith(
             expect.objectContaining({
                 status: expect.objectContaining({ msgType: RmxAudioStatusMessage.RMXSTATUS_STALLED }),
+            })
+        );
+    });
+
+    it('suppresses "waiting" during an in-flight seek', async () => {
+        await web.addAllItems({ items: [track('a')] });
+        await web.playTrackById({ id: 'a' });
+        const audio = (web as any).audio as HTMLAudioElement;
+        audio.dispatchEvent(new Event('canplay'));
+        const listener = vi.fn();
+        web.addListener('status', listener);
+
+        audio.dispatchEvent(new Event('seeking'));
+        audio.dispatchEvent(new Event('waiting'));
+
+        expect(listener).not.toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: expect.objectContaining({ msgType: RmxAudioStatusMessage.RMXSTATUS_STALLED }),
+            })
+        );
+    });
+
+    it('suppresses "waiting" before the first "canplay" of a source', async () => {
+        await web.addAllItems({ items: [track('a')] });
+        await web.playTrackById({ id: 'a' });
+        const audio = (web as any).audio as HTMLAudioElement;
+        const listener = vi.fn();
+        web.addListener('status', listener);
+
+        audio.dispatchEvent(new Event('waiting'));
+
+        expect(listener).not.toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: expect.objectContaining({ msgType: RmxAudioStatusMessage.RMXSTATUS_STALLED }),
+            })
+        );
+    });
+
+    it('clears the stalled state once playback resumes, so a later position update is not stuck at "stalled"', async () => {
+        await web.addAllItems({ items: [track('a')] });
+        await web.playTrackById({ id: 'a' });
+        const audio = (web as any).audio as HTMLAudioElement;
+        audio.dispatchEvent(new Event('canplay'));
+        audio.dispatchEvent(new Event('waiting'));
+
+        audio.dispatchEvent(new Event('playing'));
+        const listener = vi.fn();
+        web.addListener('status', listener);
+        Object.defineProperty(audio, 'currentTime', { value: 5, writable: true, configurable: true });
+        audio.dispatchEvent(new Event('timeupdate'));
+
+        expect(listener).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: expect.objectContaining({
+                    msgType: RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION,
+                    value: expect.objectContaining({ status: 'playing' }),
+                }),
             })
         );
     });
