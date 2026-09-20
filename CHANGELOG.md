@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.13.2
+
+- Fix (Android): the system media notification and hardware media buttons invoke `Player.seekToNext()`/`seekToPrevious()` — distinct from `seekToNextMediaItem()`/`seekToPreviousMediaItem()`, which `HandoffForwardingPlayer` already overrode. Without an override, these fell through to the wrapped ExoPlayer's own default ("restart current track if progressed" for previous, "seek to 0" for next), bypassing the playlist's skip logic and the 0.13.0/0.13.1 position-resume fix entirely for anyone using system-level controls.
+- Fix (Android): the system notification controller's available skip commands were granted once at `MediaSession` connect time (typically before any track was loaded) and never refreshed, so the notification's next/previous buttons — and the commands they're allowed to send — stayed frozen at that snapshot for the life of the session. `MediaService` now re-grants them via `refreshSkipAvailability()` on every track transition and queue load.
+
 ## 0.13.1
 
 - Fix (Android): `startPosition` (0.13.0) was only refreshed when a track was left via native skipToNext/Previous. Switching tracks via `playTrackById` (the JS "tap a playlist item" path) now also snapshots the outgoing track's position, so a later native skip back to it resumes correctly regardless of which mechanism was used to leave it.

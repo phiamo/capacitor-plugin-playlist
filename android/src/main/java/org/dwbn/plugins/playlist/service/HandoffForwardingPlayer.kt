@@ -123,6 +123,27 @@ internal class HandoffForwardingPlayer(
         onSkipToPrevious?.invoke() ?: super.seekToPreviousMediaItem()
     }
 
+    /**
+     * The system media notification and hardware media buttons invoke this — Player's "smart"
+     * seek, not [seekToNextMediaItem] — so without this override they fall through to
+     * [ForwardingPlayer]'s default (the wrapped ExoPlayer's own seekToNext), bypassing
+     * [onSkipToNext] and its saved-position resume entirely.
+     */
+    override fun seekToNext() {
+        if (videoPlayer() != null) {
+            return
+        }
+        onSkipToNext?.invoke() ?: super.seekToNext()
+    }
+
+    /** See [seekToNext] — the system-control counterpart of [seekToPreviousMediaItem]. */
+    override fun seekToPrevious() {
+        if (videoPlayer() != null) {
+            return
+        }
+        onSkipToPrevious?.invoke() ?: super.seekToPrevious()
+    }
+
     override fun getAvailableCommands(): Player.Commands {
         val previous = previousAvailable
         val next = nextAvailable

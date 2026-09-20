@@ -75,6 +75,44 @@ class HandoffForwardingPlayerTest {
         assertEquals(0, recording.seekToPreviousCount)
     }
 
+    /**
+     * seekToNext/seekToPrevious (not the MediaItem variants) are what the system media
+     * notification and hardware media buttons actually invoke — regression coverage for the
+     * bug where these fell through to the wrapped player's own default and bypassed the
+     * playlist's skip/position-resume logic entirely.
+     */
+    @Test
+    fun seekToNext_delegatesToCallback() {
+        var skipNextCount = 0
+        val recording = RecordingPlayer()
+        val forwarding = HandoffForwardingPlayer(
+            recording.proxy,
+            retain = { false },
+            onSkipToNext = { skipNextCount++ }
+        )
+
+        forwarding.seekToNext()
+
+        assertEquals(1, skipNextCount)
+        assertEquals(0, recording.seekToNextSmartCount)
+    }
+
+    @Test
+    fun seekToPrevious_delegatesToCallback() {
+        var skipPreviousCount = 0
+        val recording = RecordingPlayer()
+        val forwarding = HandoffForwardingPlayer(
+            recording.proxy,
+            retain = { false },
+            onSkipToPrevious = { skipPreviousCount++ }
+        )
+
+        forwarding.seekToPrevious()
+
+        assertEquals(1, skipPreviousCount)
+        assertEquals(0, recording.seekToPreviousSmartCount)
+    }
+
     @Test
     fun retainWithVideoAttached_playReachesVideoPlayer() {
         val audio = RecordingPlayer()
@@ -153,10 +191,13 @@ class HandoffForwardingPlayerTest {
 
         forwarding.seekToNextMediaItem()
         forwarding.seekToPreviousMediaItem()
+        forwarding.seekToNext()
+        forwarding.seekToPrevious()
 
         assertEquals(0, skipNextCount)
         assertEquals(0, skipPreviousCount)
         assertEquals(0, video.seekToNextCount)
+        assertEquals(0, video.seekToNextSmartCount)
     }
 
     @Test
@@ -224,6 +265,8 @@ class HandoffForwardingPlayerTest {
         var pauseCount = 0
         var seekToNextCount = 0
         var seekToPreviousCount = 0
+        var seekToNextSmartCount = 0
+        var seekToPreviousSmartCount = 0
         val seekToPositionMsCalls = mutableListOf<Long>()
         val setPlayWhenReadyCalls = mutableListOf<Boolean>()
         val proxy: Player = Proxy.newProxyInstance(
@@ -258,6 +301,14 @@ class HandoffForwardingPlayerTest {
                 }
                 "seekToPreviousMediaItem" -> {
                     seekToPreviousCount++
+                    null
+                }
+                "seekToNext" -> {
+                    seekToNextSmartCount++
+                    null
+                }
+                "seekToPrevious" -> {
+                    seekToPreviousSmartCount++
                     null
                 }
                 "isPlaying", "getIsPlaying" -> isPlayingValue

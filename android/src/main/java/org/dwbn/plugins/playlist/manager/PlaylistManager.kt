@@ -216,6 +216,7 @@ class PlaylistManager(private val application: Application) {
         }
 
         beginPlayback(seekStart, options.startPaused)
+        mediaServiceRef.get()?.refreshSkipAvailability()
     }
 
     fun addItem(item: AudioTrack?, index: Int = -1) {
@@ -553,6 +554,7 @@ class PlaylistManager(private val application: Application) {
                 isNextAvailable,
                 isPreviousAvailable
             )
+            mediaServiceRef.get()?.refreshSkipAvailability()
         }
 
         override fun onPositionDiscontinuity(
