@@ -121,6 +121,12 @@ export interface AudioTrack {
      * Title of the track
      */
     title: string;
+    /**
+     * Last known playback position to resume from, in seconds, when this track becomes
+     * current via a native skip-to-next/previous (e.g. OS notification, headset button,
+     * Android Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0.
+     */
+    startPosition?: number;
 }
 
 /**

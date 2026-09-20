@@ -26,6 +26,17 @@ class AudioTrack(private val config: JSONObject) {
             field = maxOf(0, dur)
         }
 
+    /**
+     * Last known playback position for this track, in ms. Seeded from the JS-supplied
+     * `startPosition` (seconds) at construction, and kept fresh by [org.dwbn.plugins.playlist.manager.PlaylistManager]
+     * whenever the player skips away from this track, so a later skip back within the same
+     * session resumes correctly instead of restarting at 0.
+     */
+    var startPositionMs: Long = (config.optDouble("startPosition", 0.0) * 1000.0).toLong()
+        set(value) {
+            field = maxOf(0, value)
+        }
+
     fun toDict(): JSONObject {
         val info = JSONObject()
         try {

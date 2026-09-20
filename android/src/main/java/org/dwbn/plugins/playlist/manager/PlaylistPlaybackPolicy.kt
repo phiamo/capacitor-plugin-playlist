@@ -47,6 +47,22 @@ object PlaylistPlaybackPolicy {
         return index > 0 || loop
     }
 
+    /**
+     * Window index for [Player.seekTo] when skipping forward, matching [PlaylistManager.skipToNext]:
+     * next item, or wrap to 0 at the end of the list when looping.
+     */
+    @JvmStatic
+    fun nextSkipIndex(fromIndex: Int, itemCount: Int, loop: Boolean): Int =
+        if (fromIndex + 1 >= itemCount && loop) 0 else fromIndex + 1
+
+    /**
+     * Window index for [Player.seekTo] when skipping backward, matching
+     * [PlaylistManager.skipToPrevious]: previous item, or wrap to the last item when looping.
+     */
+    @JvmStatic
+    fun previousSkipIndex(fromIndex: Int, itemCount: Int, loop: Boolean): Int =
+        if (fromIndex <= 0 && loop) itemCount - 1 else fromIndex - 1
+
     /** An item played to its end and the player moved on by itself (not a seek or list change). */
     @JvmStatic
     fun isNaturalItemEnd(transitionReason: Int): Boolean =

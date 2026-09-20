@@ -14,6 +14,11 @@ final class AudioTrack: AVPlayerItem {
     var artist: String?
     var album: String?
     var title: String?
+    /// Last known playback position for this track, in seconds. Seeded from the JS-supplied
+    /// `startPosition` at construction, and kept fresh by `AVBidirectionalQueuePlayer` whenever
+    /// the player skips away from this track, so a later skip back within the same session
+    /// resumes correctly instead of restarting at 0.
+    var startPositionSeconds: Double = 0
 
     class func initWithDictionary(_ trackInfo: [String : Any]?) -> AudioTrack? {
         guard
@@ -45,7 +50,14 @@ final class AudioTrack: AVPlayerItem {
         track.artist = trackInfo["artist"] as? String
         track.album = trackInfo["album"] as? String
         track.title = trackInfo["title"] as? String
-        
+
+        // Accept common JS representations, same as isStream above.
+        if let startPosition = trackInfo["startPosition"] as? Double {
+            track.startPositionSeconds = max(0, startPosition)
+        } else if let startPositionNum = trackInfo["startPosition"] as? NSNumber {
+            track.startPositionSeconds = max(0, startPositionNum.doubleValue)
+        }
+
         return track
     }
 
@@ -57,7 +69,8 @@ final class AudioTrack: AVPlayerItem {
             "albumArt": albumArt?.absoluteString ?? "",
             "artist": artist ?? "",
             "album": album ?? "",
-            "title": title ?? ""
+            "title": title ?? "",
+            "startPosition": NSNumber(value: startPositionSeconds)
         ]
     }
 }

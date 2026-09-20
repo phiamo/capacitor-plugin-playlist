@@ -902,7 +902,7 @@ prepareForVideoHandoff() => Promise<void>
 
 Release native audio session / focus so a video player can own playback.
 
-**Android:** pauses current track, abandons audio focus, stores head position, and retains the foreground media service. Does not stop FGS.
+**Android:** pauses current track, abandons audio focus, stores head position. Does not stop the foreground media service.
 **iOS:** pauses, captures head position, deactivates `AVAudioSession` with `notifyOthersOnDeactivation`.
 **Web:** pauses HTMLAudioElement and stores `currentTime`.
 
@@ -924,7 +924,7 @@ Re-arm native audio after video ends or, on Android, prewarm the media service b
 - iOS: restores pinned track, reactivates `AVAudioSession`, seeks to `position`, and when `play` is true starts playback (seek-then-play). Returns `{ resumed: true }` when native handled the handoff.
 - Web: stores position only (no native session); returns `{ resumed: false }`.
 
-**With `prewarm: true` (Android, before video):** prepares at `position` but stays silent — no audio focus, no audible playback. FGS retain starts on `prepareForVideoHandoff`, not here. Always returns `{ resumed: false }`.
+**With `prewarm: true` (Android, before video):** starts `MediaService` in foreground at `position` but stays silent — no audio focus, no audible playback. Always returns `{ resumed: false }`.
 
 | Param         | Type                                                                                      |
 | ------------- | ----------------------------------------------------------------------------------------- |
@@ -1015,15 +1015,16 @@ Includes the new track, its index, and the state of the playlist.
 
 An audio track for playback by the playlist.
 
-| Prop           | Type                 | Description                                                                                                                                                                                |
-| -------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`isStream`** | <code>boolean</code> | This item is a streaming asset. Make sure this is set to true for stream URLs, otherwise you will get odd behavior when the asset is paused.                                               |
-| **`trackId`**  | <code>string</code>  | trackId is optional and if not passed in, an auto-generated UUID will be used.                                                                                                             |
-| **`assetUrl`** | <code>string</code>  | URL of the asset; can be local, a URL, or a streaming URL. If the asset is a stream, make sure that isStream is set to true, otherwise the plugin can't properly handle the item's buffer. |
-| **`albumArt`** | <code>string</code>  | The local or remote URL to an image asset to be shown for this track. If this is null, the plugin's default image is used.                                                                 |
-| **`artist`**   | <code>string</code>  | The track's artist                                                                                                                                                                         |
-| **`album`**    | <code>string</code>  | Album the track belongs to                                                                                                                                                                 |
-| **`title`**    | <code>string</code>  | Title of the track                                                                                                                                                                         |
+| Prop                | Type                 | Description                                                                                                                                                                                                                                             |
+| ------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`isStream`**      | <code>boolean</code> | This item is a streaming asset. Make sure this is set to true for stream URLs, otherwise you will get odd behavior when the asset is paused.                                                                                                            |
+| **`trackId`**       | <code>string</code>  | trackId is optional and if not passed in, an auto-generated UUID will be used.                                                                                                                                                                          |
+| **`assetUrl`**      | <code>string</code>  | URL of the asset; can be local, a URL, or a streaming URL. If the asset is a stream, make sure that isStream is set to true, otherwise the plugin can't properly handle the item's buffer.                                                              |
+| **`albumArt`**      | <code>string</code>  | The local or remote URL to an image asset to be shown for this track. If this is null, the plugin's default image is used.                                                                                                                              |
+| **`artist`**        | <code>string</code>  | The track's artist                                                                                                                                                                                                                                      |
+| **`album`**         | <code>string</code>  | Album the track belongs to                                                                                                                                                                                                                              |
+| **`title`**         | <code>string</code>  | Title of the track                                                                                                                                                                                                                                      |
+| **`startPosition`** | <code>number</code>  | Last known playback position to resume from, in seconds, when this track becomes current via a native skip-to-next/previous (e.g. OS notification, headset button, Android Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0. |
 
 
 #### OnStatusErrorCallbackData
@@ -1192,9 +1193,9 @@ that were in the previous list.
 
 #### ResumeAfterVideoHandoffResult
 
-| Prop          | Type                 | Description                                                                                                                                                                                                                                       |
-| ------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`resumed`** | <code>boolean</code> | `true` when native already handled seek (and play when requested) in place. When `true`, JS should skip redundant `seekTo` / `play` to avoid a stutter. `false` on web, prewarm, paused Android handoff, and when in-place resume cannot run (JS may play/seek). |
+| Prop          | Type                 | Description                                                                                                                                                                                                                              |
+| ------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`resumed`** | <code>boolean</code> | `true` when native already handled seek (and play when requested) in place. When `true`, JS should skip redundant `seekTo` / `play` to avoid a stutter. `false` on web, prewarm, and paused Android handoff (native does not auto-play). |
 
 
 #### ResumeAfterVideoHandoffOptions
@@ -1202,7 +1203,7 @@ that were in the previous list.
 | Prop           | Type                 | Description                                                                                                                                                                                                                                                                                                       |
 | -------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`position`** | <code>number</code>  | Resume position in seconds (video exit head or saved audio position).                                                                                                                                                                                                                                             |
-| **`prewarm`**  | <code>boolean</code> | **Android only.** When `true`, prepare at `position` without requesting audio focus or playing audio. FGS retain already started on `prepareForVideoHandoff`. Use optionally after prepare and before native video starts, while the app is still foregrounded. Ignored on iOS (no-op). Not applicable on web. |
+| **`prewarm`**  | <code>boolean</code> | **Android only.** When `true`, promote `MediaService` to foreground and prepare at `position` without requesting audio focus or playing audio. Use immediately after `prepareForVideoHandoff` and before native video starts, while the app is still foregrounded. Ignored on iOS (no-op). Not applicable on web. |
 | **`play`**     | <code>boolean</code> | When `true`, native starts audible playback after seeking to `position`. When `false` (paused video exit), native must not start playback. iOS defaults to `false` when omitted; Android defaults to `true` for legacy callers.                                                                                   |
 
 

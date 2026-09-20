@@ -219,6 +219,36 @@ class MediaService : MediaSessionService() {
         triggerNotificationUpdate()
     }
 
+    /**
+     * Re-grants the media notification controller's skip commands to match current queue state.
+     * [PlaylistMediaSessionCallback.onConnect] only runs once per connection (typically before any
+     * track is loaded), so without this the system notification and hardware media buttons stay
+     * permanently frozen at whatever previous/next availability existed at connect time.
+     */
+    fun refreshSkipAvailability() {
+        val session = mediaSession ?: return
+        val controller = session.mediaNotificationControllerInfo ?: return
+        val retain = playlistManager.videoHandoffForegroundRetain
+        val videoAttached = VideoPlayerBridge.hasActivePlayer()
+        session.setAvailableCommands(
+            controller,
+            MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS,
+            MediaNotificationPolicy.playerCommandsForMediaNotification(
+                MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS,
+                MediaNotificationPolicy.mediaNotificationSkipPreviousEnabled(
+                    playlistManager.isPreviousAvailable,
+                    retain,
+                    videoAttached
+                ),
+                MediaNotificationPolicy.mediaNotificationSkipNextEnabled(
+                    playlistManager.isNextAvailable,
+                    retain,
+                    videoAttached
+                )
+            )
+        )
+    }
+
     /** Re-reads `options.icon` after `setOptions` so a running service picks up the app's icon. */
     fun applyNotificationIcon() {
         notificationProvider?.setSmallIcon(smallIconRes())
