@@ -11,6 +11,18 @@ object PlaylistPlaybackPolicy {
     const val MAX_SEQUENTIAL_ERRORS = 3
 
     /**
+     * Rebuffer/position-freeze tolerance (ms) before a track that still claims PLAYING is reported
+     * as truly stalled (issue #143: a mid-stream network loss can leave ExoPlayer's own
+     * `playbackState` at STATE_READY/isPlaying=true indefinitely, so `currentPosition` failing to
+     * advance is the only reliable signal — not a `Player.Listener` state transition).
+     */
+    const val STALL_THRESHOLD_MS = 10_000L
+
+    /** True once [msSinceLastProgress] exceeds the tolerance for a normal micro-buffering hiccup. */
+    @JvmStatic
+    fun hasStalled(msSinceLastProgress: Long): Boolean = msSinceLastProgress >= STALL_THRESHOLD_MS
+
+    /**
      * PlaylistCore never repeated a single item: with one item `next` was unavailable even when
      * looping, so playback stopped at its end. Media3 `REPEAT_MODE_ALL` would restart it forever.
      */

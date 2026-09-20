@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.13.3
+
+- Fix (Android): emit `RMXSTATUS_STALLED` when `currentPosition` fails to advance for 10s while the player claims PLAYING ([#143](https://github.com/phiamo/capacitor-plugin-playlist/issues/143)). On a mid-stream network loss, ExoPlayer's own `playbackState`/`isPlaying` can stay at "playing" indefinitely with no `Player.Listener` transition to react to, so a frozen position is the only reliable signal. Previously this produced an unbroken stream of `RMXSTATUS_PLAYBACK_POSITION` with a frozen position and `status: "playing"`, with no way for JS to tell "playing normally" from "dead stream".
+
 ## 0.13.2
 
 - Fix (Android): the system media notification and hardware media buttons invoke `Player.seekToNext()`/`seekToPrevious()` — distinct from `seekToNextMediaItem()`/`seekToPreviousMediaItem()`, which `HandoffForwardingPlayer` already overrode. Without an override, these fell through to the wrapped ExoPlayer's own default ("restart current track if progressed" for previous, "seek to 0" for next), bypassing the playlist's skip logic and the 0.13.0/0.13.1 position-resume fix entirely for anyone using system-level controls.

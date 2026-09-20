@@ -129,6 +129,19 @@ class PlaylistManager(private val application: Application) {
 
     fun getCurrentPlaybackState(): RmxPlaybackState = rmxPlaybackState
 
+    /**
+     * Flips between PLAYING and STALLED (issue #143's position-freeze detector, driven by
+     * [org.dwbn.plugins.playlist.RmxAudioPlayer]'s position ticker). A no-op outside those two
+     * states so it can never clobber PAUSED/STOPPED/ERROR/etc.
+     */
+    fun notifyStalled(stalled: Boolean) {
+        if (stalled && rmxPlaybackState == RmxPlaybackState.PLAYING) {
+            rmxPlaybackState = RmxPlaybackState.STALLED
+        } else if (!stalled && rmxPlaybackState == RmxPlaybackState.STALLED) {
+            rmxPlaybackState = RmxPlaybackState.PLAYING
+        }
+    }
+
     fun getCurrentProgress(): PlaybackProgress? {
         val exoPlayer = player ?: return null
         val duration = exoPlayer.duration.coerceAtLeast(0)

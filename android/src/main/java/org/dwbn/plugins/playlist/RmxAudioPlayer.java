@@ -3,6 +3,7 @@ package org.dwbn.plugins.playlist;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -18,6 +19,7 @@ import org.dwbn.plugins.playlist.manager.MediaControlsListener;
 import org.dwbn.plugins.playlist.manager.Options;
 import org.dwbn.plugins.playlist.manager.PlaybackProgress;
 import org.dwbn.plugins.playlist.manager.PlaylistManager;
+import org.dwbn.plugins.playlist.manager.PlaylistPlaybackPolicy;
 import org.dwbn.plugins.playlist.manager.RmxPlaybackState;
 import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler;
 import org.dwbn.plugins.playlist.service.MediaNotificationPolicy;
@@ -40,6 +42,10 @@ public class RmxAudioPlayer implements MediaControlsListener {
     private int lastBufferPercent = 0;
     private long lastDuration = 0;
     private boolean trackLoaded = false;
+    // Issue #143: position-freeze stall detector. -1 means "no baseline yet" (track just changed,
+    // or we're not in a state where currentPosition is expected to advance).
+    private long lastProgressPositionMs = -1;
+    private long lastProgressObservedAtMs = -1;
     private boolean resetStreamOnPause = true;
     private boolean listenersRegistered = false;
     private ExoPlayer attachedPlayer;
@@ -194,6 +200,9 @@ public class RmxAudioPlayer implements MediaControlsListener {
         lastDuration = 0;
         lastBufferPercent = 0;
         trackLoaded = false;
+        lastProgressPositionMs = -1;
+        lastProgressObservedAtMs = -1;
+        playlistManager.notifyStalled(false);
 
         onStatus(RmxAudioStatusMessage.RMXSTATUS_TRACK_CHANGED, trackId, info);
     }
@@ -256,6 +265,7 @@ public class RmxAudioPlayer implements MediaControlsListener {
         }
 
         updateTrackProgress(currentItem, progress);
+        playbackState = checkForStall(currentItem, progress, playbackState);
 
         if (progress.getBufferPercent() != lastBufferPercent) {
             JSONObject trackStatus = getPlayerStatus(currentItem);
@@ -281,6 +291,46 @@ public class RmxAudioPlayer implements MediaControlsListener {
                 || (playbackState == RmxPlaybackState.PREPARING && progress.getDuration() == 0)) {
             onStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYBACK_POSITION, currentItem.getTrackId(), getPlayerStatus(currentItem));
         }
+    }
+
+    /**
+     * Issue #143: on a mid-stream network loss, ExoPlayer's own playbackState/isPlaying can stay
+     * at "playing" indefinitely — ended up as an unbroken stream of PLAYBACK_POSITION with a frozen
+     * position and status "playing", with RMXSTATUS_ERROR/STALLED never firing. currentPosition
+     * failing to advance while we're supposed to be playing is the reliable signal instead.
+     *
+     * Returns the (possibly updated) playback state so the caller's later checks — in particular
+     * "should I still emit PLAYBACK_POSITION this tick" — see STALLED rather than stale PLAYING.
+     */
+    private RmxPlaybackState checkForStall(AudioTrack currentItem, PlaybackProgress progress, RmxPlaybackState playbackState) {
+        if (playbackState != RmxPlaybackState.PLAYING && playbackState != RmxPlaybackState.STALLED) {
+            lastProgressPositionMs = -1;
+            lastProgressObservedAtMs = -1;
+            return playbackState;
+        }
+
+        long nowMs = SystemClock.elapsedRealtime();
+        long positionMs = progress.getPosition();
+
+        if (positionMs != lastProgressPositionMs) {
+            lastProgressPositionMs = positionMs;
+            lastProgressObservedAtMs = nowMs;
+            if (playbackState == RmxPlaybackState.STALLED) {
+                playlistManager.notifyStalled(false);
+                return RmxPlaybackState.PLAYING;
+            }
+            return playbackState;
+        }
+
+        if (playbackState == RmxPlaybackState.PLAYING
+                && lastProgressObservedAtMs >= 0
+                && PlaylistPlaybackPolicy.hasStalled(nowMs - lastProgressObservedAtMs)) {
+            playlistManager.notifyStalled(true);
+            onStatus(RmxAudioStatusMessage.RMXSTATUS_STALLED, currentItem.getTrackId(), getPlayerStatus(currentItem));
+            return RmxPlaybackState.STALLED;
+        }
+
+        return playbackState;
     }
 
     private void updateTrackProgress(AudioTrack currentItem, PlaybackProgress progress) {
@@ -309,6 +359,9 @@ public class RmxAudioPlayer implements MediaControlsListener {
                 break;
             case PLAYING:
                 status = "playing";
+                break;
+            case STALLED:
+                status = "stalled";
                 break;
             case PAUSED:
                 status = "paused";

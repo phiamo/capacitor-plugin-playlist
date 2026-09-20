@@ -125,4 +125,15 @@ class PlaylistPlaybackPolicyTest {
         assertEquals(-1, PlaylistPlaybackPolicy.previousSkipIndex(fromIndex = 0, itemCount = 3, loop = false))
         assertEquals(2, PlaylistPlaybackPolicy.previousSkipIndex(fromIndex = 0, itemCount = 3, loop = true))
     }
+
+    @Test
+    fun hasStalled_belowThreshold_isFalse() {
+        assertFalse(PlaylistPlaybackPolicy.hasStalled(PlaylistPlaybackPolicy.STALL_THRESHOLD_MS - 1))
+    }
+
+    @Test
+    fun hasStalled_atOrAboveThreshold_isTrue() {
+        assertTrue(PlaylistPlaybackPolicy.hasStalled(PlaylistPlaybackPolicy.STALL_THRESHOLD_MS))
+        assertTrue(PlaylistPlaybackPolicy.hasStalled(PlaylistPlaybackPolicy.STALL_THRESHOLD_MS + 5_000))
+    }
 }
