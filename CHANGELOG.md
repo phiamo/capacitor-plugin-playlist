@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.14.3
+
+Fixes from an automated review of the 0.14.1/0.14.2 diff.
+
+- Fix (Web): `isSeeking` (0.14.2's seek-suppression guard) was only cleared on `'seeked'`, so a seek interrupted by `'error'` instead of completing, or a track change mid-seek (which tears down the `<audio>` element before its `'seeked'` ever fires), left it stuck `true` for the rest of the session — silently disabling `RMXSTATUS_STALLED` for every later track. Now also reset on `'error'` and directly in `setCurrent()` when a new element is created, instead of relying solely on the new element's `'loadstart'` (which races the `.src` assignment that precedes listener registration).
+- Fix (iOS): two native (non-JS) playlist-loop restarts — `playerItemDidReachEnd` and the `currentItem`-reaches-nil KVO handler — still called `setCurrentIndex(0)` with 0.14.2's new default (starts at 0), an unintended behavior change; native loop restart isn't an explicit JS track selection, so both now pass `resumeAtSavedPosition: true`, matching `advanceToNextItem`'s wraparound.
+- Hardening (Android): the 0.14.2 fix narrowed but couldn't fully close the process-wide race on `experimentalEnableStuckPlayingDetection` — a `synchronized` block around the flag flip further narrows it to other code that also synchronizes on `ExoPlayer.Builder`, though a host app building an `ExoPlayer.Builder` on another thread without doing so can still race it; full elimination isn't possible since Media3 doesn't offer a non-static way to request this per instance.
+- Test (iOS): `PositionResumeTests` for `resumeAtSavedPosition` only asserted which track became current, not the actual seek target, since `AudioTrack` is `final` and its `currentTime()` doesn't reflect a seek against an unloaded asset. Added a player-level seek-capturing subclass so the 0 vs. saved-position target is now directly asserted.
+
 ## 0.14.2
 
 Code-review follow-up on 0.14.0, continued.

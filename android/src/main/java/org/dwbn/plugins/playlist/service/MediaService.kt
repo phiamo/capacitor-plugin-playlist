@@ -72,10 +72,19 @@ class MediaService : MediaSessionService() {
         // true would silently inherit stuck-player detection too. Flip it only around the
         // constructor call, then restore whatever value it had, to keep that window as small as
         // possible instead of leaving the process-wide default changed for the rest of the process.
-        val previousStuckPlayingDetectionFlag = ExoPlayer.Builder.experimentalEnableStuckPlayingDetection
-        ExoPlayer.Builder.experimentalEnableStuckPlayingDetection = true
-        val playerBuilder = ExoPlayer.Builder(this)
-        ExoPlayer.Builder.experimentalEnableStuckPlayingDetection = previousStuckPlayingDetectionFlag
+        // Synchronizing on the Builder class narrows this to other code that also happens to
+        // synchronize on it; it can't fully close the window against unrelated host-app code
+        // constructing an ExoPlayer.Builder on another thread at the same instant — Media3 offers
+        // no non-static way to request this per instance, so that residual risk is accepted.
+        val playerBuilder = synchronized(ExoPlayer.Builder::class.java) {
+            val previousStuckPlayingDetectionFlag = ExoPlayer.Builder.experimentalEnableStuckPlayingDetection
+            ExoPlayer.Builder.experimentalEnableStuckPlayingDetection = true
+            try {
+                ExoPlayer.Builder(this)
+            } finally {
+                ExoPlayer.Builder.experimentalEnableStuckPlayingDetection = previousStuckPlayingDetectionFlag
+            }
+        }
         val player = playerBuilder
             .setAudioAttributes(
                 AudioAttributes.Builder()

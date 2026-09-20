@@ -417,6 +417,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             this.audio.addEventListener('loadstart', () => {
                 this.hasCanPlayed = false;
                 this.isStalled = false;
+                this.isSeeking = false;
                 this.setMediaSessionRemoteControlMetadata();
             });
             this.audio.addEventListener('canplay', canPlayListener);
@@ -436,6 +437,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
             this.audio.addEventListener('error', () => {
                 this.clearStalled();
+                this.isSeeking = false;
                 this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, this.getCurrentTrackStatus('error'));
             });
 
@@ -532,6 +534,14 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             await this.release();
         }
         await this.create();
+
+        // Reset directly here rather than relying solely on the new element's 'loadstart' to fire
+        // after registerHtmlListeners() attaches below — `.src` is assigned before that, so a race
+        // between the load task and listener attachment could otherwise leave stale state (in
+        // particular `isSeeking`) stuck across a track change that interrupted an in-flight seek.
+        this.hasCanPlayed = false;
+        this.isStalled = false;
+        this.isSeeking = false;
 
         this.currentTrack = item;
         if (item.assetUrl.includes('.m3u8')) {
