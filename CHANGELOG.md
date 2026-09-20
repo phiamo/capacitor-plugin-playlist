@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.14.2
+
+Code-review follow-up on 0.14.0, continued.
+
+- Fix (iOS): `AVBidirectionalQueuePlayer.setCurrentIndex()` — shared by native skip *and* the explicit JS `playTrack`/`selectTrack` paths — always resumed the new current item at its saved `startPositionSeconds`. Explicit JS selection now defaults to 0 like Android's `beginPlayback`/`selectTrackByIndex`/`playTrackByIndex` (`call.getFloat("position", 0f)`); only native-skip call sites (`playPreviousItem`, `advanceToNextItem`'s wraparound) opt in via a new `resumeAtSavedPosition` parameter. Also added the `position` param to `selectTrackByIndex`/`selectTrackById`, which iOS previously didn't accept at all.
+- Fix (Android): `ExoPlayer.Builder.experimentalEnableStuckPlayingDetection` (0.14.0) is a static, process-wide flag read once inside the `Builder` constructor — leaving it set to `true` for the life of the process meant any other `ExoPlayer.Builder` built elsewhere in the host app (e.g. a separate video player plugin) would silently inherit stuck-player detection too. Now flipped only around the single `ExoPlayer.Builder(this)` constructor call in `MediaService.onCreate()`, then restored to its prior value.
+
 ## 0.14.1
 
 Code-review follow-up on 0.14.0.
