@@ -67,6 +67,22 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
 
     // NEW METHODS
 
+    /// Snapshots `item`'s current playback position so a later skip back to it resumes correctly
+    /// instead of restarting at 0. Guards against NaN/indefinite CMTime values.
+    private func snapshotPosition(of item: AudioTrack?) {
+        guard let item = item else { return }
+        let seconds = item.currentTime().seconds
+        if seconds.isFinite && seconds >= 0 {
+            item.startPositionSeconds = seconds
+        }
+    }
+
+    /// The saved resume position for `item`, in CMTime form, matching the `1000` timescale used
+    /// elsewhere in this plugin for position seeks. Defaults to zero when absent.
+    private func resumeTime(for item: AudioTrack?) -> CMTime {
+        CMTimeMakeWithSeconds(Float64(item?.startPositionSeconds ?? 0), preferredTimescale: 1000)
+    }
+
     func playPreviousItem() {
         // This function is the meat of this library: it allows for going backwards in an AVQueuePlayer,
         // basically by clearing the player and repopulating it from the index of the last item played.
@@ -79,6 +95,10 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
         else {
             return
         }
+
+        // Snapshot the position being left so a later skip back within this session resumes
+        // correctly instead of restarting the track from its queue-build-time position.
+        snapshotPosition(of: currentAudioTrack)
 
         if tempNowPlayingIndex == 0 {
             let currentrate = rate
@@ -110,22 +130,33 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
                 break
             }
 
+            var newCurrentTrack: AudioTrack?
             for i in (tempNowPlayingIndex - offset)..<(tempPlaylist.count) {
                 let item = tempPlaylist[i]
-                item.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
+                if newCurrentTrack == nil {
+                    newCurrentTrack = item
+                }
+                item.seek(to: resumeTime(for: item), toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
                 super.insert(item, after: nil)
             }
 
-            // Not a typo; see above comment
-            seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+            // Not a typo; see above comment. Seeks the player itself to the new current item's
+            // saved position — without this, AVQueuePlayer can override the per-item seek above.
+            seek(to: resumeTime(for: newCurrentTrack), toleranceBefore: .zero, toleranceAfter: .zero)
 
             // [self play];
             rate = currentrate
         }
     }
     open override func advanceToNextItem() {
+        snapshotPosition(of: currentAudioTrack)
         if currentIndex() == nil || currentIndex()! < queuedAudioTracks.count - 1{
             super.advanceToNextItem();
+            // AVQueuePlayer's own advance always starts the new item at 0. If this item was
+            // previously left partway through (e.g. skipped past earlier this session), resume it.
+            if let track = currentAudioTrack, track.startPositionSeconds > 0 {
+                seek(to: resumeTime(for: track), toleranceBefore: .zero, toleranceAfter: .zero)
+            }
         } else {
             setCurrentIndex(0)
         }
@@ -141,18 +172,26 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
             pause()
         }
 
+        // Snapshot the position being left so a later skip back within this session resumes
+        // correctly instead of restarting the track from its queue-build-time position.
+        snapshotPosition(of: currentAudioTrack)
+
         // Note: it is necessary to have seekToTime called twice in this method, once before and once after re-making the area. If it is not present before, the player will resume from the same spot in the next item when the previous item finishes playing; if it is not present after, the previous item will be played from the same spot that the current item was on.
         seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
         // The next two lines are necessary since RemoveAllItems resets both the nowPlayingIndex and _itemsForPlayer
         let tempPlaylist = queuedAudioTracks
         super.removeAllItems()
+        let newCurrentTrack: AudioTrack? = newCurrentIndex >= 0 && newCurrentIndex < tempPlaylist.count
+            ? tempPlaylist[newCurrentIndex]
+            : nil
         for i in newCurrentIndex..<(tempPlaylist.count) {
             let item = tempPlaylist[i]
-            item.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
+            item.seek(to: resumeTime(for: item), toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
             super.insert(item, after: nil)
         }
-        // Not a typo; see above comment
-        seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
+        // Not a typo; see above comment. Seeks the player itself to the new current item's saved
+        // position — without this, AVQueuePlayer can override the per-item seek above.
+        seek(to: resumeTime(for: newCurrentTrack), toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
     }
 
     func replaceAllItems(with items: [AudioTrack]) {

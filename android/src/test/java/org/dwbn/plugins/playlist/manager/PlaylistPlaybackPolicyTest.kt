@@ -103,4 +103,26 @@ class PlaylistPlaybackPolicyTest {
     fun repeatMode_emptyPlaylist_isOff() {
         assertEquals(Player.REPEAT_MODE_OFF, PlaylistPlaybackPolicy.repeatMode(loop = true, itemCount = 0))
     }
+
+    @Test
+    fun nextSkipIndex_midListAdvancesByOne() {
+        assertEquals(2, PlaylistPlaybackPolicy.nextSkipIndex(fromIndex = 1, itemCount = 5, loop = false))
+    }
+
+    @Test
+    fun nextSkipIndex_atEnd_wrapsToStartOnlyWhenLooping() {
+        assertEquals(3, PlaylistPlaybackPolicy.nextSkipIndex(fromIndex = 2, itemCount = 3, loop = false))
+        assertEquals(0, PlaylistPlaybackPolicy.nextSkipIndex(fromIndex = 2, itemCount = 3, loop = true))
+    }
+
+    @Test
+    fun previousSkipIndex_midListGoesBackByOne() {
+        assertEquals(1, PlaylistPlaybackPolicy.previousSkipIndex(fromIndex = 2, itemCount = 5, loop = false))
+    }
+
+    @Test
+    fun previousSkipIndex_atStart_wrapsToLastOnlyWhenLooping() {
+        assertEquals(-1, PlaylistPlaybackPolicy.previousSkipIndex(fromIndex = 0, itemCount = 3, loop = false))
+        assertEquals(2, PlaylistPlaybackPolicy.previousSkipIndex(fromIndex = 0, itemCount = 3, loop = true))
+    }
 }

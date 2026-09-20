@@ -174,11 +174,12 @@ class PlaylistManager(private val application: Application) {
             return
         }
         val fromIndex = exoPlayer.currentMediaItemIndex
-        if (fromIndex + 1 >= audioTracks.size && loop) {
-            exoPlayer.seekTo(0, 0)
-        } else {
-            exoPlayer.seekToNextMediaItem()
-        }
+        // Snapshot the position being left so a later skip back within this session resumes
+        // correctly instead of restarting the track from its queue-build-time position.
+        audioTracks.getOrNull(fromIndex)?.startPositionMs = exoPlayer.currentPosition
+        val targetIndex = PlaylistPlaybackPolicy.nextSkipIndex(fromIndex, audioTracks.size, loop)
+        val targetPositionMs = audioTracks.getOrNull(targetIndex)?.startPositionMs ?: 0
+        exoPlayer.seekTo(targetIndex, targetPositionMs)
         notifySkipForward(fromIndex)
     }
 
@@ -188,11 +189,10 @@ class PlaylistManager(private val application: Application) {
             return
         }
         val fromIndex = exoPlayer.currentMediaItemIndex
-        if (fromIndex <= 0 && loop) {
-            exoPlayer.seekTo(audioTracks.size - 1, 0)
-        } else {
-            exoPlayer.seekToPreviousMediaItem()
-        }
+        audioTracks.getOrNull(fromIndex)?.startPositionMs = exoPlayer.currentPosition
+        val targetIndex = PlaylistPlaybackPolicy.previousSkipIndex(fromIndex, audioTracks.size, loop)
+        val targetPositionMs = audioTracks.getOrNull(targetIndex)?.startPositionMs ?: 0
+        exoPlayer.seekTo(targetIndex, targetPositionMs)
         notifySkipBack(fromIndex)
     }
 

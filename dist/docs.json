@@ -717,6 +717,13 @@
           "docs": "Title of the track",
           "complexTypes": [],
           "type": "string"
+        },
+        {
+          "name": "startPosition",
+          "tags": [],
+          "docs": "Last known playback position to resume from, in seconds, when this track becomes\ncurrent via a native skip-to-next/previous (e.g. OS notification, headset button,\nAndroid Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0.",
+          "complexTypes": [],
+          "type": "number | undefined"
         }
       ]
     },

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.13.0
+
+- Fix (Android/iOS): Skipping to the next/previous track — via the in-app Next/Previous buttons or a native OS media control (notification, headset button, Android Auto/CarPlay, lock screen) — restarted the target track from 0:00 instead of resuming where it was left. Tracks now carry an optional `startPosition` (seconds) set from the host app's last-known playback position, and native skip/advance now resumes there. `AudioTrack.startPosition` is new and optional; existing hosts are unaffected until they start passing it.
+
 ## 0.12.0
 
 - Feat (Android): Replace ExoMedia + PlaylistCore with **androidx.media3** 1.11.1 — `MediaService` extends `MediaSessionService`, playlist is ExoPlayer `MediaItem` list, notification via `DefaultMediaNotificationProvider`. Capacitor JS API unchanged.
