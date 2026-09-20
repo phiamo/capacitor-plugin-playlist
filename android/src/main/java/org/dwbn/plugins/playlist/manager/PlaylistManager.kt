@@ -123,6 +123,17 @@ class PlaylistManager(private val application: Application) {
         mediaServiceRef = WeakReference(service)
     }
 
+    /**
+     * Tears down the foreground service and its notification. `SHOW_NOTIFICATION_FOR_IDLE_PLAYER_ALWAYS`
+     * means Media3 never auto-hides the notification on idle, so without this call, [PlaylistPlugin]'s
+     * `release()` (a definitive "done with playback" signal, unlike a mid-session `clearAllItems()`
+     * that's about to load a new queue) left the "now playing" notification stuck forever (55-5
+     * deferred this to 55.6, but nothing ever called it).
+     */
+    fun endForeground() {
+        mediaServiceRef.get()?.endForeground(true)
+    }
+
     fun getPlayer(): ExoPlayer? = player
 
     fun isVideoHandoffPrewarmActive(): Boolean = videoHandoffForegroundRetain

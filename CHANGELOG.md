@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.14.0
+
+- Feat (Android): enable Media3's own stuck-player detector (`androidx.media3:media3-exoplayer` 1.9.0+, already present at the pinned 1.11.1) — `experimentalEnableStuckPlayingDetection = true` for the fast STATE_READY-no-progress case, and `setStuckBufferingDetectionTimeoutMs()` tightened from the 10-minute default to 60s for the STATE_BUFFERING case. Both report through the existing `onPlayerError` → `RMXSTATUS_ERROR` path as a "give up" backstop underneath 0.13.3's faster `RMXSTATUS_STALLED` signal.
+- Feat (Web): emit `RMXSTATUS_STALLED` on the native `'waiting'`/`'stalled'` `HTMLMediaElement` events — parity with Android (0.13.3) and iOS, which already had this via `AVPlayerItemPlaybackStalledNotification`.
+- Fix (Android): `pause()` silently dropped the request while a track was still loading/preparing (not yet reporting `isPlaying`), so a later "ready" callback could resume playback against an explicit pause. Adapted from [PR #142](https://github.com/phiamo/capacitor-plugin-playlist/pull/142) by @mustafa0x — its PlaylistCore-specific implementation predates the Media3 migration and couldn't apply directly, but the underlying bug was still present; the fix (call `pause()` unconditionally, already null-safe against no/loading player) ports over directly.
+- Fix (Android): `seekTo()` dropped a redundant "snapshot isPlaying, seek, then force-pause if it wasn't already playing" step left over from the same pre-Media3 architecture — `Player.seekTo()` never touches `playWhenReady` on its own, so this was dead weight rather than an active fix under the current handler. Adapted from [PR #141](https://github.com/phiamo/capacitor-plugin-playlist/pull/141) by @mustafa0x, same PlaylistCore-vs-Media3 caveat as above.
+- Fix (Android): `release()` never tore down the foreground service/notification — under `SHOW_NOTIFICATION_FOR_IDLE_PLAYER_ALWAYS` (Media3 never auto-hides on idle), the "now playing" notification stuck around indefinitely after the app was done with playback. This was flagged and deferred back in story 55.5/55.6 (`endForeground()` had no caller); it's wired up now, scoped to `release()` specifically so a mid-session `clearAllItems()` (about to load a new queue) isn't affected.
+
 ## 0.13.3
 
 - Fix (Android): emit `RMXSTATUS_STALLED` when `currentPosition` fails to advance for 10s while the player claims PLAYING ([#143](https://github.com/phiamo/capacitor-plugin-playlist/issues/143)). On a mid-stream network loss, ExoPlayer's own `playbackState`/`isPlaying` can stay at "playing" indefinitely with no `Player.Listener` transition to react to, so a frozen position is the only reliable signal. Previously this produced an unbroken stream of `RMXSTATUS_PLAYBACK_POSITION` with a frozen position and `status: "playing"`, with no way for JS to tell "playing normally" from "dead stream".

@@ -18,6 +18,18 @@ import androidx.media3.session.DefaultMediaNotificationProvider
 object MediaNotificationPolicy {
     const val HANDLE_AUDIO_FOCUS = true
 
+    /**
+     * Media3's own stuck-player detector (androidx.media3:media3-exoplayer 1.9.0+) reports a
+     * `StuckPlayerException` through the existing `onPlayerError` path we already forward as
+     * `RMXSTATUS_ERROR` — no custom polling needed for the "player has definitively given up"
+     * case. Its `STATE_READY`-with-no-progress check is opt-in (`ExoPlayer.Builder`'s static
+     * `experimentalEnableStuckPlayingDetection`, default false); its `STATE_BUFFERING` check is
+     * always on but defaults to a 10-minute timeout, far too slow to be useful — tightened here.
+     * [RmxAudioPlayer]'s own position-freeze check (`RMXSTATUS_STALLED`, ~10s) stays as a faster,
+     * softer "still trying" signal layered underneath this "give up" backstop.
+     */
+    const val STUCK_BUFFERING_DETECTION_TIMEOUT_MS = 60_000
+
     /** FGS start blocked by notification permission or related security policy. */
     @JvmStatic
     fun isForegroundStartSecurityBlocked(error: Throwable): Boolean = error is SecurityException

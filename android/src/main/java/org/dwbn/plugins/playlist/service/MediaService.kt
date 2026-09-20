@@ -66,6 +66,9 @@ class MediaService : MediaSessionService() {
         setMediaNotificationProvider(notificationProvider)
         setShowNotificationForIdlePlayer(MediaNotificationPolicy.SHOW_NOTIFICATION_WHEN_IDLE)
 
+        // Static, process-wide flag: enables Media3's own STATE_READY-with-no-progress detector
+        // (StuckPlayerException via onPlayerError, already forwarded as RMXSTATUS_ERROR).
+        ExoPlayer.Builder.experimentalEnableStuckPlayingDetection = true
         val player = ExoPlayer.Builder(this)
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -76,6 +79,7 @@ class MediaService : MediaSessionService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(MediaNotificationPolicy.WAKE_MODE)
+            .setStuckBufferingDetectionTimeoutMs(MediaNotificationPolicy.STUCK_BUFFERING_DETECTION_TIMEOUT_MS)
             .build()
         exoPlayer = player
         // Load items before the session is built so the notification controller sees a timeline.
