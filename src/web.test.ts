@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RmxAudioStatusMessage } from './Constants';
+import { RmxAudioErrorType, RmxAudioStatusMessage } from './Constants';
 import type { AudioTrack } from './interfaces';
 import { PlaylistWeb } from './web';
 
@@ -440,5 +440,98 @@ describe('PlaylistWeb — position-freeze backstop (issue #143 parity)', () => {
             ([arg]) => arg.status.msgType === RmxAudioStatusMessage.RMXSTATUS_STALLED
         );
         expect(stalledCalls).toHaveLength(0);
+    });
+});
+
+describe('PlaylistWeb — error codes (issue #143 follow-up)', () => {
+    let web: PlaylistWeb;
+
+    beforeEach(() => {
+        web = new PlaylistWeb();
+    });
+
+    const errorPayload = async (mediaErrorCode: number | undefined) => {
+        await web.addAllItems({ items: [track('a')] });
+        await web.playTrackById({ id: 'a' });
+        const audio = (web as any).audio as HTMLAudioElement;
+        Object.defineProperty(audio, 'error', {
+            value: mediaErrorCode === undefined ? null : { code: mediaErrorCode, message: 'boom' },
+            configurable: true,
+        });
+        const listener = vi.fn();
+        web.addListener('status', listener);
+
+        audio.dispatchEvent(new Event('error'));
+
+        const call = listener.mock.calls.find(
+            ([event]) => event.status.msgType === RmxAudioStatusMessage.RMXSTATUS_ERROR
+        );
+        return call?.[0].status.value;
+    };
+
+    it.each([
+        [1, RmxAudioErrorType.RMXERR_ABORTED],
+        [2, RmxAudioErrorType.RMXERR_NETWORK],
+        [3, RmxAudioErrorType.RMXERR_DECODE],
+        [4, RmxAudioErrorType.RMXERR_NONE_SUPPORTED],
+    ])('maps MediaError.code %i onto the matching RmxAudioErrorType', async (mediaErrorCode, expected) => {
+        expect(await errorPayload(mediaErrorCode)).toEqual(expect.objectContaining({ code: expected }));
+    });
+
+    it('falls back to RMXERR_NONE_SUPPORTED when the element exposes no MediaError', async () => {
+        expect(await errorPayload(undefined)).toEqual(
+            expect.objectContaining({ code: RmxAudioErrorType.RMXERR_NONE_SUPPORTED })
+        );
+    });
+
+    it('keeps the track status fields alongside code/message', async () => {
+        expect(await errorPayload(2)).toEqual(
+            expect.objectContaining({ message: 'boom', trackId: 'a', status: 'error' })
+        );
+    });
+});
+
+describe('PlaylistWeb — source selection (issue #144)', () => {
+    let web: PlaylistWeb;
+
+    const srcOf = async (item: AudioTrack) => {
+        await web.addAllItems({ items: [item] });
+        await web.playTrackById({ id: item.trackId! });
+        return ((web as any).audio as HTMLAudioElement).src;
+    };
+
+    beforeEach(() => {
+        web = new PlaylistWeb();
+    });
+
+    it('plays an extensionless isStream URL as a progressive source', async () => {
+        const src = await srcOf(track('a', { assetUrl: 'https://example.com/stream/audio', isStream: true }));
+        expect(src).toContain('stream/audio');
+    });
+
+    it('does not treat an extension in the query string as an HLS playlist', async () => {
+        const src = await srcOf(track('a', { assetUrl: 'https://example.com/stream?p=.m3u8', isStream: true }));
+        expect(src).toContain('stream?p=.m3u8');
+    });
+
+    it('routes an extensionless URL with an HLS mimeType through hls.js', async () => {
+        // Stub out the real hls.js CDN fetch and constructor; we only care which branch is taken.
+        const loadHlsJs = vi.spyOn(web as any, 'loadHlsJs').mockResolvedValue(undefined);
+        const loadSource = vi.fn();
+        (globalThis as any).Hls = class {
+            static Events = { MEDIA_ATTACHED: 'hlsMediaAttached' };
+            attachMedia = vi.fn();
+            on = (_event: string, cb: () => void) => cb();
+            loadSource = loadSource;
+        };
+
+        try {
+            await srcOf(track('a', { assetUrl: 'https://example.com/stream/audio', mimeType: 'application/x-mpegURL' }));
+
+            expect(loadHlsJs).toHaveBeenCalled();
+            expect(loadSource).toHaveBeenCalledWith('https://example.com/stream/audio');
+        } finally {
+            delete (globalThis as any).Hls;
+        }
     });
 });

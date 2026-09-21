@@ -1050,12 +1050,14 @@ final class RmxAudioPlayer: NSObject {
                 // Failed. Examine AVPlayerItem.error
                 isWaitingToStartPlayback = false
                 var errorMsg = ""
+                var errorCode = RmxAudioErrorType.rmxerr_NONE_SUPPORTED
                 if let error = playerItem.error {
                     print("\(error)")
                     errorMsg = "Error playing audio track: \((error as NSError).localizedFailureReason ?? "")"
+                    errorCode = RmxAudioPlayer.errorType(for: error as NSError)
                 }
                 print("AVPlayerItemStatusFailed: \(errorMsg)")
-                let errorParam = createError(withCode: .rmxerr_DECODE, message: errorMsg)
+                let errorParam = createError(withCode: errorCode, message: errorMsg)
                 onStatus(.rmxstatus_ERROR, trackId: playerItem.trackId, param: errorParam)
             case .unknown:
                 isWaitingToStartPlayback = false
@@ -1353,6 +1355,33 @@ final class RmxAudioPlayer: NSObject {
 
         // Listen to when the queue player tells us it emptied the items list
         listener.addObserver(self, selector: #selector(queueCleared(_:)), name: NSNotification.Name(AVBidirectionalQueueCleared), object: avQueuePlayer)
+    }
+
+    /// Classify an `AVPlayerItem` failure for JS. The distinction that matters to consumers is
+    /// retry-able (`rmxerr_NETWORK` - the source is fine, the connection wasn't) versus not
+    /// (`rmxerr_DECODE` / `rmxerr_NONE_SUPPORTED` - retrying the same URL fails the same way),
+    /// see issue #143. Previously every failure was reported as `rmxerr_DECODE`.
+    static func errorType(for error: NSError) -> RmxAudioErrorType {
+        // AVFoundation wraps the transport failure; the URL error is on the underlying error.
+        let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError
+        for candidate in [error, underlying].compactMap({ $0 }) {
+            if candidate.domain == NSURLErrorDomain || candidate.domain == NSPOSIXErrorDomain {
+                return .rmxerr_NETWORK
+            }
+        }
+
+        if error.domain == AVFoundationErrorDomain {
+            switch error.code {
+            case AVError.Code.decodeFailed.rawValue,
+                 AVError.Code.failedToParse.rawValue,
+                 AVError.Code.fileFormatNotRecognized.rawValue:
+                return .rmxerr_DECODE
+            default:
+                return .rmxerr_NONE_SUPPORTED
+            }
+        }
+
+        return .rmxerr_NONE_SUPPORTED
     }
 
     func createError(withCode code: RmxAudioErrorType, message: String?) -> [String : Any]? {

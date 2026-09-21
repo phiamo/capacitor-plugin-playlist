@@ -103,6 +103,9 @@ export interface AudioTrack {
     /**
      * This item is a streaming asset. Make sure this is set to true for stream URLs,
      * otherwise you will get odd behavior when the asset is paused.
+     *
+     * This only affects pause/resume buffering behavior. It does not select how the source
+     * is parsed - use `mimeType` for that.
      */
     isStream?: boolean;
     /**
@@ -115,6 +118,17 @@ export interface AudioTrack {
      * otherwise the plugin can't properly handle the item's buffer.
      */
     assetUrl: string;
+    /**
+     * Optional container hint for sources whose URL carries no usable file extension,
+     * e.g. `'application/x-mpegURL'` for an HLS playlist served from an extensionless URL.
+     *
+     * Leave this unset for ordinary progressive sources - Android sniffs the content and
+     * web reads the URL, both of which handle MP3/AAC/OGG streams without a hint. HLS is
+     * detected automatically when the URL path ends in `.m3u8`.
+     *
+     * No-op on iOS, where AVFoundation determines the type itself.
+     */
+    mimeType?: string;
     /**
      * The local or remote URL to an image asset to be shown for this track.
      * If this is null, the plugin's default image is used.

@@ -9,6 +9,12 @@ export declare class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     protected options: AudioPlayerOptions;
     protected currentTrack: AudioTrack | null;
     protected lastState: string;
+    private isStalled;
+    private isSeeking;
+    private hasCanPlayed;
+    private lastProgressPositionMs;
+    private lastProgressObservedAtMs;
+    private stallWatchdogId;
     addAllItems(options: AddAllItemOptions): Promise<void>;
     addItem(options: AddItemOptions): Promise<void>;
     moveItem(options: MoveItemOptions): Promise<void>;
@@ -49,6 +55,15 @@ export declare class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     setMediaSessionRemoteControlMetadata(): Promise<void>;
     mediaSessionControlsHandler(actionDetails: MediaSessionActionDetails): Promise<void>;
     registerHtmlListeners(position?: number): void;
+    private clearStalled;
+    private clearStallWatchdog;
+    /**
+     * Backstop for issue #143 parity: 'waiting'/'stalled' reliably fire for an ordinary data
+     * underrun, but polling `currentTime` directly (as Android/iOS do) also catches playback
+     * that is genuinely frozen without either event ever firing. Tied to this `audio` element's
+     * lifetime — cleared on release()/track change rather than left running for the page's life.
+     */
+    private startStallWatchdog;
     protected getCurrentTrackId(): string | undefined;
     protected getCurrentIndex(): number;
     protected getCurrentTrackStatus(currentState: string): {

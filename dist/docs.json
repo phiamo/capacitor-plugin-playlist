@@ -672,7 +672,7 @@
         {
           "name": "isStream",
           "tags": [],
-          "docs": "This item is a streaming asset. Make sure this is set to true for stream URLs,\notherwise you will get odd behavior when the asset is paused.",
+          "docs": "This item is a streaming asset. Make sure this is set to true for stream URLs,\notherwise you will get odd behavior when the asset is paused.\n\nThis only affects pause/resume buffering behavior. It does not select how the source\nis parsed - use `mimeType` for that.",
           "complexTypes": [],
           "type": "boolean | undefined"
         },
@@ -689,6 +689,13 @@
           "docs": "URL of the asset; can be local, a URL, or a streaming URL.\nIf the asset is a stream, make sure that isStream is set to true,\notherwise the plugin can't properly handle the item's buffer.",
           "complexTypes": [],
           "type": "string"
+        },
+        {
+          "name": "mimeType",
+          "tags": [],
+          "docs": "Optional container hint for sources whose URL carries no usable file extension,\ne.g. `'application/x-mpegURL'` for an HLS playlist served from an extensionless URL.\n\nLeave this unset for ordinary progressive sources - Android sniffs the content and\nweb reads the URL, both of which handle MP3/AAC/OGG streams without a hint. HLS is\ndetected automatically when the URL path ends in `.m3u8`.\n\nNo-op on iOS, where AVFoundation determines the type itself.",
+          "complexTypes": [],
+          "type": "string | undefined"
         },
         {
           "name": "albumArt",
@@ -772,6 +779,13 @@
           "docs": "If true, when pausing a live stream, play will continue from the LIVE POSITION (e.g. the stream\njumps forward to the current point in time, rather than picking up where it left off when you paused).\nIf false, the stream will continue where you paused. The drawback of doing this is that when the audio\nbuffer fills, it will jump forward to the current point in time, cause a disjoint in playback.\n\nDefault is true.",
           "complexTypes": [],
           "type": "boolean | undefined"
+        },
+        {
+          "name": "stallTimeoutMs",
+          "tags": [],
+          "docs": "How long, in milliseconds, playback position may fail to advance while the player reports\nit is playing before the plugin declares the track stalled and emits `RMXSTATUS_STALLED`\n(issue #143). Each platform's native \"playing\" signal (Android ExoPlayer's\n`playbackState`/`isPlaying`, iOS's `AVPlayerItemPlaybackStalledNotification`, the browser's\n`waiting`/`stalled` events) can fail to fire on a mid-stream network loss, so all three\nplatforms poll actual position as a backstop and use this shared threshold for it.\n\nDefault is 10000 (10s).",
+          "complexTypes": [],
+          "type": "number | undefined"
         },
         {
           "name": "options",

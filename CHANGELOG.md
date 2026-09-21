@@ -2,7 +2,35 @@
 
 ## Unreleased
 
+## 0.15.0
+
+Includes everything tagged as 0.14.5, which was never published to npm — 0.14.4 was the last release on the registry.
+
+### Breaking (Android)
+
+- **`isStream: true` no longer implies HLS.** Since 0.12.0, `AudioMediaItemFactory` set `MimeTypes.APPLICATION_M3U8` on any `isStream` track whose URL had no recognised media extension, which removed ExoPlayer's content sniffing. A progressive stream behind an extensionless URL (Audius, Icecast, signed CDN links) was therefore parsed as an HLS playlist and failed with `ParserException: Input does not start with the #EXTM3U header` roughly 2s after LOADING, and `skipFailedItem` walked the queue ([#144](https://github.com/phiamo/capacitor-plugin-playlist/issues/144)). Thanks to @jeremystewart-jpg for the report, which pinned the cause exactly.
+
+  HLS is now selected by the URL's **path** ending in `.m3u8`, or by the new explicit `mimeType` — never by `isStream`, which is documented as being about pause/resume buffering and is used for exactly that elsewhere. Everything else is sniffed again, as it was on 0.11.4.
+
+  The 0.12.0 entry's "Capacitor JS API unchanged" was inaccurate for this shape; that behavior change arrived silently with the Media3 rewrite and is corrected here. If you were relying on it for an extensionless HLS source, set `mimeType: 'application/x-mpegURL'` on the track.
+
+- Fix (Android): the extension checks were a `String.contains` over the whole URL, so an extension appearing only in a query string or fragment decided how the source was parsed — `…/stream?p=.m3u8` forced HLS, `…/x?file=a.mp3` counted as "has a known extension". The check now looks at the path alone, so `…/audio.m3u8?token=abc` still resolves to HLS while `…/stream?p=.m3u8` does not.
+
+### Added
+
+- Feat: `AudioTrack.mimeType` — an optional container hint for sources whose URL carries no usable extension, e.g. `'application/x-mpegURL'` for an HLS playlist served from an extensionless URL. Honoured on Android (passed to `MediaItem.setMimeType`) and on web (routes the source through hls.js). A no-op on iOS, where AVFoundation determines the type itself.
+
+### Fixed — error classification ([#143](https://github.com/phiamo/capacitor-plugin-playlist/issues/143) follow-up)
+
+`RMXSTATUS_ERROR` never carried `RMXERR_NETWORK` on any platform, so a consumer could not tell a dropped connection (worth retrying) from an unusable source (skip). Reported on #143 after the 0.14.4 retest, where a mid-track network loss surfaced as `RMXERR_NONE_SUPPORTED` — the same code as an unparseable source.
+
+- Fix (Android): `RmxPlaybackErrorMapper` mapped only the three decoder codes and sent everything else, including every IO code, to `RMXERR_NONE_SUPPORTED`. Network codes (`ERROR_CODE_IO_NETWORK_CONNECTION_FAILED` / `_TIMEOUT`, `ERROR_CODE_IO_BAD_HTTP_STATUS`, `ERROR_CODE_IO_UNSPECIFIED`) now map to `RMXERR_NETWORK`; a missing file, a bad content type and the container/manifest parsing failures stay `RMXERR_NONE_SUPPORTED`.
+- Fix (iOS): every `AVPlayerItem` failure was reported as `rmxerr_DECODE`. Now classified from the `NSError` — `NSURLErrorDomain` / `NSPOSIXErrorDomain` (including a wrapped underlying error) → `rmxerr_NETWORK`, `AVFoundationErrorDomain` decode/parse codes → `rmxerr_DECODE`, otherwise `rmxerr_NONE_SUPPORTED`.
+- Fix (Web): `RMXSTATUS_ERROR` carried no error code at all — it emitted a track status object, not the `{ code, message }` shape `OnStatusErrorCallbackData` declares. It now maps `HTMLMediaElement.error.code` onto the shared `RmxAudioErrorType` values and emits a superset of the old payload, so existing consumers reading `status`/`trackId`/`currentIndex` are unaffected.
+
 ## 0.14.5
+
+Tagged but never published to npm; released as part of 0.15.0.
 
 - Feat (Android): `AudioPlayerOptions.stallTimeoutMs` makes the issue #143 position-freeze stall detector's threshold configurable (default unchanged at 10000ms). Requested by a reporter on #143 whose own app-level watchdog used 6s.
 - Feat (Web, iOS): parity position-freeze backstop for `RMXSTATUS_STALLED`, using the same `stallTimeoutMs`. Both platforms' primary stall signal (the browser's `waiting`/`stalled` events; `AVPlayerItemPlaybackStalledNotification`) is native and normally reliable, but shares the same class of gap the Android fix closed — it can fail to fire while playback is genuinely frozen. Web polls `currentTime` every second while playing; iOS folds the same check into its existing 1s periodic time observer. Both guard against double-firing when the native signal already reported the stall, and both fix a pre-existing gap where iOS's `itemStalledPlaying` reported `status: "playing"` instead of `"stalled"` in its own event payload.
