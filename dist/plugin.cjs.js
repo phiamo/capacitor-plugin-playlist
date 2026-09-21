@@ -313,7 +313,7 @@ class RmxAudioPlayer {
      */
     constructor() {
         this.handlers = {};
-        this.options = { verbose: false, resetStreamOnPause: true };
+        this.options = { verbose: false, resetStreamOnPause: true, stallTimeoutMs: 10000 };
         this._readyResolve = () => {
         };
         this._readyReject = () => {
@@ -610,6 +610,39 @@ class RmxAudioPlayer {
     }
 }
 
+const HLS_MIME_TYPES = ['application/x-mpegurl', 'application/vnd.apple.mpegurl', 'audio/mpegurl', 'audio/x-mpegurl'];
+/**
+ * Whether the track should be played through hls.js. An `.m3u8` path is the usual signal;
+ * an explicit `mimeType` covers HLS served from a URL with no extension (issue #144).
+ */
+function isHlsSource(item) {
+    var _a;
+    const declared = (_a = item.mimeType) === null || _a === void 0 ? void 0 : _a.trim().toLowerCase();
+    if (declared) {
+        return HLS_MIME_TYPES.includes(declared);
+    }
+    return pathEndsWith(item.assetUrl, '.m3u8');
+}
+/** Whether the URL's path ends in `suffix`, ignoring any query string or fragment. */
+function pathEndsWith(url, suffix) {
+    if (!url) {
+        return false;
+    }
+    return url.toLowerCase().split('#')[0].split('?')[0].endsWith(suffix);
+}
+/** Map an `HTMLMediaElement.error` onto the RmxAudioErrorType values shared with the native platforms. */
+function mediaErrorToRmxErrorType(error) {
+    switch (error === null || error === void 0 ? void 0 : error.code) {
+        case 1: // MEDIA_ERR_ABORTED
+            return exports.RmxAudioErrorType.RMXERR_ABORTED;
+        case 2: // MEDIA_ERR_NETWORK
+            return exports.RmxAudioErrorType.RMXERR_NETWORK;
+        case 3: // MEDIA_ERR_DECODE
+            return exports.RmxAudioErrorType.RMXERR_DECODE;
+        default: // MEDIA_ERR_SRC_NOT_SUPPORTED, or no MediaError at all
+            return exports.RmxAudioErrorType.RMXERR_NONE_SUPPORTED;
+    }
+}
 class PlaylistWeb extends core.WebPlugin {
     constructor() {
         super(...arguments);
@@ -618,6 +651,14 @@ class PlaylistWeb extends core.WebPlugin {
         this.options = {};
         this.currentTrack = null;
         this.lastState = 'stopped';
+        this.isStalled = false;
+        this.isSeeking = false;
+        this.hasCanPlayed = false;
+        // Issue #143 parity backstop: position-freeze polling, in case the browser's own
+        // 'waiting'/'stalled' events never fire while playback is genuinely frozen (mirrors
+        // Android's ExoPlayer-specific gap). null means "no baseline yet".
+        this.lastProgressPositionMs = null;
+        this.lastProgressObservedAtMs = null;
         this.lastKnownHandoffPosition = 0;
         this.hlsLoaded = false;
     }
@@ -736,6 +777,7 @@ class PlaylistWeb extends core.WebPlugin {
     }
     async release() {
         await this.pause();
+        this.clearStallWatchdog();
         this.audio = undefined;
         this.currentTrack = null;
         this.lastState = 'stopped';
@@ -937,6 +979,9 @@ class PlaylistWeb extends core.WebPlugin {
         });
       }*/
     registerHtmlListeners(position) {
+        if (this.audio) {
+            this.startStallWatchdog(this.audio);
+        }
         const canPlayListener = async () => {
             var _a;
             this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_CANPLAY, this.getCurrentTrackStatus('paused'));
@@ -946,27 +991,53 @@ class PlaylistWeb extends core.WebPlugin {
             (_a = this.audio) === null || _a === void 0 ? void 0 : _a.removeEventListener('canplay', canPlayListener);
         };
         if (this.audio) {
-            this.audio.addEventListener('loadstart', () => { this.setMediaSessionRemoteControlMetadata(); });
+            this.audio.addEventListener('loadstart', () => {
+                this.hasCanPlayed = false;
+                this.isStalled = false;
+                this.isSeeking = false;
+                this.setMediaSessionRemoteControlMetadata();
+            });
             this.audio.addEventListener('canplay', canPlayListener);
+            this.audio.addEventListener('canplay', () => {
+                this.hasCanPlayed = true;
+                this.clearStalled();
+            });
             this.audio.addEventListener('playing', () => {
+                this.clearStalled();
                 this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_PLAYING, this.getCurrentTrackStatus('playing'));
             });
             this.audio.addEventListener('pause', () => {
+                this.clearStalled();
                 this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_PAUSE, this.getCurrentTrackStatus('paused'));
             });
             this.audio.addEventListener('error', () => {
-                this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_ERROR, this.getCurrentTrackStatus('error'));
+                var _a, _b;
+                this.clearStalled();
+                this.isSeeking = false;
+                // Carry a real RmxAudioErrorType so consumers can tell a dropped connection
+                // (retry) from an unusable source (skip) - issue #143. The track status fields
+                // are kept alongside `code`/`message` so this stays a superset of what web
+                // emitted before, while now matching the declared OnStatusErrorCallbackData.
+                const mediaError = (_b = (_a = this.audio) === null || _a === void 0 ? void 0 : _a.error) !== null && _b !== void 0 ? _b : null;
+                this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_ERROR, Object.assign({ code: mediaErrorToRmxErrorType(mediaError), message: (mediaError === null || mediaError === void 0 ? void 0 : mediaError.message) || 'Playback error' }, this.getCurrentTrackStatus('error')));
             });
             // Parity with Android (position-freeze polling) / iOS (AVPlayerItemPlaybackStalledNotification):
             // the browser's own stall signals for "still trying, not necessarily failed" (issue #143).
             // 'waiting' is the reliable one (temporary data underrun); 'stalled' is best-effort.
-            this.audio.addEventListener('waiting', () => {
+            // Suppressed during an in-flight seek and before the first 'canplay' of a source, since both
+            // routinely fire a spurious 'waiting' that isn't an actual playback stall. Only emitted once
+            // per stall episode; 'playing'/'pause'/'error'/'canplay'/'ended' all clear it again.
+            const stalledListener = () => {
+                if (this.isSeeking || !this.hasCanPlayed || this.isStalled) {
+                    return;
+                }
+                this.isStalled = true;
                 this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_STALLED, this.getCurrentTrackStatus('stalled'));
-            });
-            this.audio.addEventListener('stalled', () => {
-                this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_STALLED, this.getCurrentTrackStatus('stalled'));
-            });
+            };
+            this.audio.addEventListener('waiting', stalledListener);
+            this.audio.addEventListener('stalled', stalledListener);
             this.audio.addEventListener('ended', () => {
+                this.clearStalled();
                 this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_COMPLETED, this.getCurrentTrackStatus('stopped'));
                 const currentTrackIndex = this.playlistItems.findIndex(i => i.trackId === this.getCurrentTrackId());
                 if (currentTrackIndex === this.playlistItems.length - 1) {
@@ -989,10 +1060,66 @@ class PlaylistWeb extends core.WebPlugin {
                 this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_DURATION, this.getCurrentTrackStatus(this.lastState));
             });
             this.audio.addEventListener('seeking', () => {
+                this.isSeeking = true;
                 const status = this.getCurrentTrackStatus(this.lastState);
                 this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_SEEK, status);
             });
+            this.audio.addEventListener('seeked', () => {
+                this.isSeeking = false;
+            });
         }
+    }
+    clearStalled() {
+        this.isStalled = false;
+    }
+    clearStallWatchdog() {
+        if (this.stallWatchdogId !== undefined) {
+            clearInterval(this.stallWatchdogId);
+            this.stallWatchdogId = undefined;
+        }
+        this.lastProgressPositionMs = null;
+        this.lastProgressObservedAtMs = null;
+    }
+    /**
+     * Backstop for issue #143 parity: 'waiting'/'stalled' reliably fire for an ordinary data
+     * underrun, but polling `currentTime` directly (as Android/iOS do) also catches playback
+     * that is genuinely frozen without either event ever firing. Tied to this `audio` element's
+     * lifetime — cleared on release()/track change rather than left running for the page's life.
+     */
+    startStallWatchdog(audio) {
+        this.clearStallWatchdog();
+        this.stallWatchdogId = setInterval(() => {
+            var _a;
+            if (audio.paused || audio.ended || this.isSeeking || !this.hasCanPlayed) {
+                this.lastProgressPositionMs = null;
+                this.lastProgressObservedAtMs = null;
+                return;
+            }
+            const positionMs = audio.currentTime * 1000;
+            const nowMs = Date.now();
+            // The first observation after (re)arming only establishes a baseline — it is not
+            // evidence of a genuine resume, so it must not clear a stall an already-fired native
+            // 'waiting'/'stalled' event just reported.
+            if (this.lastProgressPositionMs === null) {
+                this.lastProgressPositionMs = positionMs;
+                this.lastProgressObservedAtMs = nowMs;
+                return;
+            }
+            if (positionMs !== this.lastProgressPositionMs) {
+                this.lastProgressPositionMs = positionMs;
+                this.lastProgressObservedAtMs = nowMs;
+                if (this.isStalled) {
+                    this.clearStalled();
+                }
+                return;
+            }
+            const stallTimeoutMs = (_a = this.options.stallTimeoutMs) !== null && _a !== void 0 ? _a : 10000;
+            if (!this.isStalled && this.lastProgressObservedAtMs !== null
+                && nowMs - this.lastProgressObservedAtMs >= stallTimeoutMs) {
+                this.isStalled = true;
+                this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_STALLED, this.getCurrentTrackStatus('stalled'));
+            }
+        }, 1000);
     }
     getCurrentTrackId() {
         if (this.currentTrack) {
@@ -1022,8 +1149,15 @@ class PlaylistWeb extends core.WebPlugin {
             await this.release();
         }
         await this.create();
+        // Reset directly here rather than relying solely on the new element's 'loadstart' to fire
+        // after registerHtmlListeners() attaches below — `.src` is assigned before that, so a race
+        // between the load task and listener attachment could otherwise leave stale state (in
+        // particular `isSeeking`) stuck across a track change that interrupted an in-flight seek.
+        this.hasCanPlayed = false;
+        this.isStalled = false;
+        this.isSeeking = false;
         this.currentTrack = item;
-        if (item.assetUrl.includes('.m3u8')) {
+        if (isHlsSource(item)) {
             await this.loadHlsJs();
             const hls = new Hls({
                 autoStartLoad: true,

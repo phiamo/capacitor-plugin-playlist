@@ -1,6 +1,6 @@
 import { WebPlugin } from '@capacitor/core';
 
-import { RmxAudioStatusMessage } from './Constants';
+import { RmxAudioErrorType, RmxAudioStatusMessage } from './Constants';
 import type {
     AddAllItemOptions,
     AddItemOptions,
@@ -23,6 +23,42 @@ import type { AudioPlayerOptions, AudioTrack } from './interfaces';
 import { validateTrack, validateTracks } from './utils';
 
 declare let Hls: any;
+
+const HLS_MIME_TYPES = ['application/x-mpegurl', 'application/vnd.apple.mpegurl', 'audio/mpegurl', 'audio/x-mpegurl'];
+
+/**
+ * Whether the track should be played through hls.js. An `.m3u8` path is the usual signal;
+ * an explicit `mimeType` covers HLS served from a URL with no extension (issue #144).
+ */
+function isHlsSource(item: AudioTrack): boolean {
+    const declared = item.mimeType?.trim().toLowerCase();
+    if (declared) {
+        return HLS_MIME_TYPES.includes(declared);
+    }
+    return pathEndsWith(item.assetUrl, '.m3u8');
+}
+
+/** Whether the URL's path ends in `suffix`, ignoring any query string or fragment. */
+function pathEndsWith(url: string | undefined, suffix: string): boolean {
+    if (!url) {
+        return false;
+    }
+    return url.toLowerCase().split('#')[0].split('?')[0].endsWith(suffix);
+}
+
+/** Map an `HTMLMediaElement.error` onto the RmxAudioErrorType values shared with the native platforms. */
+function mediaErrorToRmxErrorType(error: MediaError | null): RmxAudioErrorType {
+    switch (error?.code) {
+        case 1: // MEDIA_ERR_ABORTED
+            return RmxAudioErrorType.RMXERR_ABORTED;
+        case 2: // MEDIA_ERR_NETWORK
+            return RmxAudioErrorType.RMXERR_NETWORK;
+        case 3: // MEDIA_ERR_DECODE
+            return RmxAudioErrorType.RMXERR_DECODE;
+        default: // MEDIA_ERR_SRC_NOT_SUPPORTED, or no MediaError at all
+            return RmxAudioErrorType.RMXERR_NONE_SUPPORTED;
+    }
+}
 
 export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     protected audio: HTMLAudioElement | undefined;
@@ -448,7 +484,16 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             this.audio.addEventListener('error', () => {
                 this.clearStalled();
                 this.isSeeking = false;
-                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, this.getCurrentTrackStatus('error'));
+                // Carry a real RmxAudioErrorType so consumers can tell a dropped connection
+                // (retry) from an unusable source (skip) - issue #143. The track status fields
+                // are kept alongside `code`/`message` so this stays a superset of what web
+                // emitted before, while now matching the declared OnStatusErrorCallbackData.
+                const mediaError = this.audio?.error ?? null;
+                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, {
+                    code: mediaErrorToRmxErrorType(mediaError),
+                    message: mediaError?.message || 'Playback error',
+                    ...this.getCurrentTrackStatus('error')
+                });
             });
 
             // Parity with Android (position-freeze polling) / iOS (AVPlayerItemPlaybackStalledNotification):
@@ -608,7 +653,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         this.isSeeking = false;
 
         this.currentTrack = item;
-        if (item.assetUrl.includes('.m3u8')) {
+        if (isHlsSource(item)) {
             await this.loadHlsJs();
 
             const hls = new Hls({

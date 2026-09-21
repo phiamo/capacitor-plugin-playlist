@@ -74,6 +74,19 @@ class AudioTrack(private val config: JSONObject) {
     val mediaUrl: String
         get() = config.optString("assetUrl", "")
 
+    /**
+     * Optional container hint for sources whose URL carries no usable extension, e.g.
+     * "application/x-mpegURL" for an extensionless HLS playlist. Null when unset or blank,
+     * in which case ExoPlayer sniffs the content.
+     */
+    val mimeType: String?
+        get() {
+            val mimeType = config.optString("mimeType").trim()
+            return if (mimeType == "") {
+                null
+            } else mimeType
+        }
+
     val thumbnailUrl: String?
         get() {
             val albumArt = config.optString("albumArt")

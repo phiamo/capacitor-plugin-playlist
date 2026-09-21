@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The playback tests serve a fixture MP3 from an in-process HTTP server on 127.0.0.1.
+         The test APK needs INTERNET to open the socket, and cleartext is blocked by default
+         from API 28 up. Test APK only; neither reaches a consuming app. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application android:usesCleartextTraffic="true" />
+</manifest>

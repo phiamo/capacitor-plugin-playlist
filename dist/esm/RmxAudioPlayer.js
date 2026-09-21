@@ -70,7 +70,7 @@ export class RmxAudioPlayer {
      */
     constructor() {
         this.handlers = {};
-        this.options = { verbose: false, resetStreamOnPause: true };
+        this.options = { verbose: false, resetStreamOnPause: true, stallTimeoutMs: 10000 };
         this._readyResolve = () => {
         };
         this._readyReject = () => {
