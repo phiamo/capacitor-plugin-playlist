@@ -21,6 +21,9 @@ public class ExampleInstrumentedTest {
         // Context of the app under test.
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
 
-        assertEquals("com.getcapacitor.android", appContext.getPackageName());
+        // Left over from the Capacitor plugin template, which asserted its own package name.
+        // This is a library module with no separate app under test, so the target context is
+        // the test APK itself.
+        assertEquals("org.dwbn.plugins.playlist.test", appContext.getPackageName());
     }
 }

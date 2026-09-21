@@ -16,6 +16,11 @@ Includes everything tagged as 0.14.5, which was never published to npm — 0.14.
 
 - Fix (Android): the extension checks were a `String.contains` over the whole URL, so an extension appearing only in a query string or fragment decided how the source was parsed — `…/stream?p=.m3u8` forced HLS, `…/x?file=a.mp3` counted as "has a known extension". The check now looks at the path alone, so `…/audio.m3u8?token=abc` still resolves to HLS while `…/stream?p=.m3u8` does not.
 
+### Tests
+
+- Test (Android): `ExtensionlessStreamPlaybackTest` — instrumented tests that prepare a real `ExoPlayer` against fixtures served from an in-process HTTP server, so the #144 behavior is asserted through the actual Media3 pipeline rather than only at the MIME-resolution level. Covers an extensionless progressive MP3 reaching `STATE_READY`, the same URL declared as HLS failing with `ERROR_CODE_PARSING_MANIFEST_MALFORMED` (the reporter's error, now opt-in only), and real HLS still playing from an `.m3u8` path with and without a query string. Verified that restoring the 0.14.x heuristic makes the first two fail.
+- Test (Android): `ExampleInstrumentedTest` — a leftover from the Capacitor plugin template, asserting the template's own package name, so it had never passed in this repo. Fixed to assert the library module's actual target context.
+
 ### Added
 
 - Feat: `AudioTrack.mimeType` — an optional container hint for sources whose URL carries no usable extension, e.g. `'application/x-mpegURL'` for an HLS playlist served from an extensionless URL. Honoured on Android (passed to `MediaItem.setMimeType`) and on web (routes the source through hls.js). A no-op on iOS, where AVFoundation determines the type itself.
