@@ -1305,7 +1305,7 @@
           "name": "RMXSTATUS_STALLED",
           "value": "20",
           "tags": [],
-          "docs": "(iOS only): Playback has stalled due to insufficient network"
+          "docs": "Playback has stalled - the player is still trying, but position is not advancing.\nRaised on all three platforms: from each platform's own stall signal where it fires,\nand otherwise from a position-freeze poll gated by `AudioPlayerOptions.stallTimeoutMs`.\nEmitted once per stall episode; the track's reported `status` reads `\"stalled\"` until\nposition advances again."
         },
         {
           "name": "RMXSTATUS_BUFFERING",
@@ -1329,7 +1329,7 @@
           "name": "RMXSTATUS_PLAYBACK_POSITION",
           "value": "40",
           "tags": [],
-          "docs": "Reports a change in the reported track's playback position."
+          "docs": "Reports a change in the reported track's playback position.\n\nSuppressed while the WebView is backgrounded, and (Android/iOS) while the track is\nstalled - so a frozen position is never reported as if playback were healthy."
         },
         {
           "name": "RMXSTATUS_SEEK",
@@ -1425,31 +1425,31 @@
           "name": "RMXERR_NONE_ACTIVE",
           "value": "0",
           "tags": [],
-          "docs": ""
+          "docs": "No active source to play. You are unlikely to see this."
         },
         {
           "name": "RMXERR_ABORTED",
           "value": "1",
           "tags": [],
-          "docs": ""
+          "docs": "Playback was aborted, typically because the source was torn down mid-load.\nWeb only, from `MediaError.MEDIA_ERR_ABORTED`."
         },
         {
           "name": "RMXERR_NETWORK",
           "value": "2",
           "tags": [],
-          "docs": ""
+          "docs": "The source is fine but could not be reached or read - a dropped connection,\na timeout, a bad HTTP status. **This is the retry-able error**: the same URL\nmay well succeed once connectivity returns.\n\nAndroid: media3's `ERROR_CODE_IO_*` network codes. iOS: an `NSError` in\n`NSURLErrorDomain` / `NSPOSIXErrorDomain`. Web: `MediaError.MEDIA_ERR_NETWORK`."
         },
         {
           "name": "RMXERR_DECODE",
           "value": "3",
           "tags": [],
-          "docs": ""
+          "docs": "The media was reached but could not be decoded. Not retry-able.\n\nAndroid: media3's decoder error codes. iOS: `AVFoundationErrorDomain` decode\nand parse failures. Web: `MediaError.MEDIA_ERR_DECODE`."
         },
         {
           "name": "RMXERR_NONE_SUPPORTED",
           "value": "4",
           "tags": [],
-          "docs": ""
+          "docs": "The source itself is unusable - missing, the wrong container, or a body that\ndoes not parse as what it claims to be. Not retry-able; skip the track.\n\nAlso the fallback when a platform reports a failure that does not classify."
         }
       ]
     }

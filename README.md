@@ -6,12 +6,16 @@ Requires **Capacitor 8+** (peer dependency `@capacitor/core >= 8.0.0`).
 
 ## Versioning
 
-This plugin’s version number is **independent of the Capacitor major**. Many Capacitor plugins use `8.x` when they target Capacitor 8; this one stays on **0.x** and declares `@capacitor/core >= 8.0.0` as a peer. Pick a release by feature line (see table below).
+**The major tracks the Capacitor major.** `8.x` targets Capacitor 8, as it does for the sibling [capacitor-video-player](https://github.com/phiamo/capacitor-video-player). Minor and patch are this plugin's own.
+
+This changed at 8.0.0. Before that the version was deliberately independent of Capacitor and stayed on `0.x` while still requiring `@capacitor/core >= 8.0.0` — which made the supported Capacitor version impossible to read off the version number. **There is no 1.x–7.x**: 8.0.0 follows 0.15.0 directly.
 
 | Plugin version | Meaning | Capacitor peer |
 |----------------|---------|----------------|
-| **0.11.x** | Last line on [npm](https://www.npmjs.com/package/capacitor-plugin-playlist) today (**0.11.4**). Android: ExoMedia + PlaylistCore. | 8+ |
-| **0.12.0** | Current release. Media3 Android stack (`MediaSessionService`); Capacitor 8+ peer; Capacitor JS API unchanged from 0.11.x. | 8+ |
+| **8.x** | Current. Media3 Android stack; `isStream` no longer selects HLS (see [Upgrading](#upgrading-a-host-app)); error codes discriminate network vs. decode vs. unsupported. | 8+ |
+| **0.15.0**, **0.14.5** | **Deprecated — do not use.** Published to npm in error during the 8.0.0 release; 0.14.5 briefly held the `latest` tag despite predating the [#144](https://github.com/phiamo/capacitor-plugin-playlist/issues/144) fix. Go from 0.14.x straight to 8.x. | 8+ |
+| **0.12.0–0.14.4** | Media3 Android stack (`MediaSessionService`); Capacitor JS API unchanged from 0.11.x. | 8+ |
+| **0.11.x** | Historical. Android: ExoMedia + PlaylistCore. | 8+ |
 
 Older **0.8.x–0.10.x** entries in [CHANGELOG.md](./CHANGELOG.md) are historical release notes, not a target to “stay on 0.8 for Capacitor 8.”
 
@@ -22,7 +26,7 @@ Older **0.8.x–0.10.x** entries in [CHANGELOG.md](./CHANGELOG.md) are historica
 3. [Background](#background)
 4. [Notes](#notes)
 5. [Installation](#installation)
-6. [Upgrading a host app (0.12.0)](#upgrading-a-host-app-0120)
+6. [Upgrading a host app](#upgrading-a-host-app)
 7. [Usage](#usage)
 8. [Events](#events)
 9. [Video handoff](#video-handoff)
@@ -213,15 +217,39 @@ Add to `Info.plist`:
 
 Without `audio` background mode, iOS stops playback when the app backgrounds.
 
-## Upgrading a host app (0.12.0)
+## Upgrading a host app
 
-**Capacitor / JavaScript:** no changes — `Playlist`, `RmxAudioPlayer`, status events, and video handoff method names behave as before.
+### From 0.1x → 8.0.0
 
-**Android host app:** update Gradle and manifest as below, then `npx cap sync android`.
+The TypeScript API is unchanged — every `AudioTrack` and `AudioPlayerOptions` field that existed on 0.14.x still exists, `isStream` included. Three **behavior** changes need a look at consuming code.
+
+**1. Extensionless HLS now needs `mimeType`.** Through 0.14.x, `isStream: true` on a URL with no recognised media extension forced the HLS parser on Android. That was undocumented, disagreed with iOS and web, and broke every progressive stream behind an extensionless URL ([#144](https://github.com/phiamo/capacitor-plugin-playlist/issues/144)). HLS is now selected by an `.m3u8` path or by an explicit hint:
+
+```ts
+// Only needed when the URL has no usable extension. An `.m3u8` path is detected automatically.
+{ trackId: 't1', assetUrl: 'https://cdn.example/stream/audio', mimeType: 'application/x-mpegURL' }
+```
+
+Nothing to do if your HLS URLs end in `.m3u8` — that is the common case and it keeps working. `isStream` keeps its documented meaning (pause/resume buffering) and still drives the live-edge jump on Android and iOS.
+
+**2. Error codes now discriminate.** `RMXSTATUS_ERROR` previously reported `RMXERR_DECODE` for *every* failure on iOS, and `RMXERR_NONE_SUPPORTED` for every non-decoder failure on Android — so a dropped connection was indistinguishable from an unplayable file. Now a network failure reports `RMXERR_NETWORK`, which is the retry-able case:
+
+```ts
+if (status.msgType === RmxAudioStatusMessage.RMXSTATUS_ERROR) {
+  const { code } = status.value as OnStatusErrorCallbackData;
+  if (code === RmxAudioErrorType.RMXERR_NETWORK) retry(); else skipTrack();
+}
+```
+
+If you branch on `code === RMXERR_DECODE` today, that branch used to catch everything on iOS and will now catch almost nothing. Web previously sent no `code` at all and now conforms to `OnStatusErrorCallbackData`; the rest of its old error payload is still there alongside `code`/`message`.
+
+**3. `status: "stalled"` is new, and position events stop during a stall.** A genuine stall no longer streams `RMXSTATUS_PLAYBACK_POSITION` with a frozen position — the events stop and one `RMXSTATUS_STALLED` fires ([#143](https://github.com/phiamo/capacitor-plugin-playlist/issues/143)). Treat `"stalled"` as "still trying", not as an error, and don't assume a progress bar keeps ticking. The threshold is tunable with `Playlist.setOptions({ stallTimeoutMs: 6000 })` (default 10000).
+
+**Android host app:** no Gradle or manifest changes beyond what [Always (Android 0.12.0+)](#always-android-0120) already requires.
 
 ### From 0.11.x → 0.12.0
 
-For apps on the last **npm** line (**0.11.4**) moving to **0.12.0**:
+Historical, for apps still on the ExoMedia/PlaylistCore line. **Capacitor / JavaScript:** no changes across this step — `Playlist`, `RmxAudioPlayer`, status events, and video handoff method names behave as before. **Android host app:** update Gradle and manifest as below, then `npx cap sync android`.
 
 **Remove from the host app** (if you added these when following older docs or samples):
 
@@ -236,7 +264,7 @@ For apps on the last **npm** line (**0.11.4**) moving to **0.12.0**:
 
 ### Always (Android 0.12.0+)
 
-1. Bump the plugin to **0.12.0** (or newer) and run `npx cap sync android`.
+1. Bump the plugin to **8.x** (or at minimum 0.12.0) and run `npx cap sync android`.
 2. **Pin one Media3 version** when the same APK also uses another Media3 library (for example a native fullscreen video player). Gradle can otherwise unify to an old transitive (pre-0.12.0 ExoMedia pulled Media3 1.5.1). In `android/variables.gradle` (or `ext`):
 
    ```gradle
@@ -299,6 +327,7 @@ const track: AudioTrack = {
   album: 'Album name',
   albumArt: 'https://example.com/cover.jpg',
   isStream: false,
+  // mimeType: 'application/x-mpegURL',  // only for sources whose URL has no usable extension
 };
 
 await Playlist.setPlaylistItems({
@@ -339,15 +368,15 @@ Each callback receives `{ action: 'status', status: OnStatusCallbackData }` wher
 
 | msgType | Name | When | Payload |
 |---------|------|------|---------|
-| 5 | ERROR | Playback or network failure | `OnStatusErrorCallbackData` (`code`, `message`) |
+| 5 | ERROR | Playback or network failure | `OnStatusErrorCallbackData` (`code`, `message`) — `code` distinguishes network from decode from unsupported |
 | 10 | LOADING | Track loading started | `OnStatusCallbackUpdateData` |
 | 11 | CANPLAY | Track ready to play | `OnStatusCallbackUpdateData` |
 | 15 | LOADED | Track fully loaded | `OnStatusCallbackUpdateData` |
-| 20 | STALLED | iOS: network stall | `OnStatusCallbackUpdateData` |
+| 20 | STALLED | Position stopped advancing while the player still reports playing. All platforms | `OnStatusCallbackUpdateData` |
 | 25 | BUFFERING | Buffer progress update | `OnStatusCallbackUpdateData` |
 | 30 | PLAYING | Playback started/resumed | `OnStatusCallbackUpdateData` |
 | 35 | PAUSE | Playback paused | `OnStatusCallbackUpdateData` |
-| 40 | PLAYBACK_POSITION | Periodic position tick | `OnStatusCallbackUpdateData` (suppressed while WebView backgrounded) |
+| 40 | PLAYBACK_POSITION | Periodic position tick | `OnStatusCallbackUpdateData` (suppressed while the WebView is backgrounded, and — Android/iOS — while stalled) |
 | 45 | SEEK | User or app seeked | `OnStatusCallbackUpdateData` |
 | 50 | COMPLETED | Current track finished | `OnStatusCallbackUpdateData` |
 | 55 | DURATION | Duration first known | `OnStatusCallbackUpdateData` |
@@ -361,6 +390,18 @@ Each callback receives `{ action: 'status', status: OnStatusCallbackData }` wher
 | 120 | PLAYLIST_CLEARED | All tracks removed | `OnStatusCallbackUpdateData` |
 
 For track changes, prefer handling `TRACK_CHANGED` over `SKIP_FORWARD` / `SKIP_BACK`.
+
+### Track `status` values
+
+Most payloads carry a `status` string describing the track's current state. Treat an unrecognised value as non-fatal rather than as an error:
+
+| `status` | Meaning |
+|----------|---------|
+| `loading` | Source is being prepared; not yet playable |
+| `playing` | Playing, position advancing |
+| `paused` | Paused by the user or the system |
+| `stalled` | Still trying, but position is not advancing — see `RMXSTATUS_STALLED` and `stallTimeoutMs`. **New in 8.0.0 on iOS and web** |
+| `error` | Playback failed; see the `code` on the `RMXSTATUS_ERROR` payload |
 
 ## Video handoff
 
@@ -1233,45 +1274,45 @@ that were in the previous list.
 
 #### RmxAudioStatusMessage
 
-| Members                            | Value            | Description                                                                                                                                                                                                                                                                                                                               |
-| ---------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`RMXSTATUS_NONE`**               | <code>0</code>   | The starting state of the plugin. You will never see this value; it changes before the callbacks are even registered to report changes to this value.                                                                                                                                                                                     |
-| **`RMXSTATUS_REGISTER`**           | <code>1</code>   | Raised when the plugin registers the callback handler for onStatus callbacks. You will probably not be able to see this (nor do you need to).                                                                                                                                                                                             |
-| **`RMXSTATUS_INIT`**               | <code>2</code>   | Reserved for future use                                                                                                                                                                                                                                                                                                                   |
-| **`RMXSTATUS_ERROR`**              | <code>5</code>   | Indicates an error is reported in the 'value' field.                                                                                                                                                                                                                                                                                      |
-| **`RMXSTATUS_LOADING`**            | <code>10</code>  | The reported track is being loaded by the player                                                                                                                                                                                                                                                                                          |
-| **`RMXSTATUS_CANPLAY`**            | <code>11</code>  | The reported track is able to begin playback                                                                                                                                                                                                                                                                                              |
-| **`RMXSTATUS_LOADED`**             | <code>15</code>  | The reported track has loaded 100% of the file (either from disc or network)                                                                                                                                                                                                                                                              |
-| **`RMXSTATUS_STALLED`**            | <code>20</code>  | (iOS only): Playback has stalled due to insufficient network                                                                                                                                                                                                                                                                              |
-| **`RMXSTATUS_BUFFERING`**          | <code>25</code>  | Reports an update in the reported track's buffering status                                                                                                                                                                                                                                                                                |
-| **`RMXSTATUS_PLAYING`**            | <code>30</code>  | The reported track has started (or resumed) playing                                                                                                                                                                                                                                                                                       |
-| **`RMXSTATUS_PAUSE`**              | <code>35</code>  | The reported track has been paused, either by the user or by the system. (iOS only): This value is raised when MP3's are malformed (but still playable). These require the user to explicitly press play again. This can be worked around and is on the TODO list.                                                                        |
-| **`RMXSTATUS_PLAYBACK_POSITION`**  | <code>40</code>  | Reports a change in the reported track's playback position.                                                                                                                                                                                                                                                                               |
-| **`RMXSTATUS_SEEK`**               | <code>45</code>  | The reported track has seeked. On Android, only the plugin consumer can generate this (Notification controls on Android do not include a seek bar). On iOS, the Command Center includes a seek bar so this will be reported when the user has seeked via Command Center.                                                                  |
-| **`RMXSTATUS_COMPLETED`**          | <code>50</code>  | The reported track has completed playback.                                                                                                                                                                                                                                                                                                |
-| **`RMXSTATUS_DURATION`**           | <code>55</code>  | The reported track's duration has changed. This is raised once, when duration is updated for the first time. For streams, this value is never reported.                                                                                                                                                                                   |
-| **`RMXSTATUS_STOPPED`**            | <code>60</code>  | All playback has stopped, probably because the plugin is shutting down.                                                                                                                                                                                                                                                                   |
-| **`RMX_STATUS_SKIP_FORWARD`**      | <code>90</code>  | The playlist has skipped forward to the next track. On both Android and iOS, this will be raised if the notification controls/Command Center were used to skip. It is unlikely you need to consume this event: RMXSTATUS_TRACK_CHANGED is also reported when this occurs, so you can generalize your track change handling in one place.  |
-| **`RMX_STATUS_SKIP_BACK`**         | <code>95</code>  | The playlist has skipped back to the previous track. On both Android and iOS, this will be raised if the notification controls/Command Center were used to skip. It is unlikely you need to consume this event: RMXSTATUS_TRACK_CHANGED is also reported when this occurs, so you can generalize your track change handling in one place. |
-| **`RMXSTATUS_TRACK_CHANGED`**      | <code>100</code> | Reported when the current track has changed in the native player. This event contains full data about the new track, including the index and the actual track itself. The type of the 'value' field in this case is <a href="#onstatustrackchangeddata">OnStatusTrackChangedData</a>.                                                     |
-| **`RMXSTATUS_PLAYLIST_COMPLETED`** | <code>105</code> | The entire playlist has completed playback. After this event has been raised, the current item is set to null and the current index to -1.                                                                                                                                                                                                |
-| **`RMXSTATUS_ITEM_ADDED`**         | <code>110</code> | An item has been added to the playlist. For the setPlaylistItems and addAllItems methods, this status is raised once for every track in the collection.                                                                                                                                                                                   |
-| **`RMXSTATUS_ITEM_REMOVED`**       | <code>115</code> | An item has been removed from the playlist. For the removeItems and clearAllItems methods, this status is raised once for every track that was removed.                                                                                                                                                                                   |
-| **`RMXSTATUS_ITEM_MOVED`**         | <code>112</code> | An item has been moved within the playlist.                                                                                                                                                                                                                                                                                               |
-| **`RMXSTATUS_ITEM_REPLACED`**      | <code>113</code> | An item in the playlist has been replaced in place.                                                                                                                                                                                                                                                                                       |
-| **`RMXSTATUS_PLAYLIST_CLEARED`**   | <code>120</code> | All items have been removed from the playlist                                                                                                                                                                                                                                                                                             |
-| **`RMXSTATUS_VIEWDISAPPEAR`**      | <code>200</code> | Just for testing.. you don't need this and in fact can never receive it, the plugin is destroyed before it can be raised.                                                                                                                                                                                                                 |
+| Members                            | Value            | Description                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`RMXSTATUS_NONE`**               | <code>0</code>   | The starting state of the plugin. You will never see this value; it changes before the callbacks are even registered to report changes to this value.                                                                                                                                                                                                                                                           |
+| **`RMXSTATUS_REGISTER`**           | <code>1</code>   | Raised when the plugin registers the callback handler for onStatus callbacks. You will probably not be able to see this (nor do you need to).                                                                                                                                                                                                                                                                   |
+| **`RMXSTATUS_INIT`**               | <code>2</code>   | Reserved for future use                                                                                                                                                                                                                                                                                                                                                                                         |
+| **`RMXSTATUS_ERROR`**              | <code>5</code>   | Indicates an error is reported in the 'value' field.                                                                                                                                                                                                                                                                                                                                                            |
+| **`RMXSTATUS_LOADING`**            | <code>10</code>  | The reported track is being loaded by the player                                                                                                                                                                                                                                                                                                                                                                |
+| **`RMXSTATUS_CANPLAY`**            | <code>11</code>  | The reported track is able to begin playback                                                                                                                                                                                                                                                                                                                                                                    |
+| **`RMXSTATUS_LOADED`**             | <code>15</code>  | The reported track has loaded 100% of the file (either from disc or network)                                                                                                                                                                                                                                                                                                                                    |
+| **`RMXSTATUS_STALLED`**            | <code>20</code>  | Playback has stalled - the player is still trying, but position is not advancing. Raised on all three platforms: from each platform's own stall signal where it fires, and otherwise from a position-freeze poll gated by <a href="#audioplayeroptions">`AudioPlayerOptions.stallTimeoutMs`</a>. Emitted once per stall episode; the track's reported `status` reads `"stalled"` until position advances again. |
+| **`RMXSTATUS_BUFFERING`**          | <code>25</code>  | Reports an update in the reported track's buffering status                                                                                                                                                                                                                                                                                                                                                      |
+| **`RMXSTATUS_PLAYING`**            | <code>30</code>  | The reported track has started (or resumed) playing                                                                                                                                                                                                                                                                                                                                                             |
+| **`RMXSTATUS_PAUSE`**              | <code>35</code>  | The reported track has been paused, either by the user or by the system. (iOS only): This value is raised when MP3's are malformed (but still playable). These require the user to explicitly press play again. This can be worked around and is on the TODO list.                                                                                                                                              |
+| **`RMXSTATUS_PLAYBACK_POSITION`**  | <code>40</code>  | Reports a change in the reported track's playback position. Suppressed while the WebView is backgrounded, and (Android/iOS) while the track is stalled - so a frozen position is never reported as if playback were healthy.                                                                                                                                                                                    |
+| **`RMXSTATUS_SEEK`**               | <code>45</code>  | The reported track has seeked. On Android, only the plugin consumer can generate this (Notification controls on Android do not include a seek bar). On iOS, the Command Center includes a seek bar so this will be reported when the user has seeked via Command Center.                                                                                                                                        |
+| **`RMXSTATUS_COMPLETED`**          | <code>50</code>  | The reported track has completed playback.                                                                                                                                                                                                                                                                                                                                                                      |
+| **`RMXSTATUS_DURATION`**           | <code>55</code>  | The reported track's duration has changed. This is raised once, when duration is updated for the first time. For streams, this value is never reported.                                                                                                                                                                                                                                                         |
+| **`RMXSTATUS_STOPPED`**            | <code>60</code>  | All playback has stopped, probably because the plugin is shutting down.                                                                                                                                                                                                                                                                                                                                         |
+| **`RMX_STATUS_SKIP_FORWARD`**      | <code>90</code>  | The playlist has skipped forward to the next track. On both Android and iOS, this will be raised if the notification controls/Command Center were used to skip. It is unlikely you need to consume this event: RMXSTATUS_TRACK_CHANGED is also reported when this occurs, so you can generalize your track change handling in one place.                                                                        |
+| **`RMX_STATUS_SKIP_BACK`**         | <code>95</code>  | The playlist has skipped back to the previous track. On both Android and iOS, this will be raised if the notification controls/Command Center were used to skip. It is unlikely you need to consume this event: RMXSTATUS_TRACK_CHANGED is also reported when this occurs, so you can generalize your track change handling in one place.                                                                       |
+| **`RMXSTATUS_TRACK_CHANGED`**      | <code>100</code> | Reported when the current track has changed in the native player. This event contains full data about the new track, including the index and the actual track itself. The type of the 'value' field in this case is <a href="#onstatustrackchangeddata">OnStatusTrackChangedData</a>.                                                                                                                           |
+| **`RMXSTATUS_PLAYLIST_COMPLETED`** | <code>105</code> | The entire playlist has completed playback. After this event has been raised, the current item is set to null and the current index to -1.                                                                                                                                                                                                                                                                      |
+| **`RMXSTATUS_ITEM_ADDED`**         | <code>110</code> | An item has been added to the playlist. For the setPlaylistItems and addAllItems methods, this status is raised once for every track in the collection.                                                                                                                                                                                                                                                         |
+| **`RMXSTATUS_ITEM_REMOVED`**       | <code>115</code> | An item has been removed from the playlist. For the removeItems and clearAllItems methods, this status is raised once for every track that was removed.                                                                                                                                                                                                                                                         |
+| **`RMXSTATUS_ITEM_MOVED`**         | <code>112</code> | An item has been moved within the playlist.                                                                                                                                                                                                                                                                                                                                                                     |
+| **`RMXSTATUS_ITEM_REPLACED`**      | <code>113</code> | An item in the playlist has been replaced in place.                                                                                                                                                                                                                                                                                                                                                             |
+| **`RMXSTATUS_PLAYLIST_CLEARED`**   | <code>120</code> | All items have been removed from the playlist                                                                                                                                                                                                                                                                                                                                                                   |
+| **`RMXSTATUS_VIEWDISAPPEAR`**      | <code>200</code> | Just for testing.. you don't need this and in fact can never receive it, the plugin is destroyed before it can be raised.                                                                                                                                                                                                                                                                                       |
 
 
 #### RmxAudioErrorType
 
-| Members                     | Value          |
-| --------------------------- | -------------- |
-| **`RMXERR_NONE_ACTIVE`**    | <code>0</code> |
-| **`RMXERR_ABORTED`**        | <code>1</code> |
-| **`RMXERR_NETWORK`**        | <code>2</code> |
-| **`RMXERR_DECODE`**         | <code>3</code> |
-| **`RMXERR_NONE_SUPPORTED`** | <code>4</code> |
+| Members                     | Value          | Description                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`RMXERR_NONE_ACTIVE`**    | <code>0</code> | No active source to play. You are unlikely to see this.                                                                                                                                                                                                                                                                                                      |
+| **`RMXERR_ABORTED`**        | <code>1</code> | Playback was aborted, typically because the source was torn down mid-load. Web only, from `MediaError.MEDIA_ERR_ABORTED`.                                                                                                                                                                                                                                    |
+| **`RMXERR_NETWORK`**        | <code>2</code> | The source is fine but could not be reached or read - a dropped connection, a timeout, a bad HTTP status. **This is the retry-able error**: the same URL may well succeed once connectivity returns. Android: media3's `ERROR_CODE_IO_*` network codes. iOS: an `NSError` in `NSURLErrorDomain` / `NSPOSIXErrorDomain`. Web: `MediaError.MEDIA_ERR_NETWORK`. |
+| **`RMXERR_DECODE`**         | <code>3</code> | The media was reached but could not be decoded. Not retry-able. Android: media3's decoder error codes. iOS: `AVFoundationErrorDomain` decode and parse failures. Web: `MediaError.MEDIA_ERR_DECODE`.                                                                                                                                                         |
+| **`RMXERR_NONE_SUPPORTED`** | <code>4</code> | The source itself is unusable - missing, the wrong container, or a body that does not parse as what it claims to be. Not retry-able; skip the track. Also the fallback when a platform reports a failure that does not classify.                                                                                                                             |
 
 </docgen-api>
 

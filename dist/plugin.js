@@ -6,10 +6,37 @@ var capacitorPlaylist = (function (exports, core) {
      */
     exports.RmxAudioErrorType = void 0;
     (function (RmxAudioErrorType) {
+        /**
+         * No active source to play. You are unlikely to see this.
+         */
         RmxAudioErrorType[RmxAudioErrorType["RMXERR_NONE_ACTIVE"] = 0] = "RMXERR_NONE_ACTIVE";
+        /**
+         * Playback was aborted, typically because the source was torn down mid-load.
+         * Web only, from `MediaError.MEDIA_ERR_ABORTED`.
+         */
         RmxAudioErrorType[RmxAudioErrorType["RMXERR_ABORTED"] = 1] = "RMXERR_ABORTED";
+        /**
+         * The source is fine but could not be reached or read - a dropped connection,
+         * a timeout, a bad HTTP status. **This is the retry-able error**: the same URL
+         * may well succeed once connectivity returns.
+         *
+         * Android: media3's `ERROR_CODE_IO_*` network codes. iOS: an `NSError` in
+         * `NSURLErrorDomain` / `NSPOSIXErrorDomain`. Web: `MediaError.MEDIA_ERR_NETWORK`.
+         */
         RmxAudioErrorType[RmxAudioErrorType["RMXERR_NETWORK"] = 2] = "RMXERR_NETWORK";
+        /**
+         * The media was reached but could not be decoded. Not retry-able.
+         *
+         * Android: media3's decoder error codes. iOS: `AVFoundationErrorDomain` decode
+         * and parse failures. Web: `MediaError.MEDIA_ERR_DECODE`.
+         */
         RmxAudioErrorType[RmxAudioErrorType["RMXERR_DECODE"] = 3] = "RMXERR_DECODE";
+        /**
+         * The source itself is unusable - missing, the wrong container, or a body that
+         * does not parse as what it claims to be. Not retry-able; skip the track.
+         *
+         * Also the fallback when a platform reports a failure that does not classify.
+         */
         RmxAudioErrorType[RmxAudioErrorType["RMXERR_NONE_SUPPORTED"] = 4] = "RMXERR_NONE_SUPPORTED";
     })(exports.RmxAudioErrorType || (exports.RmxAudioErrorType = {}));
     /**
@@ -59,7 +86,11 @@ var capacitorPlaylist = (function (exports, core) {
          */
         RmxAudioStatusMessage[RmxAudioStatusMessage["RMXSTATUS_LOADED"] = 15] = "RMXSTATUS_LOADED";
         /**
-         * (iOS only): Playback has stalled due to insufficient network
+         * Playback has stalled - the player is still trying, but position is not advancing.
+         * Raised on all three platforms: from each platform's own stall signal where it fires,
+         * and otherwise from a position-freeze poll gated by `AudioPlayerOptions.stallTimeoutMs`.
+         * Emitted once per stall episode; the track's reported `status` reads `"stalled"` until
+         * position advances again.
          */
         RmxAudioStatusMessage[RmxAudioStatusMessage["RMXSTATUS_STALLED"] = 20] = "RMXSTATUS_STALLED";
         /**
@@ -79,6 +110,9 @@ var capacitorPlaylist = (function (exports, core) {
         RmxAudioStatusMessage[RmxAudioStatusMessage["RMXSTATUS_PAUSE"] = 35] = "RMXSTATUS_PAUSE";
         /**
          * Reports a change in the reported track's playback position.
+         *
+         * Suppressed while the WebView is backgrounded, and (Android/iOS) while the track is
+         * stalled - so a frozen position is never reported as if playback were healthy.
          */
         RmxAudioStatusMessage[RmxAudioStatusMessage["RMXSTATUS_PLAYBACK_POSITION"] = 40] = "RMXSTATUS_PLAYBACK_POSITION";
         /**
