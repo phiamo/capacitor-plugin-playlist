@@ -14,13 +14,15 @@ object PlaylistPlaybackPolicy {
      * Rebuffer/position-freeze tolerance (ms) before a track that still claims PLAYING is reported
      * as truly stalled (issue #143: a mid-stream network loss can leave ExoPlayer's own
      * `playbackState` at STATE_READY/isPlaying=true indefinitely, so `currentPosition` failing to
-     * advance is the only reliable signal — not a `Player.Listener` state transition).
+     * advance is the only reliable signal — not a `Player.Listener` state transition). Overridable
+     * per-host via `AudioPlayerOptions.stallTimeoutMs` (a reporter's own watchdog used 6s).
      */
     const val STALL_THRESHOLD_MS = 10_000L
 
-    /** True once [msSinceLastProgress] exceeds the tolerance for a normal micro-buffering hiccup. */
+    /** True once [msSinceLastProgress] exceeds [thresholdMs] for a normal micro-buffering hiccup. */
     @JvmStatic
-    fun hasStalled(msSinceLastProgress: Long): Boolean = msSinceLastProgress >= STALL_THRESHOLD_MS
+    fun hasStalled(msSinceLastProgress: Long, thresholdMs: Long = STALL_THRESHOLD_MS): Boolean =
+        msSinceLastProgress >= thresholdMs
 
     /**
      * PlaylistCore never repeated a single item: with one item `next` was unavailable even when

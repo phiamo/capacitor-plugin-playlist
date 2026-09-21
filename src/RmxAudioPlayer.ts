@@ -37,7 +37,7 @@ const itemStatusChangeTypes = [
 
 export class RmxAudioPlayer {
     handlers: AudioPlayerEventHandlers = {};
-    options: AudioPlayerOptions = {verbose: false, resetStreamOnPause: true};
+    options: AudioPlayerOptions = {verbose: false, resetStreamOnPause: true, stallTimeoutMs: 10000};
 
     private readonly _initPromise: Promise<void>;
     private _readyResolve: (value?: any | PromiseLike<boolean>) => void = () => {

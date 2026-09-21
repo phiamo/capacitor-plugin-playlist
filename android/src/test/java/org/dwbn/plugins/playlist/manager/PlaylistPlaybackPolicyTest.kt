@@ -136,4 +136,10 @@ class PlaylistPlaybackPolicyTest {
         assertTrue(PlaylistPlaybackPolicy.hasStalled(PlaylistPlaybackPolicy.STALL_THRESHOLD_MS))
         assertTrue(PlaylistPlaybackPolicy.hasStalled(PlaylistPlaybackPolicy.STALL_THRESHOLD_MS + 5_000))
     }
+
+    @Test
+    fun hasStalled_respectsCustomThreshold() {
+        assertFalse(PlaylistPlaybackPolicy.hasStalled(5_999, thresholdMs = 6_000))
+        assertTrue(PlaylistPlaybackPolicy.hasStalled(6_000, thresholdMs = 6_000))
+    }
 }

@@ -40,11 +40,14 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
     fun setOptions(call: PluginCall) {
         Handler(Looper.getMainLooper()).post {
             val options: JSObject = call.getObject("options") ?: JSObject()
-            // resetStreamOnPause is a top-level option; "options" is reserved for notification options.
+            // resetStreamOnPause/stallTimeoutMs are top-level options; "options" is reserved for
+            // notification options.
             resetStreamOnPause =
                 call.getBoolean("resetStreamOnPause", this.resetStreamOnPause) ?: this.resetStreamOnPause
             Log.i("AudioPlayerOptions", options.toString())
             audioPlayerImpl!!.resetStreamOnPause = resetStreamOnPause
+            audioPlayerImpl!!.stallTimeoutMs =
+                call.getInt("stallTimeoutMs", audioPlayerImpl!!.stallTimeoutMs.toInt())!!.toLong()
             audioPlayerImpl!!.setOptions(options)
             call.resolve()
         }

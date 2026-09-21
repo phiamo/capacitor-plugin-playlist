@@ -47,6 +47,7 @@ public class RmxAudioPlayer implements MediaControlsListener {
     private long lastProgressPositionMs = -1;
     private long lastProgressObservedAtMs = -1;
     private boolean resetStreamOnPause = true;
+    private long stallTimeoutMs = PlaylistPlaybackPolicy.STALL_THRESHOLD_MS;
     private boolean listenersRegistered = false;
     private ExoPlayer attachedPlayer;
 
@@ -82,6 +83,14 @@ public class RmxAudioPlayer implements MediaControlsListener {
     public void setResetStreamOnPause(boolean val) {
         resetStreamOnPause = val;
         getPlaylistManager().setResetStreamOnPause(getResetStreamOnPause());
+    }
+
+    public long getStallTimeoutMs() {
+        return stallTimeoutMs;
+    }
+
+    public void setStallTimeoutMs(long val) {
+        stallTimeoutMs = val;
     }
 
     public void setOptions(JSONObject val) {
@@ -324,7 +333,7 @@ public class RmxAudioPlayer implements MediaControlsListener {
 
         if (playbackState == RmxPlaybackState.PLAYING
                 && lastProgressObservedAtMs >= 0
-                && PlaylistPlaybackPolicy.hasStalled(nowMs - lastProgressObservedAtMs)) {
+                && PlaylistPlaybackPolicy.hasStalled(nowMs - lastProgressObservedAtMs, stallTimeoutMs)) {
             playlistManager.notifyStalled(true);
             onStatus(RmxAudioStatusMessage.RMXSTATUS_STALLED, currentItem.getTrackId(), getPlayerStatus(currentItem));
             return RmxPlaybackState.STALLED;

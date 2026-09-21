@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Feat (Android): `AudioPlayerOptions.stallTimeoutMs` makes the issue #143 position-freeze stall detector's threshold configurable (default unchanged at 10000ms). Requested by a reporter on #143 whose own app-level watchdog used 6s; iOS/web rely on native stall notifications and ignore this option.
+
 ## 0.14.4
 
 Test-only, no behavior change.
