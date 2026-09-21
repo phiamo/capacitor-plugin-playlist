@@ -34,6 +34,12 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     private isStalled = false;
     private isSeeking = false;
     private hasCanPlayed = false;
+    // Issue #143 parity backstop: position-freeze polling, in case the browser's own
+    // 'waiting'/'stalled' events never fire while playback is genuinely frozen (mirrors
+    // Android's ExoPlayer-specific gap). null means "no baseline yet".
+    private lastProgressPositionMs: number | null = null;
+    private lastProgressObservedAtMs: number | null = null;
+    private stallWatchdogId: ReturnType<typeof setInterval> | undefined;
 
     addAllItems(options: AddAllItemOptions): Promise<void> {
         this.playlistItems = this.playlistItems.concat(validateTracks(options.items));
@@ -177,6 +183,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     async release(): Promise<void> {
         await this.pause();
+        this.clearStallWatchdog();
         this.audio = undefined;
         this.currentTrack = null;
         this.lastState = 'stopped';
@@ -406,6 +413,9 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         });
       }*/
     registerHtmlListeners(position?: number): void {
+        if (this.audio) {
+            this.startStallWatchdog(this.audio);
+        }
         const canPlayListener = async () => {
             this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_CANPLAY, this.getCurrentTrackStatus('paused'));
             if (position) {
@@ -495,6 +505,60 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
 
     private clearStalled(): void {
         this.isStalled = false;
+    }
+
+    private clearStallWatchdog(): void {
+        if (this.stallWatchdogId !== undefined) {
+            clearInterval(this.stallWatchdogId);
+            this.stallWatchdogId = undefined;
+        }
+        this.lastProgressPositionMs = null;
+        this.lastProgressObservedAtMs = null;
+    }
+
+    /**
+     * Backstop for issue #143 parity: 'waiting'/'stalled' reliably fire for an ordinary data
+     * underrun, but polling `currentTime` directly (as Android/iOS do) also catches playback
+     * that is genuinely frozen without either event ever firing. Tied to this `audio` element's
+     * lifetime — cleared on release()/track change rather than left running for the page's life.
+     */
+    private startStallWatchdog(audio: HTMLAudioElement): void {
+        this.clearStallWatchdog();
+        this.stallWatchdogId = setInterval(() => {
+            if (audio.paused || audio.ended || this.isSeeking || !this.hasCanPlayed) {
+                this.lastProgressPositionMs = null;
+                this.lastProgressObservedAtMs = null;
+                return;
+            }
+
+            const positionMs = audio.currentTime * 1000;
+            const nowMs = Date.now();
+
+            // The first observation after (re)arming only establishes a baseline — it is not
+            // evidence of a genuine resume, so it must not clear a stall an already-fired native
+            // 'waiting'/'stalled' event just reported.
+            if (this.lastProgressPositionMs === null) {
+                this.lastProgressPositionMs = positionMs;
+                this.lastProgressObservedAtMs = nowMs;
+                return;
+            }
+
+            if (positionMs !== this.lastProgressPositionMs) {
+                this.lastProgressPositionMs = positionMs;
+                this.lastProgressObservedAtMs = nowMs;
+                if (this.isStalled) {
+                    this.clearStalled();
+                }
+                return;
+            }
+
+            const stallTimeoutMs = this.options.stallTimeoutMs ?? 10000;
+            if (!this.isStalled && this.lastProgressObservedAtMs !== null
+                    && nowMs - this.lastProgressObservedAtMs >= stallTimeoutMs) {
+                this.isStalled = true;
+                this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_STALLED, this.getCurrentTrackStatus('stalled'));
+            }
+        }, 1000);
     }
 
     protected getCurrentTrackId(): string | undefined {

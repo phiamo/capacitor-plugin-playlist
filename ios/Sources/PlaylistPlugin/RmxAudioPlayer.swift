@@ -50,6 +50,13 @@ final class RmxAudioPlayer: NSObject {
     private var wasPlayingInterrupted = false
     private var commandCenterRegistered = false
     private var resetStreamOnPause = false
+    private var isStalled = false
+    private var stallTimeoutMs: Double = 10_000
+    // Issue #143 parity backstop for executePeriodicUpdate: position-freeze polling, in case
+    // AVPlayerItemPlaybackStalledNotification never fires while playback is genuinely frozen
+    // (mirrors Android's ExoPlayer-specific gap). nil means "no baseline yet".
+    private var lastProgressPositionMs: Double?
+    private var lastProgressObservedAtMs: Double?
     private var updatedNowPlayingInfo: [String : Any]?
     private let nowPlayingInfoQueue = DispatchQueue(label: "RMXAudioPlayerNowPlayingQueue")
     private let coverArtworkCache = NSCache<NSURL, MPMediaItemArtwork>()
@@ -76,6 +83,9 @@ final class RmxAudioPlayer: NSObject {
     func setOptions(_ options: [String:Any]) {
         print("RmxAudioPlayer.execute=setOptions, \(options)")
         resetStreamOnPause = (options["resetStreamOnPause"] as? NSNumber)?.boolValue ?? false
+        // Unlike the booleans above, a missing key here must keep the last value (or the 10s
+        // default), not fall back to 0 — that would misfire the stall detector immediately.
+        stallTimeoutMs = (options["stallTimeoutMs"] as? NSNumber)?.doubleValue ?? stallTimeoutMs
     }
 
     func initialize() {
@@ -629,7 +639,11 @@ final class RmxAudioPlayer: NSObject {
     ///
     /// These handle the events raised by the queue and the player items.
     @objc func itemStalledPlaying(_ notification: Notification?) {
-        // This happens when the network is insufficient to continue playback.
+        // This happens when the network is insufficient to continue playback. Guarded like the
+        // executePeriodicUpdate backstop below so only one RMXSTATUS_STALLED fires per episode.
+        guard !isStalled else { return }
+        isStalled = true
+
         let playerItem = avQueuePlayer.currentAudioTrack
         let trackStatus = getStatusItem(playerItem)
 
@@ -707,13 +721,59 @@ final class RmxAudioPlayer: NSObject {
 
         if !CMTIME_IS_INDEFINITE(playerItem.currentTime()) {
             updateNowPlayingTrackInfo(playerItem, updateTrackData: false)
-            if avQueuePlayer.isPlaying {
+            checkForStall(playerItem)
+            if avQueuePlayer.isPlaying && !isStalled {
                 let trackStatus = getStatusItem(playerItem)
                 onStatus(.rmxstatus_PLAYBACK_POSITION, trackId: playerItem.trackId, param: trackStatus)
             }
         }
 
         return
+    }
+
+    /// Issue #143 parity backstop: `AVPlayerItemPlaybackStalledNotification` is the primary
+    /// signal, but polling `currentTime` directly (as Android/Web do) also catches playback that
+    /// is genuinely frozen without that notification ever firing.
+    private func checkForStall(_ playerItem: AudioTrack) {
+        guard avQueuePlayer.isPlaying else {
+            lastProgressPositionMs = nil
+            lastProgressObservedAtMs = nil
+            return
+        }
+
+        let positionMs = Double(getTrackCurrentTime(playerItem)) * 1000.0
+        let nowMs = Date().timeIntervalSince1970 * 1000.0
+
+        // The first observation after (re)arming only establishes a baseline — it is not
+        // evidence of a genuine resume, so it must not clear a stall itemStalledPlaying already
+        // reported.
+        guard let lastPositionMs = lastProgressPositionMs else {
+            lastProgressPositionMs = positionMs
+            lastProgressObservedAtMs = nowMs
+            return
+        }
+
+        if positionMs != lastPositionMs {
+            lastProgressPositionMs = positionMs
+            lastProgressObservedAtMs = nowMs
+            isStalled = false
+            return
+        }
+
+        if !isStalled, let lastObservedAtMs = lastProgressObservedAtMs,
+                RmxAudioPlayer.hasStalled(msSinceLastProgress: nowMs - lastObservedAtMs, thresholdMs: stallTimeoutMs) {
+            isStalled = true
+            let trackStatus = getStatusItem(playerItem)
+            onStatus(.rmxstatus_STALLED, trackId: playerItem.trackId, param: trackStatus)
+        }
+    }
+
+    /// Pure decision mirroring Android's `PlaylistPlaybackPolicy.hasStalled` — split out so it is
+    /// directly testable: a live `AVPlayer` never reports genuine progress against an
+    /// unloaded/undownloadable asset in this test target (see PositionResumeTests), so
+    /// `checkForStall`'s actual state tracking can't be exercised end-to-end here.
+    static func hasStalled(msSinceLastProgress: Double, thresholdMs: Double) -> Bool {
+        msSinceLastProgress >= thresholdMs
     }
 
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
@@ -913,6 +973,10 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func handleCurrentItemChanged(_ playerItem: AudioTrack?) {
+        isStalled = false
+        lastProgressPositionMs = nil
+        lastProgressObservedAtMs = nil
+
         if let playerItem = playerItem {
             print("Queue changed current item to: \(playerItem.trackId ?? "nil")")
             // NSLog(@"New music name: %@", ((AVURLAsset*)playerItem.asset).URL.pathComponents.lastObject);
@@ -1084,7 +1148,9 @@ final class RmxAudioPlayer: NSObject {
         }
 
         if avQueuePlayer.currentItem == currentItem {
-            if avQueuePlayer.rate != 0.0 {
+            if isStalled {
+                status = "stalled"
+            } else if avQueuePlayer.rate != 0.0 {
                 status = "playing"
 
                 if position <= 0 && (bufferInfo?["bufferPercent"] as? NSNumber)?.floatValue ?? 0.0 == 0.0 {

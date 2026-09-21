@@ -48,11 +48,12 @@ export interface AudioPlayerOptions {
      */
     resetStreamOnPause?: boolean;
     /**
-     * (Android only) How long, in milliseconds, `currentPosition` may fail to advance while the
-     * player reports it is playing before the plugin declares the track stalled and emits
-     * `RMXSTATUS_STALLED` (issue #143). ExoPlayer's own `playbackState`/`isPlaying` can stay at
-     * `STATE_READY`/`true` indefinitely on a mid-stream network loss, so this is the only reliable
-     * signal available; iOS and web instead rely on native stall notifications and ignore this option.
+     * How long, in milliseconds, playback position may fail to advance while the player reports
+     * it is playing before the plugin declares the track stalled and emits `RMXSTATUS_STALLED`
+     * (issue #143). Each platform's native "playing" signal (Android ExoPlayer's
+     * `playbackState`/`isPlaying`, iOS's `AVPlayerItemPlaybackStalledNotification`, the browser's
+     * `waiting`/`stalled` events) can fail to fire on a mid-stream network loss, so all three
+     * platforms poll actual position as a backstop and use this shared threshold for it.
      *
      * Default is 10000 (10s).
      */
