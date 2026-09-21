@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.14.5
+
 - Feat (Android): `AudioPlayerOptions.stallTimeoutMs` makes the issue #143 position-freeze stall detector's threshold configurable (default unchanged at 10000ms). Requested by a reporter on #143 whose own app-level watchdog used 6s.
 - Feat (Web, iOS): parity position-freeze backstop for `RMXSTATUS_STALLED`, using the same `stallTimeoutMs`. Both platforms' primary stall signal (the browser's `waiting`/`stalled` events; `AVPlayerItemPlaybackStalledNotification`) is native and normally reliable, but shares the same class of gap the Android fix closed — it can fail to fire while playback is genuinely frozen. Web polls `currentTime` every second while playing; iOS folds the same check into its existing 1s periodic time observer. Both guard against double-firing when the native signal already reported the stall, and both fix a pre-existing gap where iOS's `itemStalledPlaying` reported `status: "playing"` instead of `"stalled"` in its own event payload.
 
