@@ -10,8 +10,8 @@ import java.util.Locale;
 import org.dwbn.plugins.playlist.data.AudioTrack;
 
 /**
- * Single factory for audio {@link MediaItem} instances. Story 55.4 — no DRM; later epics attach
- * {@link MediaItem.DrmConfiguration} here only.
+ * Single factory for audio {@link MediaItem} instances. Story 57.5 — optional {@link
+ * AudioDrmSession#applyDrm} is the only place Widevine {@link MediaItem.DrmConfiguration} attaches.
  */
 @OptIn(markerClass = UnstableApi.class)
 public final class AudioMediaItemFactory {
@@ -19,18 +19,29 @@ public final class AudioMediaItemFactory {
   private AudioMediaItemFactory() {}
 
   public static MediaItem fromAudioTrack(AudioTrack track) {
-    return fromUrl(track.getMediaUrl(), track.getMimeType(), track);
+    return fromAudioTrack(track, null);
+  }
+
+  public static MediaItem fromAudioTrack(AudioTrack track, AudioDrmSession drmSession) {
+    return fromUrl(track.getMediaUrl(), track.getMimeType(), track, drmSession);
   }
 
   public static MediaItem fromUrl(String url, String declaredMimeType) {
-    return fromUrl(url, declaredMimeType, null);
+    return fromUrl(url, declaredMimeType, null, null);
   }
 
-  private static MediaItem fromUrl(String url, String declaredMimeType, AudioTrack track) {
+  private static MediaItem fromUrl(
+    String url,
+    String declaredMimeType,
+    AudioTrack track,
+    AudioDrmSession drmSession
+  ) {
     Uri uri = (url == null || url.isEmpty()) ? Uri.EMPTY : Uri.parse(url);
     MediaItem.Builder builder = new MediaItem.Builder().setUri(uri);
     if (track != null && track.getTrackId() != null) {
       builder.setMediaId(track.getTrackId());
+    } else if (track != null && drmSession != null) {
+      builder.setMediaId("audio-" + track.getId());
     }
     String mimeType = resolveMimeType(url, declaredMimeType);
     if (mimeType != null) {
@@ -57,6 +68,9 @@ public final class AudioMediaItemFactory {
         metadata.setArtworkUri(Uri.parse(artwork));
       }
       builder.setMediaMetadata(metadata.build());
+    }
+    if (drmSession != null) {
+      drmSession.applyDrm(builder);
     }
     return builder.build();
   }

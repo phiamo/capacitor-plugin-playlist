@@ -491,6 +491,66 @@ describe('PlaylistWeb — error codes (issue #143 follow-up)', () => {
     });
 });
 
+const drmOptions = {
+    widevineLicenseUrl: 'https://license.example/wv',
+    playbackSessionId: 'sess-1',
+    renewalCredential: 'cred',
+    streamLimit: { mode: 'axinom_csl', renewalIntervalSeconds: 300 },
+};
+
+describe('PlaylistWeb drm', () => {
+    let web: PlaylistWeb;
+
+    beforeEach(() => {
+        web = new PlaylistWeb();
+    });
+
+    const drmTrack = (id: string): AudioTrack =>
+        track(id, {
+            assetUrl: 'https://cdn.example/drm/audio.m3u8',
+            drm: drmOptions,
+        });
+
+    it('setPlaylistItems rejects notSupported and does not create a player', async () => {
+        await expect(
+            web.setPlaylistItems({ items: [drmTrack('a')], options: { startPaused: true } })
+        ).rejects.toMatchObject({
+            message: 'DRM not supported on this platform yet',
+            code: 'notSupported',
+        });
+        expect((web as unknown as { audio?: HTMLAudioElement }).audio).toBeUndefined();
+        expect((await web.getPlaylist()).items).toEqual([]);
+    });
+
+    it('addItem rejects notSupported and leaves the playlist unchanged', async () => {
+        await web.addAllItems({ items: [track('a')] });
+        await expect(web.addItem({ item: drmTrack('b') })).rejects.toMatchObject({
+            code: 'notSupported',
+            message: 'DRM not supported on this platform yet',
+        });
+        expect((await web.getPlaylist()).items.map((i) => i.trackId)).toEqual(['a']);
+        expect((web as unknown as { audio?: HTMLAudioElement }).audio).toBeUndefined();
+    });
+
+    it('addAllItems rejects notSupported when any item has drm', async () => {
+        await web.addAllItems({ items: [track('a')] });
+        await expect(web.addAllItems({ items: [track('b'), drmTrack('c')] })).rejects.toMatchObject({
+            code: 'notSupported',
+        });
+        expect((await web.getPlaylist()).items.map((i) => i.trackId)).toEqual(['a']);
+    });
+
+    it('replaceItem rejects notSupported and does not create a player', async () => {
+        await web.addAllItems({ items: [track('a')] });
+        await expect(web.replaceItem({ index: 0, item: drmTrack('a') })).rejects.toMatchObject({
+            code: 'notSupported',
+            message: 'DRM not supported on this platform yet',
+        });
+        expect((await web.getPlaylist()).items[0].drm).toBeUndefined();
+        expect((web as unknown as { audio?: HTMLAudioElement }).audio).toBeUndefined();
+    });
+});
+
 describe('PlaylistWeb — source selection (issue #144)', () => {
     let web: PlaylistWeb;
 

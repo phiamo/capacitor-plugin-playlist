@@ -16,6 +16,8 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.drm.DrmSessionManager
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -96,6 +98,12 @@ class MediaService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(MediaNotificationPolicy.WAKE_MODE)
             .setStuckBufferingDetectionTimeoutMs(MediaNotificationPolicy.STUCK_BUFFERING_DETECTION_TIMEOUT_MS)
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(this).setDrmSessionManagerProvider { mediaItem ->
+                    val manager = playlistManager.drmSessionManagerFor(mediaItem)
+                    manager ?: DrmSessionManager.DRM_UNSUPPORTED
+                }
+            )
             .build()
         exoPlayer = player
         // Load items before the session is built so the notification controller sees a timeline.

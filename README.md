@@ -296,6 +296,18 @@ If the same Android app plays background audio with this plugin **and** native v
 
 This plugin’s MediaSession id is **`org.dwbn.playlist`**. Any second Media3 session in the same process (typical for a fullscreen video player) must use a **different** id — **`org.dwbn.video`** is the usual pair for DWBN handoff setups. Media3 forbids two empty or duplicate session ids.
 
+### Protected playback (Android)
+
+This plugin does **not** pin `drm-kit`. The host app that needs Widevine adds `drm-kit` itself and registers a provider at launch from the app `Application` class (not a plugin Gradle / `Package.swift` dependency):
+
+```java
+AudioDrm.setProvider((drm, onError) -> {
+  // Story 57.6: wrap drm-kit WidevineSession. Token URL, heartbeat URL, and Bearer live here.
+});
+```
+
+Playlist items may include optional `drm` (same field names as the playback API / video plugin). Without a registered provider, `setPlaylistItems` / `addItem` / `replaceItem` / `addAllItems` reject with code `noProvider` and leave the previous queue unchanged. iOS and web refuse `drm` with code `notSupported` and message `DRM not supported on this platform yet`. Typed provider errors are emitted on the existing `status` listener (`RMXSTATUS_ERROR`) as `value.error`: `blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`. Do not auto-retry a stream-cap block.
+
 ## Usage
 
 See also `examples/audio-provider.ts` for an Angular/Ionic integration.

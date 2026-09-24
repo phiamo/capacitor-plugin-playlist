@@ -77,12 +77,13 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     private lastProgressObservedAtMs: number | null = null;
     private stallWatchdogId: ReturnType<typeof setInterval> | undefined;
 
-    addAllItems(options: AddAllItemOptions): Promise<void> {
+    async addAllItems(options: AddAllItemOptions): Promise<void> {
+        assertWebDrmNotSupported(options.items);
         this.playlistItems = this.playlistItems.concat(validateTracks(options.items));
-        return Promise.resolve();
     }
 
-    addItem(options: AddItemOptions): Promise<void> {
+    async addItem(options: AddItemOptions): Promise<void> {
+        assertWebDrmNotSupported([options.item]);
         const track = validateTrack(options.item);
         if (track) {
             const insertIndex = options.index !== undefined && options.index !== null
@@ -97,7 +98,6 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                 track.trackId
             );
         }
-        return Promise.resolve();
     }
 
     moveItem(options: MoveItemOptions): Promise<void> {
@@ -119,6 +119,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async replaceItem(options: ReplaceItemOptions): Promise<void> {
+        assertWebDrmNotSupported([options.item]);
         let replaceIndex = -1;
         if (options.index !== undefined && options.index !== null) {
             replaceIndex = options.index;
@@ -309,6 +310,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async setPlaylistItems(options: PlaylistOptions): Promise<void> {
+        assertWebDrmNotSupported(options.items);
         this.playlistItems = options.items;
         if (this.playlistItems.length > 0) {
             let currentItem = this.playlistItems.filter(i => i.trackId === options.options?.playFromId)[0];
@@ -717,5 +719,14 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                     reject();
                 };
             });
+    }
+}
+
+/** iOS/web refuse `drm` before creating a player (Story 57.5). */
+export function assertWebDrmNotSupported(items: Array<AudioTrack | null | undefined>): void {
+    if (items.some((item) => item != null && item.drm != null)) {
+        const error = new Error('DRM not supported on this platform yet') as Error & { code: string };
+        error.code = 'notSupported';
+        throw error;
     }
 }

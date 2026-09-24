@@ -11,6 +11,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.drm.DrmSessionManager
+import com.getcapacitor.JSObject
+import org.dwbn.plugins.playlist.AudioDrm
+import org.dwbn.plugins.playlist.AudioDrmSession
 import org.dwbn.plugins.playlist.AudioMediaItemFactory
 import org.dwbn.plugins.playlist.PlaylistItemOptions
 import org.dwbn.plugins.playlist.RmxAudioPlayer
@@ -57,6 +61,9 @@ class PlaylistManager(private val application: Application) {
     private var sequentialErrors = 0
     private var rmxPlaybackState = RmxPlaybackState.STOPPED
     private var pendingBeginPlayback: PendingBegin? = null
+    private val drmSessions = LinkedHashMap<String, AudioDrmSession>()
+    private var startedDrmKey: String? = null
+    var drmErrorListener: ((trackId: String?, error: String) -> Unit)? = null
 
     private data class PendingBegin(val seekPosition: Long, val startPaused: Boolean)
 
@@ -99,10 +106,12 @@ class PlaylistManager(private val application: Application) {
     fun attachPlayer(exoPlayer: ExoPlayer) {
         player = exoPlayer
         if (audioTracks.isNotEmpty()) {
-            exoPlayer.setMediaItems(audioTracks.map { AudioMediaItemFactory.fromAudioTrack(it) })
+            reopenMissingDrmSessions(audioTracks)
+            exoPlayer.setMediaItems(audioTracks.map { mediaItemFor(it) })
             if (currentPosition in audioTracks.indices) {
                 exoPlayer.seekTo(currentPosition, 0)
             }
+            startCurrentDrmSession()
         }
         applyPlayerSettings()
         exoPlayer.addListener(playerListener)
@@ -116,6 +125,7 @@ class PlaylistManager(private val application: Application) {
     fun detachPlayer() {
         player?.removeListener(playerListener)
         playbackStatusListener.get()?.onPlayerDetached()
+        releaseAllDrmSessions()
         player = null
     }
 
@@ -220,7 +230,23 @@ class PlaylistManager(private val application: Application) {
         notifySkipBack(fromIndex)
     }
 
-    fun setAllItems(items: List<AudioTrack>?, options: PlaylistItemOptions) {
+    /**
+     * Looks up the DRM session manager for [mediaItem] by `mediaId`. Captures the map value so a
+     * released field cannot NPE; missing/released items return null and the player uses
+     * `DRM_UNSUPPORTED`.
+     */
+    fun drmSessionManagerFor(mediaItem: MediaItem): DrmSessionManager? {
+        val session = drmSessions[mediaItem.mediaId] ?: return null
+        return session.drmSessionManager
+    }
+
+    fun setAllItems(items: List<AudioTrack>?, options: PlaylistItemOptions): String? {
+        val incoming = items.orEmpty()
+        val (failure, opened) = openNewSessions(incoming)
+        if (failure != null) {
+            return failure
+        }
+
         val seekStart = when {
             options.playFromPosition >= 0 -> options.playFromPosition
             options.retainPosition -> getCurrentProgress()?.position ?: 0
@@ -228,8 +254,9 @@ class PlaylistManager(private val application: Application) {
         }
 
         clearItems()
-        audioTracks.addAll(items.orEmpty())
-        player?.setMediaItems(audioTracks.map { AudioMediaItemFactory.fromAudioTrack(it) })
+        drmSessions.putAll(opened)
+        audioTracks.addAll(incoming)
+        player?.setMediaItems(audioTracks.map { mediaItemFor(it) })
         currentPosition = 0
 
         options.playFromId?.let { trackId ->
@@ -241,12 +268,19 @@ class PlaylistManager(private val application: Application) {
 
         beginPlayback(seekStart, options.startPaused)
         mediaServiceRef.get()?.refreshSkipAvailability()
+        return null
     }
 
-    fun addItem(item: AudioTrack?, index: Int = -1) {
+    fun addItem(item: AudioTrack?, index: Int = -1): String? {
         if (item == null) {
-            return
+            return null
         }
+        val (failure, opened) = openNewSessions(listOf(item))
+        if (failure != null) {
+            return failure
+        }
+        drmSessions.putAll(opened)
+
         val countBefore = audioTracks.size
         val insertIndex = if (index >= 0) {
             index.coerceIn(0, audioTracks.size)
@@ -256,10 +290,10 @@ class PlaylistManager(private val application: Application) {
 
         if (insertIndex >= audioTracks.size) {
             audioTracks.add(item)
-            player?.addMediaItem(AudioMediaItemFactory.fromAudioTrack(item))
+            player?.addMediaItem(mediaItemFor(item))
         } else {
             audioTracks.add(insertIndex, item)
-            player?.addMediaItem(insertIndex, AudioMediaItemFactory.fromAudioTrack(item))
+            player?.addMediaItem(insertIndex, mediaItemFor(item))
             if (currentPosition >= insertIndex && currentPosition != INVALID_POSITION) {
                 currentPosition++
             }
@@ -272,6 +306,7 @@ class PlaylistManager(private val application: Application) {
         } else {
             playlistHandler?.updateMediaControls()
         }
+        return null
     }
 
     fun moveItem(from: Int, to: Int): Boolean {
@@ -291,17 +326,21 @@ class PlaylistManager(private val application: Application) {
         return true
     }
 
-    fun replaceItem(index: Int, itemId: String, replacement: AudioTrack?): AudioTrack? {
+    fun replaceItem(index: Int, itemId: String, replacement: AudioTrack?): Pair<AudioTrack?, String?> {
         if (replacement == null) {
-            return null
+            return Pair(null, null)
         }
         val resolvedIndex = resolveItemPosition(index, itemId)
         if (resolvedIndex < 0 || resolvedIndex >= audioTracks.size) {
-            return null
+            return Pair(null, null)
         }
 
         val existing = audioTracks[resolvedIndex]
         val resolvedReplacement = mergeReplacementTrackId(existing, replacement)
+        val (failure, opened) = openNewSessions(listOf(resolvedReplacement))
+        if (failure != null) {
+            return Pair(null, failure)
+        }
 
         val isCurrent = existing == currentItem
         val wasPlaying = isPlaying
@@ -312,26 +351,36 @@ class PlaylistManager(private val application: Application) {
             player?.pause()
         }
 
+        releaseSession(sessionKey(existing))
+        drmSessions.putAll(opened)
         audioTracks[resolvedIndex] = resolvedReplacement
-        player?.replaceMediaItem(resolvedIndex, AudioMediaItemFactory.fromAudioTrack(resolvedReplacement))
+        player?.replaceMediaItem(resolvedIndex, mediaItemFor(resolvedReplacement))
 
         if (isCurrent) {
+            startedDrmKey = null
             beginPlayback(seekPosition, !wasPlaying)
         } else {
             playlistHandler?.updateMediaControls()
         }
 
-        return resolvedReplacement
+        return Pair(resolvedReplacement, null)
     }
 
-    fun addAllItems(its: List<AudioTrack>?) {
+    fun addAllItems(its: List<AudioTrack>?): String? {
+        val incoming = its.orEmpty()
+        val (failure, opened) = openNewSessions(incoming)
+        if (failure != null) {
+            return failure
+        }
+        drmSessions.putAll(opened)
         val current = currentItem
-        its.orEmpty().forEach { track ->
+        incoming.forEach { track ->
             audioTracks.add(track)
-            player?.addMediaItem(AudioMediaItemFactory.fromAudioTrack(track))
+            player?.addMediaItem(mediaItemFor(track))
         }
         currentPosition = audioTracks.indexOf(current)
         applyPlayerSettings()
+        return null
     }
 
     fun removeItem(index: Int, itemId: String): AudioTrack? {
@@ -350,6 +399,7 @@ class PlaylistManager(private val application: Application) {
             if (foundItem == current) {
                 removingCurrent = true
             }
+            releaseSession(sessionKey(foundItem))
             audioTracks.removeAt(resolvedIndex)
             player?.removeMediaItem(resolvedIndex)
         }
@@ -388,6 +438,7 @@ class PlaylistManager(private val application: Application) {
                 removingCurrent = true
             }
             removedTracks.add(foundItem)
+            releaseSession(sessionKey(foundItem))
             audioTracks.removeAt(resolvedIndex)
             player?.removeMediaItem(resolvedIndex)
         }
@@ -411,6 +462,7 @@ class PlaylistManager(private val application: Application) {
         currentPosition = INVALID_POSITION
         sequentialErrors = 0
         rmxPlaybackState = RmxPlaybackState.STOPPED
+        releaseAllDrmSessions()
     }
 
     fun getAllItems(): List<AudioTrack> = audioTracks.toList()
@@ -479,6 +531,7 @@ class PlaylistManager(private val application: Application) {
             exoPlayer.prepare()
             exoPlayer.playWhenReady = !startPaused && !videoHandoffForegroundRetain
             applyPlayerSettings()
+            startCurrentDrmSession()
             if (MediaNotificationPolicy.shouldRequestLegacyAudioFocus()) {
                 // Media3 handleAudioFocus owns pause/resume; do not call AudioManager.requestAudioFocus.
             }
@@ -578,6 +631,7 @@ class PlaylistManager(private val application: Application) {
                 isNextAvailable,
                 isPreviousAvailable
             )
+            startCurrentDrmSession()
             mediaServiceRef.get()?.refreshSkipAvailability()
         }
 
@@ -676,5 +730,104 @@ class PlaylistManager(private val application: Application) {
             }
             return AudioTrack(replacementConfig)
         }
+    }
+
+    private fun mediaItemFor(track: AudioTrack): MediaItem =
+        AudioMediaItemFactory.fromAudioTrack(track, drmSessions[sessionKey(track)])
+
+    private fun sessionKey(track: AudioTrack): String =
+        track.trackId ?: "audio-${track.id}"
+
+    private fun drmObject(track: AudioTrack): JSObject? {
+        val drm = track.drm ?: return null
+        return try {
+            JSObject.fromJSONObject(drm)
+        } catch (_: Exception) {
+            try {
+                JSObject(drm.toString())
+            } catch (_: Exception) {
+                JSObject()
+            }
+        }
+    }
+
+    /**
+     * Open sessions for drm items. Does not mutate the live map until the caller merges.
+     * If any item cannot open, collected sessions are released and the failure code is returned.
+     */
+    private fun openNewSessions(tracks: List<AudioTrack>): Pair<String?, Map<String, AudioDrmSession>> {
+        val opened = LinkedHashMap<String, AudioDrmSession>()
+        for (track in tracks) {
+            val drm = drmObject(track) ?: continue
+            val attempt = AudioDrm.open(drm) { error ->
+                drmErrorListener?.invoke(track.trackId, error)
+            }
+            if (attempt.failureCode != null) {
+                opened.values.forEach { session ->
+                    try {
+                        session.release()
+                    } catch (_: Exception) {
+                    }
+                }
+                return Pair(attempt.failureCode, emptyMap())
+            }
+            attempt.session?.let { opened[sessionKey(track)] = it }
+        }
+        return Pair(null, opened)
+    }
+
+    private fun reopenMissingDrmSessions(tracks: List<AudioTrack>) {
+        val missing = tracks.filter { it.drm != null && sessionKey(it) !in drmSessions }
+        if (missing.isEmpty()) {
+            return
+        }
+        val (failure, opened) = openNewSessions(missing)
+        if (failure == null) {
+            drmSessions.putAll(opened)
+        }
+    }
+
+    private fun startCurrentDrmSession() {
+        val item = currentItem
+        val newKey = if (item?.drm != null) sessionKey(item) else null
+        if (startedDrmKey != null && startedDrmKey != newKey) {
+            releaseSession(startedDrmKey!!)
+        }
+        startedDrmKey = newKey
+        if (newKey == null || item == null) {
+            return
+        }
+        var session = drmSessions[newKey]
+        if (session == null) {
+            val (failure, opened) = openNewSessions(listOf(item))
+            if (failure == null) {
+                drmSessions.putAll(opened)
+                session = opened[newKey]
+            }
+        }
+        session?.start()
+    }
+
+    private fun releaseSession(key: String) {
+        drmSessions.remove(key)?.let { session ->
+            try {
+                session.release()
+            } catch (_: Exception) {
+            }
+        }
+        if (startedDrmKey == key) {
+            startedDrmKey = null
+        }
+    }
+
+    private fun releaseAllDrmSessions() {
+        drmSessions.values.forEach { session ->
+            try {
+                session.release()
+            } catch (_: Exception) {
+            }
+        }
+        drmSessions.clear()
+        startedDrmKey = null
     }
 }

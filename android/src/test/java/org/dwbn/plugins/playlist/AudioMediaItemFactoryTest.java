@@ -2,14 +2,22 @@ package org.dwbn.plugins.playlist;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.util.UnstableApi;
 import org.dwbn.plugins.playlist.data.AudioTrack;
 import org.json.JSONObject;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 24)
+@UnstableApi
 public class AudioMediaItemFactoryTest {
 
   @Test
@@ -125,5 +133,81 @@ public class AudioMediaItemFactoryTest {
     assertFalse(org.dwbn.plugins.playlist.service.GlideBitmapLoader.shouldLoadRemoteArtwork(""));
     assertFalse(org.dwbn.plugins.playlist.service.GlideBitmapLoader.shouldLoadRemoteArtwork(null));
     assertNull(AudioMediaItemFactory.artworkUriString(null));
+  }
+
+  @Test
+  public void fromAudioTrack_withSession_attachesWidevineDrmConfiguration() throws Exception {
+    JSONObject json = lectureJson();
+    FakeAudioDrmSession session = new FakeAudioDrmSession();
+    androidx.media3.common.MediaItem item = AudioMediaItemFactory.fromAudioTrack(
+        new AudioTrack(json), session);
+
+    assertNotNull(item.localConfiguration);
+    assertNotNull(item.localConfiguration.drmConfiguration);
+    assertEquals(androidx.media3.common.C.WIDEVINE_UUID, item.localConfiguration.drmConfiguration.scheme);
+    assertEquals("https://example.com/art.jpg", item.mediaMetadata.artworkUri.toString());
+  }
+
+  @Test
+  public void fromAudioTrack_withoutSession_hasNoDrmConfiguration() throws Exception {
+    androidx.media3.common.MediaItem item =
+        AudioMediaItemFactory.fromAudioTrack(new AudioTrack(lectureJson()));
+
+    assertNotNull(item.localConfiguration);
+    assertNull(item.localConfiguration.drmConfiguration);
+  }
+
+  @Test
+  public void fromAudioTrack_nullSession_doesNotAttachDrm() throws Exception {
+    androidx.media3.common.MediaItem item =
+        AudioMediaItemFactory.fromAudioTrack(new AudioTrack(lectureJson()), null);
+
+    assertNotNull(item.localConfiguration);
+    assertNull(item.localConfiguration.drmConfiguration);
+  }
+
+  @Test
+  public void fromAudioTrack_withSession_keepsHlsMimeType() throws Exception {
+    JSONObject json = lectureJson();
+    json.put("assetUrl", "https://example.com/audio.m3u8");
+    FakeAudioDrmSession session = new FakeAudioDrmSession();
+    androidx.media3.common.MediaItem item =
+        AudioMediaItemFactory.fromAudioTrack(new AudioTrack(json), session);
+
+    assertEquals(MimeTypes.APPLICATION_M3U8, item.localConfiguration.mimeType);
+    assertNotNull(item.localConfiguration.drmConfiguration);
+  }
+
+  private static JSONObject lectureJson() throws Exception {
+    JSONObject json = new JSONObject();
+    json.put("trackId", "track-1");
+    json.put("assetUrl", "https://example.com/lecture.mp3");
+    json.put("albumArt", "https://example.com/art.jpg");
+    json.put("title", "Lecture");
+    json.put("artist", "Lama Ole");
+    json.put("album", "Awareness");
+    return json;
+  }
+
+  private static final class FakeAudioDrmSession implements AudioDrmSession {
+
+    @Override
+    public void applyDrm(androidx.media3.common.MediaItem.Builder builder) {
+      builder.setDrmConfiguration(
+          new androidx.media3.common.MediaItem.DrmConfiguration.Builder(
+                  androidx.media3.common.C.WIDEVINE_UUID)
+              .build());
+    }
+
+    @Override
+    public androidx.media3.exoplayer.drm.DrmSessionManager getDrmSessionManager() {
+      return androidx.media3.exoplayer.drm.DrmSessionManager.DRM_UNSUPPORTED;
+    }
+
+    @Override
+    public void start() {}
+
+    @Override
+    public void release() {}
   }
 }

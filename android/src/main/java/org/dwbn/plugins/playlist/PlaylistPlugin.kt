@@ -23,6 +23,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     override fun load() {
         audioPlayerImpl = RmxAudioPlayer(this, context.applicationContext)
+        audioPlayerImpl!!.playlistManager.drmErrorListener = { trackId, error ->
+            Handler(Looper.getMainLooper()).post {
+                emitDrmError(trackId, error)
+            }
+        }
     }
 
     @PluginMethod
@@ -80,7 +85,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         Handler(Looper.getMainLooper()).post {
 
             val trackItems: ArrayList<AudioTrack> = getTrackItems(items)
-            audioPlayerImpl!!.playlistManager.setAllItems(trackItems, options)
+            val failure = audioPlayerImpl!!.playlistManager.setAllItems(trackItems, options)
+            if (failure != null) {
+                call.reject("DRM provider is not registered", failure)
+                return@post
+            }
             for (playerItem in trackItems) {
                 if (playerItem.trackId != null) {
                     onStatus(
@@ -102,7 +111,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             val item: JSONObject = call.getObject("item")
             val index: Int = call.getInt("index", -1)!!
             val playerItem: AudioTrack? = getTrackItem(item)
-            audioPlayerImpl!!.getPlaylistManager().addItem(playerItem, index)
+            val failure = audioPlayerImpl!!.getPlaylistManager().addItem(playerItem, index)
+            if (failure != null) {
+                call.reject("DRM provider is not registered", failure)
+                return@post
+            }
 
             if (playerItem?.trackId != null) {
                 val payload = playerItem.toDict()
@@ -154,7 +167,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             // An omitted trackId in the payload intentionally means "keep the existing id",
             // so this must not be rejected the way a brand-new addItem() track would be.
             val replacement: AudioTrack? = getTrackItem(item, requireTrackId = false)
-            val replaced = audioPlayerImpl!!.playlistManager.replaceItem(trackIndex, trackId, replacement)
+            val (replaced, failure) = audioPlayerImpl!!.playlistManager.replaceItem(trackIndex, trackId, replacement)
+            if (failure != null) {
+                call.reject("DRM provider is not registered", failure)
+                return@post
+            }
 
             if (replaced != null) {
                 onStatus(
@@ -175,7 +192,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         Handler(Looper.getMainLooper()).post {
             val items: JSONArray = call.getArray("items")
             val trackItems = getTrackItems(items)
-            audioPlayerImpl!!.playlistManager.addAllItems(trackItems)
+            val failure = audioPlayerImpl!!.playlistManager.addAllItems(trackItems)
+            if (failure != null) {
+                call.reject("DRM provider is not registered", failure)
+                return@post
+            }
 
             for (playerItem in trackItems) {
                 if (playerItem.trackId != null) {
@@ -518,6 +539,18 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             statusCallback = OnStatusCallback(this)
         }
         val errorObj = OnStatusCallback.createErrorWithCode(errorCode, message)
+        onStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, trackId, errorObj)
+    }
+
+    private fun emitDrmError(trackId: String?, discriminator: String) {
+        if (statusCallback == null) {
+            statusCallback = OnStatusCallback(this)
+        }
+        val errorObj = OnStatusCallback.createErrorWithCode(
+            RmxAudioErrorType.RMXERR_NONE_SUPPORTED,
+            discriminator
+        )
+        errorObj.put("error", AudioDrm.typedError(discriminator))
         onStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, trackId, errorObj)
     }
 

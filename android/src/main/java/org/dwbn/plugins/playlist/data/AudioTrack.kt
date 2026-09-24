@@ -48,6 +48,7 @@ class AudioTrack(private val config: JSONObject) {
             info.put("album", album)
             info.put("title", title)
             info.put("startPosition", startPositionMs / 1000.0)
+            drm?.let { info.put("drm", it) }
         } catch (_: JSONException) {
             // I can think of no reason this would ever fail
         }
@@ -106,4 +107,11 @@ class AudioTrack(private val config: JSONObject) {
 
     val artist: String
         get() = config.optString("artist")
+
+    /**
+     * Optional DRM descriptor on the track. Null when omitted; FairPlay fields may be present
+     * and are ignored on Android.
+     */
+    val drm: JSONObject?
+        get() = config.optJSONObject("drm")
 }

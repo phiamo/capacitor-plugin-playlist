@@ -62,7 +62,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     @objc func setPlaylistItems(_ call: CAPPluginCall) {
         let items = call.getArray("items", [String:Any].self)!
         let options = call.getObject("options")!
-        
+
+        if rejectIfDrm(in: items, call) {
+            return
+        }
+
         let tracks = createTracks(items)
         audioPlayerImpl.setPlaylistItems(tracks, options: options)
         
@@ -70,6 +74,10 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     }
     @objc func addItem(_ call: CAPPluginCall) {
         let trackInfo = call.getObject("item")
+
+        if rejectIfDrm(trackInfo, call) {
+            return
+        }
 
         guard let track = AudioTrack.initWithDictionary(trackInfo) else {
             call.reject("Invalid track")
@@ -110,6 +118,10 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
             return
         }
 
+        if rejectIfDrm(trackInfo, call) {
+            return
+        }
+
         do {
             try audioPlayerImpl.replaceItem(
                 at: call.getInt("index"),
@@ -123,7 +135,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     }
     @objc func addAllItems(_ call: CAPPluginCall) {
         let items = call.getArray("items", [String:Any].self)!
-        
+
+        if rejectIfDrm(in: items, call) {
+            return
+        }
+
         let tracks = createTracks(items)
         audioPlayerImpl.addAllItems(tracks)
         call.resolve();
@@ -319,6 +335,27 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         }
 
         return newList;
+    }
+
+    private let drmNotSupportedMessage = "DRM not supported on this platform yet"
+    private let drmNotSupportedCode = "notSupported"
+
+    @discardableResult
+    private func rejectIfDrm(_ item: [String: Any]?, _ call: CAPPluginCall) -> Bool {
+        if item?["drm"] != nil {
+            call.reject(drmNotSupportedMessage, drmNotSupportedCode)
+            return true
+        }
+        return false
+    }
+
+    @discardableResult
+    private func rejectIfDrm(in items: [[String: Any]], _ call: CAPPluginCall) -> Bool {
+        if items.contains(where: { $0["drm"] != nil }) {
+            call.reject(drmNotSupportedMessage, drmNotSupportedCode)
+            return true
+        }
+        return false
     }
 
 }
