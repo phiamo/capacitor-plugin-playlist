@@ -12,6 +12,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.drm.DrmSessionManager
+import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import com.getcapacitor.JSObject
 import org.dwbn.plugins.playlist.AudioDrm
 import org.dwbn.plugins.playlist.AudioDrmSession
@@ -26,6 +27,7 @@ import org.dwbn.plugins.playlist.service.MediaNotificationPolicy
 import org.dwbn.plugins.playlist.service.MediaService
 import java.lang.ref.WeakReference
 import java.util.ArrayList
+import java.util.concurrent.ConcurrentHashMap
 
 @OptIn(UnstableApi::class)
 class PlaylistManager(private val application: Application) {
@@ -61,7 +63,7 @@ class PlaylistManager(private val application: Application) {
     private var sequentialErrors = 0
     private var rmxPlaybackState = RmxPlaybackState.STOPPED
     private var pendingBeginPlayback: PendingBegin? = null
-    private val drmSessions = LinkedHashMap<String, AudioDrmSession>()
+    private val drmSessions = ConcurrentHashMap<String, AudioDrmSession>()
     private var startedDrmKey: String? = null
     var drmErrorListener: ((trackId: String?, error: String) -> Unit)? = null
 
@@ -238,6 +240,13 @@ class PlaylistManager(private val application: Application) {
     fun drmSessionManagerFor(mediaItem: MediaItem): DrmSessionManager? {
         val session = drmSessions[mediaItem.mediaId] ?: return null
         return session.drmSessionManager
+    }
+
+    fun drmSessionManagerProvider(): DrmSessionManagerProvider {
+        return DrmSessionManagerProvider { mediaItem ->
+            val manager = drmSessionManagerFor(mediaItem)
+            manager ?: DrmSessionManager.DRM_UNSUPPORTED
+        }
     }
 
     fun setAllItems(items: List<AudioTrack>?, options: PlaylistItemOptions): String? {
@@ -746,7 +755,7 @@ class PlaylistManager(private val application: Application) {
             try {
                 JSObject(drm.toString())
             } catch (_: Exception) {
-                JSObject()
+                null
             }
         }
     }
@@ -777,18 +786,24 @@ class PlaylistManager(private val application: Application) {
     }
 
     private fun reopenMissingDrmSessions(tracks: List<AudioTrack>) {
-        val missing = tracks.filter { it.drm != null && sessionKey(it) !in drmSessions }
+        val missing = tracks.filter { it.drm != null && !drmSessions.containsKey(sessionKey(it)) }
         if (missing.isEmpty()) {
             return
         }
         val (failure, opened) = openNewSessions(missing)
         if (failure == null) {
             drmSessions.putAll(opened)
+        } else {
+            missing.forEach { track ->
+                drmErrorListener?.invoke(track.trackId, AudioDrm.ERROR_UNKNOWN)
+            }
         }
     }
 
     private fun startCurrentDrmSession() {
-        val item = currentItem
+        val index = player?.currentMediaItemIndex?.takeIf { it in audioTracks.indices }
+            ?: currentPosition
+        val item = audioTracks.getOrNull(index)
         val newKey = if (item?.drm != null) sessionKey(item) else null
         if (startedDrmKey != null && startedDrmKey != newKey) {
             releaseSession(startedDrmKey!!)
@@ -803,6 +818,8 @@ class PlaylistManager(private val application: Application) {
             if (failure == null) {
                 drmSessions.putAll(opened)
                 session = opened[newKey]
+            } else {
+                drmErrorListener?.invoke(item.trackId, AudioDrm.ERROR_UNKNOWN)
             }
         }
         session?.start()

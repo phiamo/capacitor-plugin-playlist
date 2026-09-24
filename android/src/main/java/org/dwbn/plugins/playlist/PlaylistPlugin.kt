@@ -102,7 +102,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
             call.resolve()
         }
-        Log.i(TAG, "setPlaylistItems: " + items.toString())
+        Log.i(TAG, "setPlaylistItems: ${items.length()} items")
     }
 
     @PluginMethod
@@ -546,11 +546,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         if (statusCallback == null) {
             statusCallback = OnStatusCallback(this)
         }
-        val errorObj = OnStatusCallback.createErrorWithCode(
-            RmxAudioErrorType.RMXERR_NONE_SUPPORTED,
-            discriminator
-        )
-        errorObj.put("error", AudioDrm.typedError(discriminator))
+        val errorObj = OnStatusCallback.createDrmError(discriminator)
         onStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, trackId, errorObj)
     }
 

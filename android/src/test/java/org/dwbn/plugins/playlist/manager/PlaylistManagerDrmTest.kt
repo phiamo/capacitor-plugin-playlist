@@ -3,18 +3,23 @@ package org.dwbn.plugins.playlist
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.drm.DrmSessionManager
 import org.dwbn.plugins.playlist.data.AudioTrack
 import org.dwbn.plugins.playlist.manager.PlaylistManager
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.util.function.Consumer
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -132,6 +137,195 @@ class PlaylistManagerDrmTest {
         assertEquals(listOf("a", "b"), manager.getAllItems().map { it.trackId })
         assertNull(manager.getAllItems()[0].drm)
         assertEquals("https://license.example/wv", manager.getAllItems()[1].drm!!.getString("widevineLicenseUrl"))
+    }
+
+    @Test
+    fun addItem_throwingProvider_rejectsAndLeavesQueueUnchanged() {
+        AudioDrm.setProvider { _, _ -> throw IllegalStateException("open failed") }
+        val manager = PlaylistManager(RuntimeEnvironment.getApplication())
+        manager.addItem(plain("a"))
+
+        val failure = manager.addItem(drmTrack("b"))
+
+        assertEquals(AudioDrm.CODE_NO_PROVIDER, failure)
+        assertEquals(listOf("a"), manager.getAllItems().map { it.trackId })
+    }
+
+    @Test
+    fun attachPlayer_startsCurrentSession_pauseDoesNotRelease() {
+        val session = RecordingSession()
+        AudioDrm.setProvider { _, _ -> session }
+        val manager = PlaylistManager(RuntimeEnvironment.getApplication())
+        assertNull(manager.addItem(drmTrack("a")))
+        val player = ExoPlayer.Builder(RuntimeEnvironment.getApplication()).build()
+        try {
+            manager.attachPlayer(player)
+            assertTrue(session.startCount >= 1)
+            assertEquals(0, session.releaseCount)
+            val mediaItem = player.currentMediaItem
+            assertNotNull(mediaItem)
+            assertNotNull(manager.drmSessionManagerFor(mediaItem!!))
+
+            player.pause()
+            assertTrue(session.startCount >= 1)
+            assertEquals(0, session.releaseCount)
+        } finally {
+            manager.detachPlayer()
+            player.release()
+        }
+        assertEquals(1, session.releaseCount)
+    }
+
+    @Test
+    fun clearItems_releasesSession_lookupReturnsNull() {
+        val session = RecordingSession()
+        AudioDrm.setProvider { _, _ -> session }
+        val manager = PlaylistManager(RuntimeEnvironment.getApplication())
+        assertNull(manager.addItem(drmTrack("a")))
+        val player = ExoPlayer.Builder(RuntimeEnvironment.getApplication()).build()
+        try {
+            manager.attachPlayer(player)
+            val mediaItem = player.currentMediaItem
+            assertNotNull(manager.drmSessionManagerFor(mediaItem!!))
+            manager.clearItems()
+            assertNull(manager.drmSessionManagerFor(mediaItem))
+            assertEquals(1, session.releaseCount)
+        } finally {
+            manager.detachPlayer()
+            player.release()
+        }
+    }
+
+    @Test
+    fun skipToNext_releasesPreviousAndStartsNext() {
+        val sessions = mutableListOf<RecordingSession>()
+        AudioDrm.setProvider { _, _ -> RecordingSession().also { sessions.add(it) } }
+        val manager = PlaylistManager(RuntimeEnvironment.getApplication())
+        assertNull(manager.addItem(drmTrack("a")))
+        assertNull(manager.addItem(drmTrack("b")))
+        val player = ExoPlayer.Builder(RuntimeEnvironment.getApplication()).build()
+        try {
+            manager.attachPlayer(player)
+            assertTrue(sessions[0].startCount >= 1)
+            assertEquals(0, sessions[0].releaseCount)
+            manager.skipToNext()
+            assertEquals(1, sessions[0].releaseCount)
+            assertTrue(sessions[1].startCount >= 1)
+            assertNull(manager.drmSessionManagerFor(AudioMediaItemFactory.fromAudioTrack(drmTrack("a"))))
+        } finally {
+            manager.detachPlayer()
+            player.release()
+        }
+    }
+
+    @Test
+    fun drmSessionManagerProvider_lookupVsMiss() {
+        val session = LookupSession()
+        AudioDrm.setProvider { _, _ -> session }
+        val manager = PlaylistManager(RuntimeEnvironment.getApplication())
+        assertNull(manager.addItem(drmTrack("a")))
+        val player = ExoPlayer.Builder(RuntimeEnvironment.getApplication()).build()
+        try {
+            manager.attachPlayer(player)
+            val known = player.currentMediaItem
+            assertNotNull(known)
+            val miss = MediaItem.Builder()
+                .setMediaId("missing")
+                .setUri("https://example.com/miss.mp3")
+                .build()
+            val provider = manager.drmSessionManagerProvider()
+
+            assertSame(session.manager, manager.drmSessionManagerFor(known!!))
+            assertNull(manager.drmSessionManagerFor(miss))
+            assertSame(session.manager, provider.get(known))
+            assertSame(DrmSessionManager.DRM_UNSUPPORTED, provider.get(miss))
+        } finally {
+            manager.detachPlayer()
+            player.release()
+        }
+    }
+
+    @Test
+    fun providerOnError_afterSuccessfulOpen_reachesDrmErrorListener() {
+        val captured = mutableListOf<Consumer<String>>()
+        AudioDrm.setProvider { _, onError ->
+            captured.add(onError)
+            FakeSession()
+        }
+        val manager = PlaylistManager(RuntimeEnvironment.getApplication())
+        val errors = mutableListOf<Pair<String?, String>>()
+        manager.drmErrorListener = { trackId, error -> errors.add(trackId to error) }
+
+        assertNull(manager.addItem(drmTrack("a")))
+        assertEquals(1, captured.size)
+
+        captured[0].accept(AudioDrm.ERROR_NOT_ENTITLED)
+        captured[0].accept("licenseDenied")
+
+        assertEquals(listOf("a" to AudioDrm.ERROR_NOT_ENTITLED, "a" to AudioDrm.ERROR_UNKNOWN), errors)
+    }
+
+    @Test
+    fun attachPlayer_openFailure_notifiesUnknown() {
+        AudioDrm.setProvider { _, _ -> RecordingSession() }
+        val manager = PlaylistManager(RuntimeEnvironment.getApplication())
+        assertNull(manager.addItem(drmTrack("a")))
+        val errors = mutableListOf<String>()
+        manager.drmErrorListener = { _, error -> errors.add(error) }
+        val player = ExoPlayer.Builder(RuntimeEnvironment.getApplication()).build()
+        try {
+            manager.attachPlayer(player)
+            manager.detachPlayer()
+            AudioDrm.setProvider(null)
+            errors.clear()
+            manager.attachPlayer(player)
+            assertTrue(errors.contains(AudioDrm.ERROR_UNKNOWN))
+            assertTrue(errors.all { it == AudioDrm.ERROR_UNKNOWN })
+        } finally {
+            manager.detachPlayer()
+            player.release()
+        }
+    }
+
+    @Test
+    fun createDrmError_pinsTypedErrorOnPayload() {
+        val entitled = OnStatusCallback.createDrmError(AudioDrm.ERROR_NOT_ENTITLED)
+        assertEquals(AudioDrm.ERROR_NOT_ENTITLED, entitled.getString("error"))
+        val coerced = OnStatusCallback.createDrmError("licenseDenied")
+        assertEquals(AudioDrm.ERROR_UNKNOWN, coerced.getString("error"))
+    }
+
+    private class LookupSession : AudioDrmSession {
+        val manager: DrmSessionManager = object : DrmSessionManager by DrmSessionManager.DRM_UNSUPPORTED {}
+
+        override fun applyDrm(builder: MediaItem.Builder) {
+            builder.setDrmConfiguration(MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID).build())
+        }
+
+        override fun getDrmSessionManager(): DrmSessionManager = manager
+
+        override fun start() {}
+
+        override fun release() {}
+    }
+
+    private class RecordingSession : AudioDrmSession {
+        var startCount = 0
+        var releaseCount = 0
+
+        override fun applyDrm(builder: MediaItem.Builder) {
+            builder.setDrmConfiguration(MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID).build())
+        }
+
+        override fun getDrmSessionManager(): DrmSessionManager = DrmSessionManager.DRM_UNSUPPORTED
+
+        override fun start() {
+            startCount++
+        }
+
+        override fun release() {
+            releaseCount++
+        }
     }
 
     private class FakeSession : AudioDrmSession {

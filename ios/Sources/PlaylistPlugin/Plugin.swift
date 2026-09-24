@@ -63,7 +63,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         let items = call.getArray("items", [String:Any].self)!
         let options = call.getObject("options")!
 
-        if rejectIfDrm(in: items, call) {
+        if let refusal = PlaylistDrm.notSupportedRefusal(for: items) {
+            call.reject(refusal.message, refusal.code)
             return
         }
 
@@ -75,7 +76,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     @objc func addItem(_ call: CAPPluginCall) {
         let trackInfo = call.getObject("item")
 
-        if rejectIfDrm(trackInfo, call) {
+        if let refusal = PlaylistDrm.notSupportedRefusal(for: [trackInfo]) {
+            call.reject(refusal.message, refusal.code)
             return
         }
 
@@ -118,7 +120,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
             return
         }
 
-        if rejectIfDrm(trackInfo, call) {
+        if let refusal = PlaylistDrm.notSupportedRefusal(for: [trackInfo]) {
+            call.reject(refusal.message, refusal.code)
             return
         }
 
@@ -136,7 +139,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     @objc func addAllItems(_ call: CAPPluginCall) {
         let items = call.getArray("items", [String:Any].self)!
 
-        if rejectIfDrm(in: items, call) {
+        if let refusal = PlaylistDrm.notSupportedRefusal(for: items) {
+            call.reject(refusal.message, refusal.code)
             return
         }
 
@@ -337,25 +341,21 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         return newList;
     }
 
-    private let drmNotSupportedMessage = "DRM not supported on this platform yet"
-    private let drmNotSupportedCode = "notSupported"
+}
 
-    @discardableResult
-    private func rejectIfDrm(_ item: [String: Any]?, _ call: CAPPluginCall) -> Bool {
-        if item?["drm"] != nil {
-            call.reject(drmNotSupportedMessage, drmNotSupportedCode)
-            return true
-        }
-        return false
+/// iOS refuses `drm` before creating a player (Story 57.5).
+enum PlaylistDrm {
+    static let notSupportedCode = "notSupported"
+    static let notSupportedMessage = "DRM not supported on this platform yet"
+
+    static func notSupportedRefusal(for items: [[String: Any]]) -> (code: String, message: String)? {
+        notSupportedRefusal(for: items.map { Optional($0) })
     }
 
-    @discardableResult
-    private func rejectIfDrm(in items: [[String: Any]], _ call: CAPPluginCall) -> Bool {
-        if items.contains(where: { $0["drm"] != nil }) {
-            call.reject(drmNotSupportedMessage, drmNotSupportedCode)
-            return true
+    static func notSupportedRefusal(for items: [[String: Any]?]) -> (code: String, message: String)? {
+        if items.contains(where: { $0?["drm"] != nil }) {
+            return (notSupportedCode, notSupportedMessage)
         }
-        return false
+        return nil
     }
-
 }
