@@ -142,4 +142,14 @@ class PlaylistPlaybackPolicyTest {
         assertFalse(PlaylistPlaybackPolicy.hasStalled(5_999, thresholdMs = 6_000))
         assertTrue(PlaylistPlaybackPolicy.hasStalled(6_000, thresholdMs = 6_000))
     }
+
+    @Test
+    fun drmHalt_terminalDiscriminatorsStopPlayback() {
+        assertTrue(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("notEntitled"))
+        assertTrue(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("blockedByStreamLimit"))
+        assertTrue(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("expired"))
+        assertFalse(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("network"))
+        assertFalse(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("unknown"))
+        assertFalse(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError(null))
+    }
 }

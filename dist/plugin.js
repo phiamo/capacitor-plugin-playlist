@@ -695,11 +695,12 @@ var capacitorPlaylist = (function (exports, core) {
             this.lastKnownHandoffPosition = 0;
             this.hlsLoaded = false;
         }
-        addAllItems(options) {
+        async addAllItems(options) {
+            assertWebDrmNotSupported(options.items);
             this.playlistItems = this.playlistItems.concat(validateTracks(options.items));
-            return Promise.resolve();
         }
-        addItem(options) {
+        async addItem(options) {
+            assertWebDrmNotSupported([options.item]);
             const track = validateTrack(options.item);
             if (track) {
                 const insertIndex = options.index !== undefined && options.index !== null
@@ -710,7 +711,6 @@ var capacitorPlaylist = (function (exports, core) {
                 // automatically reflects the shift caused by this insertion; no bookkeeping needed here.
                 this.updateStatus(exports.RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED, Object.assign(Object.assign({}, track), { index: insertIndex }), track.trackId);
             }
-            return Promise.resolve();
         }
         moveItem(options) {
             const { from, to } = options;
@@ -727,6 +727,7 @@ var capacitorPlaylist = (function (exports, core) {
         }
         async replaceItem(options) {
             var _a;
+            assertWebDrmNotSupported([options.item]);
             let replaceIndex = -1;
             if (options.index !== undefined && options.index !== null) {
                 replaceIndex = options.index;
@@ -887,6 +888,7 @@ var capacitorPlaylist = (function (exports, core) {
         }
         async setPlaylistItems(options) {
             var _a, _b, _c;
+            assertWebDrmNotSupported(options.items);
             this.playlistItems = options.items;
             if (this.playlistItems.length > 0) {
                 let currentItem = this.playlistItems.filter(i => { var _a; return i.trackId === ((_a = options.options) === null || _a === void 0 ? void 0 : _a.playFromId); })[0];
@@ -1247,10 +1249,19 @@ var capacitorPlaylist = (function (exports, core) {
             });
         }
     }
+    /** iOS/web refuse `drm` before creating a player (Story 57.5). */
+    function assertWebDrmNotSupported(items) {
+        if (items.some((item) => item != null && item.drm != null)) {
+            const error = new Error('DRM not supported on this platform yet');
+            error.code = 'notSupported';
+            throw error;
+        }
+    }
 
     var web = /*#__PURE__*/Object.freeze({
         __proto__: null,
-        PlaylistWeb: PlaylistWeb
+        PlaylistWeb: PlaylistWeb,
+        assertWebDrmNotSupported: assertWebDrmNotSupported
     });
 
     exports.Playlist = Playlist;

@@ -3,6 +3,8 @@ package org.dwbn.plugins.playlist.manager
 import android.app.Application
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.annotation.FloatRange
 import androidx.annotation.IntRange
@@ -65,6 +67,8 @@ class PlaylistManager(private val application: Application) {
     private var pendingBeginPlayback: PendingBegin? = null
     private val drmSessions = ConcurrentHashMap<String, AudioDrmSession>()
     private var startedDrmKey: String? = null
+    @Volatile
+    private var drmPlaybackHalted = false
     var drmErrorListener: ((trackId: String?, error: String) -> Unit)? = null
 
     private data class PendingBegin(val seekPosition: Long, val startPaused: Boolean)
@@ -470,6 +474,7 @@ class PlaylistManager(private val application: Application) {
         audioTracks.clear()
         currentPosition = INVALID_POSITION
         sequentialErrors = 0
+        drmPlaybackHalted = false
         rmxPlaybackState = RmxPlaybackState.STOPPED
         releaseAllDrmSessions()
     }
@@ -519,6 +524,7 @@ class PlaylistManager(private val application: Application) {
         if (audioTracks.isEmpty()) {
             return
         }
+        drmPlaybackHalted = false
         try {
             ensureServiceStarted()
             val exoPlayer = player
@@ -659,6 +665,14 @@ class PlaylistManager(private val application: Application) {
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             currentErrorTrack = currentItem
             rmxPlaybackState = RmxPlaybackState.ERROR
+            val discriminator = drmDiscriminatorFromCause(error)
+            if (discriminator != null && PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError(discriminator)) {
+                haltAfterDrmError()
+                return
+            }
+            if (drmPlaybackHalted) {
+                return
+            }
             playbackStatusListener.get()?.onNativePlayerError(error)
             skipFailedItem()
         }
@@ -666,6 +680,9 @@ class PlaylistManager(private val application: Application) {
 
     /** PlaylistCore moved past a failing item (up to [PlaylistPlaybackPolicy.MAX_SEQUENTIAL_ERRORS] in a row). */
     private fun skipFailedItem() {
+        if (drmPlaybackHalted) {
+            return
+        }
         val exoPlayer = player ?: return
         sequentialErrors++
         val failedIndex = exoPlayer.currentMediaItemIndex
@@ -769,6 +786,9 @@ class PlaylistManager(private val application: Application) {
         for (track in tracks) {
             val drm = drmObject(track) ?: continue
             val attempt = AudioDrm.open(drm) { error ->
+                if (PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError(error)) {
+                    haltAfterDrmError()
+                }
                 drmErrorListener?.invoke(track.trackId, error)
             }
             if (attempt.failureCode != null) {
@@ -786,6 +806,9 @@ class PlaylistManager(private val application: Application) {
     }
 
     private fun reopenMissingDrmSessions(tracks: List<AudioTrack>) {
+        if (drmPlaybackHalted) {
+            return
+        }
         val missing = tracks.filter { it.drm != null && !drmSessions.containsKey(sessionKey(it)) }
         if (missing.isEmpty()) {
             return
@@ -800,7 +823,44 @@ class PlaylistManager(private val application: Application) {
         }
     }
 
+    private fun drmDiscriminatorFromCause(error: Throwable): String? {
+        var cause: Throwable? = error
+        while (cause != null) {
+            when (val message = cause.message) {
+                AudioDrm.ERROR_NOT_ENTITLED,
+                AudioDrm.ERROR_BLOCKED_BY_STREAM_LIMIT,
+                AudioDrm.ERROR_EXPIRED -> return message
+            }
+            cause = cause.cause
+        }
+        return null
+    }
+
+    private fun haltAfterDrmError() {
+        if (drmPlaybackHalted) {
+            return
+        }
+        drmPlaybackHalted = true
+        rmxPlaybackState = RmxPlaybackState.ERROR
+        val exoPlayer = player ?: return
+        val apply = Runnable {
+            if (player !== exoPlayer) {
+                return@Runnable
+            }
+            exoPlayer.playWhenReady = false
+            exoPlayer.stop()
+        }
+        if (Looper.myLooper() == exoPlayer.applicationLooper) {
+            apply.run()
+        } else {
+            Handler(exoPlayer.applicationLooper).post(apply)
+        }
+    }
+
     private fun startCurrentDrmSession() {
+        if (drmPlaybackHalted) {
+            return
+        }
         val index = player?.currentMediaItemIndex?.takeIf { it in audioTracks.indices }
             ?: currentPosition
         val item = audioTracks.getOrNull(index)

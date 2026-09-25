@@ -657,6 +657,14 @@ setPlaylistItems(options: PlaylistOptions) => Promise<void>
 Replace the entire playlist. Clears all previous items.
 Use `options.retainPosition` to keep the current track and playback position.
 
+Optional `drm` on items is additive: Android attaches Widevine through a
+host-registered provider (`AudioDrm.setProvider`). Without a provider the call
+is rejected with code `noProvider` and the previous queue is left unchanged.
+iOS and web reject with code `notSupported` (`DRM not supported on this platform yet`)
+and do not play. DRM playback errors use the existing `status` listener
+(`RMXSTATUS_ERROR`) with `value.error` set to one of
+`blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.
+
 | Param         | Type                                                        |
 | ------------- | ----------------------------------------------------------- |
 | **`options`** | <code><a href="#playlistoptions">PlaylistOptions</a></code> |
@@ -673,6 +681,8 @@ addItem(options: AddItemOptions) => Promise<void>
 Append a single track to the end of the playlist, or insert at a 0-based index.
 When `index` is omitted the track is appended. Insertion does not interrupt playback
 of the current track.
+
+Items with `drm` follow the same provider / `notSupported` rules as `setPlaylistItems`.
 
 | Param         | Type                                                      |
 | ------------- | --------------------------------------------------------- |
@@ -705,6 +715,8 @@ replaceItem(options: ReplaceItemOptions) => Promise<void>
 Replace a track's metadata and source URL in place (e.g. stream URL → local file).
 When replacing the currently playing track, playback position and play/pause state are preserved.
 
+Items with `drm` follow the same provider / `notSupported` rules as `setPlaylistItems`.
+
 | Param         | Type                                                              |
 | ------------- | ----------------------------------------------------------------- |
 | **`options`** | <code><a href="#replaceitemoptions">ReplaceItemOptions</a></code> |
@@ -720,6 +732,9 @@ addAllItems(options: AddAllItemOptions) => Promise<void>
 
 Append multiple tracks to the end of the playlist.
 Raises one `RMXSTATUS_ITEM_ADDED` event per track.
+
+If any item has `drm` and cannot open, the whole call fails and the previous
+queue is left unchanged (same provider / `notSupported` rules as `setPlaylistItems`).
 
 | Param         | Type                                                            |
 | ------------- | --------------------------------------------------------------- |
@@ -1072,27 +1087,53 @@ Includes the new track, its index, and the state of the playlist.
 
 An audio track for playback by the playlist.
 
-| Prop                | Type                 | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`isStream`**      | <code>boolean</code> | This item is a streaming asset. Make sure this is set to true for stream URLs, otherwise you will get odd behavior when the asset is paused. This only affects pause/resume buffering behavior. It does not select how the source is parsed - use `mimeType` for that.                                                                                                                                                                                            |
-| **`trackId`**       | <code>string</code>  | trackId is optional and if not passed in, an auto-generated UUID will be used.                                                                                                                                                                                                                                                                                                                                                                                    |
-| **`assetUrl`**      | <code>string</code>  | URL of the asset; can be local, a URL, or a streaming URL. If the asset is a stream, make sure that isStream is set to true, otherwise the plugin can't properly handle the item's buffer.                                                                                                                                                                                                                                                                        |
-| **`mimeType`**      | <code>string</code>  | Optional container hint for sources whose URL carries no usable file extension, e.g. `'application/x-mpegURL'` for an HLS playlist served from an extensionless URL. Leave this unset for ordinary progressive sources - Android sniffs the content and web reads the URL, both of which handle MP3/AAC/OGG streams without a hint. HLS is detected automatically when the URL path ends in `.m3u8`. No-op on iOS, where AVFoundation determines the type itself. |
-| **`albumArt`**      | <code>string</code>  | The local or remote URL to an image asset to be shown for this track. If this is null, the plugin's default image is used.                                                                                                                                                                                                                                                                                                                                        |
-| **`artist`**        | <code>string</code>  | The track's artist                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **`album`**         | <code>string</code>  | Album the track belongs to                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| **`title`**         | <code>string</code>  | Title of the track                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **`startPosition`** | <code>number</code>  | Last known playback position to resume from, in seconds, when this track becomes current via a native skip-to-next/previous (e.g. OS notification, headset button, Android Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0.                                                                                                                                                                                                           |
+| Prop                | Type                                                                  | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`isStream`**      | <code>boolean</code>                                                  | This item is a streaming asset. Make sure this is set to true for stream URLs, otherwise you will get odd behavior when the asset is paused. This only affects pause/resume buffering behavior. It does not select how the source is parsed - use `mimeType` for that.                                                                                                                                                                                            |
+| **`trackId`**       | <code>string</code>                                                   | trackId is optional and if not passed in, an auto-generated UUID will be used.                                                                                                                                                                                                                                                                                                                                                                                    |
+| **`assetUrl`**      | <code>string</code>                                                   | URL of the asset; can be local, a URL, or a streaming URL. If the asset is a stream, make sure that isStream is set to true, otherwise the plugin can't properly handle the item's buffer.                                                                                                                                                                                                                                                                        |
+| **`mimeType`**      | <code>string</code>                                                   | Optional container hint for sources whose URL carries no usable file extension, e.g. `'application/x-mpegURL'` for an HLS playlist served from an extensionless URL. Leave this unset for ordinary progressive sources - Android sniffs the content and web reads the URL, both of which handle MP3/AAC/OGG streams without a hint. HLS is detected automatically when the URL path ends in `.m3u8`. No-op on iOS, where AVFoundation determines the type itself. |
+| **`albumArt`**      | <code>string</code>                                                   | The local or remote URL to an image asset to be shown for this track. If this is null, the plugin's default image is used.                                                                                                                                                                                                                                                                                                                                        |
+| **`artist`**        | <code>string</code>                                                   | The track's artist                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **`album`**         | <code>string</code>                                                   | Album the track belongs to                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **`title`**         | <code>string</code>                                                   | Title of the track                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **`startPosition`** | <code>number</code>                                                   | Last known playback position to resume from, in seconds, when this track becomes current via a native skip-to-next/previous (e.g. OS notification, headset button, Android Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0.                                                                                                                                                                                                           |
+| **`drm`**           | <code><a href="#audiotrackdrmoptions">AudioTrackDrmOptions</a></code> | Optional DRM descriptor fields (API names). Android attaches Widevine through a host-registered provider. Token URL, heartbeat URL, and Bearer live on that provider, not here. FairPlay fields may be present and are ignored on Android. iOS and web refuse items that set this.                                                                                                                                                                                |
+
+
+#### AudioTrackDrmOptions
+
+| Prop                         | Type                                                                          | Description                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **`widevineLicenseUrl`**     | <code>string</code>                                                           |                                                                      |
+| **`playbackSessionId`**      | <code>string</code>                                                           |                                                                      |
+| **`renewalCredential`**      | <code>string</code>                                                           |                                                                      |
+| **`streamLimit`**            | <code><a href="#audiotrackdrmstreamlimit">AudioTrackDrmStreamLimit</a></code> |                                                                      |
+| **`fairplayLicenseUrl`**     | <code>string</code>                                                           | Present on the descriptor; ignored on Android (FairPlay is Epic 58). |
+| **`fairplayCertificateUrl`** | <code>string</code>                                                           |                                                                      |
+
+
+#### AudioTrackDrmStreamLimit
+
+Optional playlist-item DRM fields. Names match the playback API and video plugin.
+Token / heartbeat URLs and Bearer are supplied by the host provider (57.6).
+
+| Prop                           | Type                |
+| ------------------------------ | ------------------- |
+| **`mode`**                     | <code>string</code> |
+| **`renewalIntervalSeconds`**   | <code>number</code> |
+| **`heartbeatIntervalSeconds`** | <code>number</code> |
 
 
 #### OnStatusErrorCallbackData
 
 Represents an error reported by the onStatus callback.
 
-| Prop          | Type                                                            | Description             |
-| ------------- | --------------------------------------------------------------- | ----------------------- |
-| **`code`**    | <code><a href="#rmxaudioerrortype">RmxAudioErrorType</a></code> | Error code              |
-| **`message`** | <code>string</code>                                             | The error, as a message |
+| Prop          | Type                                                              | Description                                                                                                                                                                                                        |
+| ------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`code`**    | <code><a href="#rmxaudioerrortype">RmxAudioErrorType</a></code>   | Error code                                                                                                                                                                                                         |
+| **`message`** | <code>string</code>                                               | The error, as a message                                                                                                                                                                                            |
+| **`error`**   | <code><a href="#audiotrackdrmerror">AudioTrackDrmError</a></code> | Typed DRM failure when the host provider reports one. Exactly one of `blockedByStreamLimit` \| `notEntitled` \| `expired` \| `network` \| `unknown`. Unknown strings are coerced to `unknown`. Not a new listener. |
 
 
 #### AudioPlayerOptions
@@ -1279,6 +1320,14 @@ that were in the previous list.
 #### PlaylistStatusChangeCallback
 
 <code>(data: <a href="#playliststatuschangecallbackarg">PlaylistStatusChangeCallbackArg</a>): void</code>
+
+
+#### AudioTrackDrmError
+
+Exactly the five DRM error discriminators. Emitted on the existing `status`
+channel as `value.error` (do not overload numeric <a href="#rmxaudioerrortype">`RmxAudioErrorType`</a> 0–4).
+
+<code>'blockedByStreamLimit' | 'notEntitled' | 'expired' | 'network' | 'unknown'</code>
 
 
 ### Enums

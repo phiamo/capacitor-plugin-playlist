@@ -10,6 +10,7 @@ import org.dwbn.plugins.playlist.manager.PlaylistManager
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -18,6 +19,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import java.util.function.Consumer
 
@@ -263,6 +265,34 @@ class PlaylistManagerDrmTest {
         captured[0].accept("licenseDenied")
 
         assertEquals(listOf("a" to AudioDrm.ERROR_NOT_ENTITLED, "a" to AudioDrm.ERROR_UNKNOWN), errors)
+    }
+
+    @Test
+    fun notEntitled_stopsPlayer_andDoesNotOpenAnotherSession() {
+        val captured = mutableListOf<Consumer<String>>()
+        val session = RecordingSession()
+        AudioDrm.setProvider { _, onError ->
+            captured.add(onError)
+            session
+        }
+        val manager = PlaylistManager(RuntimeEnvironment.getApplication())
+        assertNull(manager.addItem(drmTrack("a")))
+        val player = ExoPlayer.Builder(RuntimeEnvironment.getApplication()).build()
+        try {
+            manager.attachPlayer(player)
+            player.playWhenReady = true
+            val startsAfterAttach = session.startCount
+            assertTrue(startsAfterAttach >= 1)
+            captured[0].accept(AudioDrm.ERROR_NOT_ENTITLED)
+            Shadows.shadowOf(player.applicationLooper).idle()
+            assertFalse(player.playWhenReady)
+            manager.attachPlayer(player)
+            assertEquals(startsAfterAttach, session.startCount)
+            assertEquals(1, captured.size)
+        } finally {
+            manager.detachPlayer()
+            player.release()
+        }
     }
 
     @Test

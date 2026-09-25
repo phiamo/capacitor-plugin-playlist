@@ -88,6 +88,16 @@ object PlaylistPlaybackPolicy {
         nextAvailable && sequentialErrors <= MAX_SEQUENTIAL_ERRORS
 
     /**
+     * Typed DRM failures are terminal. ExoPlayer's default load retry (~1–5s backoff) would
+     * re-hit `/drm-token` and flood 403s. Do not skip/prepare/retry the same source.
+     */
+    @JvmStatic
+    fun shouldHaltPlaybackForDrmError(discriminator: String?): Boolean =
+        discriminator == "blockedByStreamLimit" ||
+            discriminator == "notEntitled" ||
+            discriminator == "expired"
+
+    /**
      * PlaylistCore assumed the user had pressed play for every item after the first, so it kept
      * playing after skipping a broken item unless the failure hit the auto-buffered first item.
      */

@@ -140,7 +140,37 @@ export interface AudioTrack {
      * Android Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0.
      */
     startPosition?: number;
+    /**
+     * Optional DRM descriptor fields (API names). Android attaches Widevine through a
+     * host-registered provider. Token URL, heartbeat URL, and Bearer live on that
+     * provider, not here. FairPlay fields may be present and are ignored on Android.
+     * iOS and web refuse items that set this.
+     */
+    drm?: AudioTrackDrmOptions;
 }
+/**
+ * Optional playlist-item DRM fields. Names match the playback API and video plugin.
+ * Token / heartbeat URLs and Bearer are supplied by the host provider (57.6).
+ */
+export interface AudioTrackDrmStreamLimit {
+    mode?: string;
+    renewalIntervalSeconds?: number;
+    heartbeatIntervalSeconds?: number;
+}
+export interface AudioTrackDrmOptions {
+    widevineLicenseUrl?: string;
+    playbackSessionId?: string;
+    renewalCredential?: string;
+    streamLimit?: AudioTrackDrmStreamLimit;
+    /** Present on the descriptor; ignored on Android (FairPlay is Epic 58). */
+    fairplayLicenseUrl?: string;
+    fairplayCertificateUrl?: string;
+}
+/**
+ * Exactly the five DRM error discriminators. Emitted on the existing `status`
+ * channel as `value.error` (do not overload numeric `RmxAudioErrorType` 0–4).
+ */
+export type AudioTrackDrmError = 'blockedByStreamLimit' | 'notEntitled' | 'expired' | 'network' | 'unknown';
 /**
  * Encapsulates the fields you can pass to the plugin to remove a track.
  * You can either remove a track by its ID if you know it, or by index if you know it;
@@ -270,6 +300,12 @@ export interface OnStatusErrorCallbackData {
      * The error, as a message
      */
     message: string;
+    /**
+     * Typed DRM failure when the host provider reports one. Exactly one of
+     * `blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.
+     * Unknown strings are coerced to `unknown`. Not a new listener.
+     */
+    error?: AudioTrackDrmError;
 }
 /**
  * Function declaration for onStatus event handlers

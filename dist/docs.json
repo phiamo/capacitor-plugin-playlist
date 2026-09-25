@@ -88,7 +88,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Replace the entire playlist. Clears all previous items.\nUse `options.retainPosition` to keep the current track and playback position.",
+        "docs": "Replace the entire playlist. Clears all previous items.\nUse `options.retainPosition` to keep the current track and playback position.\n\nOptional `drm` on items is additive: Android attaches Widevine through a\nhost-registered provider (`AudioDrm.setProvider`). Without a provider the call\nis rejected with code `noProvider` and the previous queue is left unchanged.\niOS and web reject with code `notSupported` (`DRM not supported on this platform yet`)\nand do not play. DRM playback errors use the existing `status` listener\n(`RMXSTATUS_ERROR`) with `value.error` set to one of\n`blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.",
         "complexTypes": [
           "PlaylistOptions"
         ],
@@ -106,7 +106,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Append a single track to the end of the playlist, or insert at a 0-based index.\nWhen `index` is omitted the track is appended. Insertion does not interrupt playback\nof the current track.",
+        "docs": "Append a single track to the end of the playlist, or insert at a 0-based index.\nWhen `index` is omitted the track is appended. Insertion does not interrupt playback\nof the current track.\n\nItems with `drm` follow the same provider / `notSupported` rules as `setPlaylistItems`.",
         "complexTypes": [
           "AddItemOptions"
         ],
@@ -142,7 +142,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Replace a track's metadata and source URL in place (e.g. stream URL → local file).\nWhen replacing the currently playing track, playback position and play/pause state are preserved.",
+        "docs": "Replace a track's metadata and source URL in place (e.g. stream URL → local file).\nWhen replacing the currently playing track, playback position and play/pause state are preserved.\n\nItems with `drm` follow the same provider / `notSupported` rules as `setPlaylistItems`.",
         "complexTypes": [
           "ReplaceItemOptions"
         ],
@@ -160,7 +160,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Append multiple tracks to the end of the playlist.\nRaises one `RMXSTATUS_ITEM_ADDED` event per track.",
+        "docs": "Append multiple tracks to the end of the playlist.\nRaises one `RMXSTATUS_ITEM_ADDED` event per track.\n\nIf any item has `drm` and cannot open, the whole call fails and the previous\nqueue is left unchanged (same provider / `notSupported` rules as `setPlaylistItems`).",
         "complexTypes": [
           "AddAllItemOptions"
         ],
@@ -731,6 +731,98 @@
           "docs": "Last known playback position to resume from, in seconds, when this track becomes\ncurrent via a native skip-to-next/previous (e.g. OS notification, headset button,\nAndroid Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0.",
           "complexTypes": [],
           "type": "number | undefined"
+        },
+        {
+          "name": "drm",
+          "tags": [],
+          "docs": "Optional DRM descriptor fields (API names). Android attaches Widevine through a\nhost-registered provider. Token URL, heartbeat URL, and Bearer live on that\nprovider, not here. FairPlay fields may be present and are ignored on Android.\niOS and web refuse items that set this.",
+          "complexTypes": [
+            "AudioTrackDrmOptions"
+          ],
+          "type": "AudioTrackDrmOptions"
+        }
+      ]
+    },
+    {
+      "name": "AudioTrackDrmOptions",
+      "slug": "audiotrackdrmoptions",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "widevineLicenseUrl",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "playbackSessionId",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "renewalCredential",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "streamLimit",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [
+            "AudioTrackDrmStreamLimit"
+          ],
+          "type": "AudioTrackDrmStreamLimit"
+        },
+        {
+          "name": "fairplayLicenseUrl",
+          "tags": [],
+          "docs": "Present on the descriptor; ignored on Android (FairPlay is Epic 58).",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "fairplayCertificateUrl",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        }
+      ]
+    },
+    {
+      "name": "AudioTrackDrmStreamLimit",
+      "slug": "audiotrackdrmstreamlimit",
+      "docs": "Optional playlist-item DRM fields. Names match the playback API and video plugin.\nToken / heartbeat URLs and Bearer are supplied by the host provider (57.6).",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "mode",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "renewalIntervalSeconds",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "number | undefined"
+        },
+        {
+          "name": "heartbeatIntervalSeconds",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "number | undefined"
         }
       ]
     },
@@ -756,6 +848,15 @@
           "docs": "The error, as a message",
           "complexTypes": [],
           "type": "string"
+        },
+        {
+          "name": "error",
+          "tags": [],
+          "docs": "Typed DRM failure when the host provider reports one. Exactly one of\n`blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.\nUnknown strings are coerced to `unknown`. Not a new listener.",
+          "complexTypes": [
+            "AudioTrackDrmError"
+          ],
+          "type": "AudioTrackDrmError"
         }
       ]
     },
@@ -1465,6 +1566,33 @@
           "complexTypes": [
             "PlaylistStatusChangeCallbackArg"
           ]
+        }
+      ]
+    },
+    {
+      "name": "AudioTrackDrmError",
+      "slug": "audiotrackdrmerror",
+      "docs": "Exactly the five DRM error discriminators. Emitted on the existing `status`\nchannel as `value.error` (do not overload numeric `RmxAudioErrorType` 0–4).",
+      "types": [
+        {
+          "text": "'blockedByStreamLimit'",
+          "complexTypes": []
+        },
+        {
+          "text": "'notEntitled'",
+          "complexTypes": []
+        },
+        {
+          "text": "'expired'",
+          "complexTypes": []
+        },
+        {
+          "text": "'network'",
+          "complexTypes": []
+        },
+        {
+          "text": "'unknown'",
+          "complexTypes": []
         }
       ]
     }

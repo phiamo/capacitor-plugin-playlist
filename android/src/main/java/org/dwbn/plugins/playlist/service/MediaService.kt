@@ -17,6 +17,7 @@ import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -100,6 +101,8 @@ class MediaService : MediaSessionService() {
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(this)
                     .setDrmSessionManagerProvider(playlistManager.drmSessionManagerProvider())
+                    // Terminal DRM errors must not be retried; default policy waits ~1–5s and 403s /drm-token.
+                    .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
             )
             .build()
         exoPlayer = player
