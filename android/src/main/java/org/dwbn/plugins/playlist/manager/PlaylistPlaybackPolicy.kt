@@ -1,6 +1,7 @@
 package org.dwbn.plugins.playlist.manager
 
 import androidx.media3.common.Player
+import org.dwbn.plugins.playlist.AudioDrm
 
 /**
  * Playback decisions that keep the Media3 playlist behaving like the former PlaylistCore stack.
@@ -93,9 +94,9 @@ object PlaylistPlaybackPolicy {
      */
     @JvmStatic
     fun shouldHaltPlaybackForDrmError(discriminator: String?): Boolean =
-        discriminator == "blockedByStreamLimit" ||
-            discriminator == "notEntitled" ||
-            discriminator == "expired"
+        discriminator == AudioDrm.ERROR_BLOCKED_BY_STREAM_LIMIT ||
+            discriminator == AudioDrm.ERROR_NOT_ENTITLED ||
+            discriminator == AudioDrm.ERROR_EXPIRED
 
     /** First typed terminal DRM error name found in [error]'s cause chain, if any. */
     @JvmStatic

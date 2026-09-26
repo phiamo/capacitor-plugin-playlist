@@ -1,4 +1,10 @@
 /**
+ * `assetUrl` for a queued track whose stream is not resolved yet (a protected item before its
+ * playback session opens). Android keeps it idle in the timeline and never loads it; the host
+ * swaps in the real URL with `replaceItem` when the track becomes current.
+ */
+export declare const QUEUED_TRACK_URL = "https://localhost/queued";
+/**
  * Enum describing the possible errors that may come from the plugins
  */
 export declare enum RmxAudioErrorType {

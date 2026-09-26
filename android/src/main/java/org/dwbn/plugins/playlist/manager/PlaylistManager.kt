@@ -751,6 +751,9 @@ class PlaylistManager(private val application: Application) {
 
     companion object {
         const val INVALID_POSITION = -1
+
+        /** Mirrors `QUEUED_TRACK_URL` in `src/Constants.ts`: kept idle in the timeline, never loaded. */
+        const val QUEUED_TRACK_URL = "https://localhost/queued"
         private const val TAG = "PlaylistManager"
 
         @JvmStatic
@@ -776,7 +779,7 @@ class PlaylistManager(private val application: Application) {
     }
 
     private fun isQueuedPlaceholder(track: AudioTrack): Boolean =
-        track.mediaUrl.contains("localhost/queued")
+        track.mediaUrl == QUEUED_TRACK_URL
 
     private fun mediaItemFor(track: AudioTrack): MediaItem =
         AudioMediaItemFactory.fromAudioTrack(track, drmSessions[sessionKey(track)])

@@ -320,7 +320,7 @@ class PlaylistManagerDrmTest {
     private fun queued(id: String): AudioTrack {
         val json = JSONObject()
         json.put("trackId", id)
-        json.put("assetUrl", "https://localhost/queued")
+        json.put("assetUrl", PlaylistManager.QUEUED_TRACK_URL)
         json.put("artist", "Artist")
         json.put("album", "Album")
         json.put("title", "Title")
