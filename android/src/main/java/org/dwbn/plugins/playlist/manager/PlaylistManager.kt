@@ -269,7 +269,6 @@ class PlaylistManager(private val application: Application) {
         clearItems()
         drmSessions.putAll(opened)
         audioTracks.addAll(incoming)
-        player?.setMediaItems(audioTracks.map { mediaItemFor(it) })
         currentPosition = 0
 
         options.playFromId?.let { trackId ->
@@ -279,6 +278,16 @@ class PlaylistManager(private val application: Application) {
             }
         }
 
+        val current = audioTracks.getOrNull(currentPosition)
+        if (current != null && current.mediaUrl.contains("localhost/queued")) {
+            player?.pause()
+            player?.stop()
+            player?.clearMediaItems()
+            mediaServiceRef.get()?.refreshSkipAvailability()
+            return null
+        }
+
+        player?.setMediaItems(audioTracks.map { mediaItemFor(it) })
         beginPlayback(seekStart, options.startPaused)
         mediaServiceRef.get()?.refreshSkipAvailability()
         return null
@@ -367,6 +376,15 @@ class PlaylistManager(private val application: Application) {
         releaseSession(sessionKey(existing))
         drmSessions.putAll(opened)
         audioTracks[resolvedIndex] = resolvedReplacement
+
+        if (resolvedReplacement.mediaUrl.contains("localhost/queued")) {
+            if (isCurrent) {
+                player?.stop()
+                player?.clearMediaItems()
+            }
+            return Pair(resolvedReplacement, null)
+        }
+
         player?.replaceMediaItem(resolvedIndex, mediaItemFor(resolvedReplacement))
 
         if (isCurrent) {
