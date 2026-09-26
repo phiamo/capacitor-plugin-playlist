@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Renamed to `@dwbn/capacitor-plugin-playlist`.** The package now lives in the `@dwbn` npm organization. The unscoped `capacitor-plugin-playlist` is deprecated and receives no further releases. To switch, replace the dependency, change imports from `'capacitor-plugin-playlist'` to `'@dwbn/capacitor-plugin-playlist'`, and run `npx cap sync`. The native plugin name (`Playlist`), the Android package and the iOS pod are unchanged.
+
+### Documentation
+- README shortened to an overview. Guides moved to `docs/`: installation, usage, events, DRM, upgrading, legacy versions, history & credits. The generated API reference now lives in `docs/API.md`.
+- New end-to-end [audio ↔ video handoff guide](./docs/video-handoff.md) together with `@dwbn/capacitor-video-player`, including protected (Widevine) playback with drm-kit.
+- Added `LICENSE` (MIT, crediting the original cordova-plugin-playlist by Rolamix).
+
 ## 8.0.0
 
 **The version scheme changed: the major now tracks the Capacitor major.** This package has required `@capacitor/core >= 8.0.0` since 0.12.0 while still calling itself `0.x`, which made the supported Capacitor version impossible to read off the version number. From here the major matches Capacitor's, as it already does for `capacitor-video-player`. There is no 1.x–7.x and there never will be; 8.0.0 follows 0.15.0 directly.

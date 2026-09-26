@@ -7,8 +7,8 @@ import {
   OnStatusErrorCallbackData,
   PlaylistItemOptions,
   RmxAudioPlayer,
-} from 'capacitor-plugin-playlist';
-import 'capacitor-plugin-playlist';
+} from '@dwbn/capacitor-plugin-playlist';
+import '@dwbn/capacitor-plugin-playlist';
 import {environment} from '@env/environment';
 
 

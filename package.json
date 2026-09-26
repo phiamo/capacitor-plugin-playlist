@@ -1,5 +1,5 @@
 {
-  "name": "capacitor-plugin-playlist",
+  "name": "@dwbn/capacitor-plugin-playlist",
   "version": "8.0.0",
   "description": "Playlist ",
   "main": "dist/plugin.cjs.js",
@@ -23,7 +23,7 @@
     "eslint": "eslint .",
     "prettier": "prettier \"**/*.{css,html,ts,js,java}\" --plugin=prettier-plugin-java",
     "swiftlint": "node-swiftlint",
-    "docgen": "docgen --api PlaylistPlugin --output-readme README.md --output-json dist/docs.json",
+    "docgen": "docgen --api PlaylistPlugin --output-readme docs/API.md --output-json dist/docs.json",
     "build": "npm run clean && npm run docgen && tsc && rollup -c rollup.config.mjs",
     "clean": "rimraf ./dist",
     "watch": "tsc --watch",
