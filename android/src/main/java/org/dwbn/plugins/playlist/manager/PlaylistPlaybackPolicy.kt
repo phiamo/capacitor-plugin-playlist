@@ -97,6 +97,20 @@ object PlaylistPlaybackPolicy {
             discriminator == "notEntitled" ||
             discriminator == "expired"
 
+    /** First typed terminal DRM error name found in [error]'s cause chain, if any. */
+    @JvmStatic
+    fun drmDiscriminatorFromCause(error: Throwable?): String? {
+        var cause = error
+        while (cause != null) {
+            val message = cause.message
+            if (shouldHaltPlaybackForDrmError(message)) {
+                return message
+            }
+            cause = cause.cause
+        }
+        return null
+    }
+
     /**
      * PlaylistCore assumed the user had pressed play for every item after the first, so it kept
      * playing after skipping a broken item unless the failure hit the auto-buffered first item.

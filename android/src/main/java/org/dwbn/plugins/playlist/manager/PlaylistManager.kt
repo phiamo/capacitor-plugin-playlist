@@ -68,7 +68,8 @@ class PlaylistManager(private val application: Application) {
     private val drmSessions = ConcurrentHashMap<String, AudioDrmSession>()
     private var startedDrmKey: String? = null
     @Volatile
-    private var drmPlaybackHalted = false
+    var drmPlaybackHalted = false
+        private set
     var drmErrorListener: ((trackId: String?, error: String) -> Unit)? = null
 
     private data class PendingBegin(val seekPosition: Long, val startPaused: Boolean)
@@ -681,7 +682,7 @@ class PlaylistManager(private val application: Application) {
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             currentErrorTrack = currentItem
             rmxPlaybackState = RmxPlaybackState.ERROR
-            val discriminator = drmDiscriminatorFromCause(error)
+            val discriminator = PlaylistPlaybackPolicy.drmDiscriminatorFromCause(error)
             if (discriminator != null && PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError(discriminator)) {
                 haltAfterDrmError()
                 return
@@ -840,19 +841,6 @@ class PlaylistManager(private val application: Application) {
                 drmErrorListener?.invoke(track.trackId, AudioDrm.ERROR_UNKNOWN)
             }
         }
-    }
-
-    private fun drmDiscriminatorFromCause(error: Throwable): String? {
-        var cause: Throwable? = error
-        while (cause != null) {
-            when (val message = cause.message) {
-                AudioDrm.ERROR_NOT_ENTITLED,
-                AudioDrm.ERROR_BLOCKED_BY_STREAM_LIMIT,
-                AudioDrm.ERROR_EXPIRED -> return message
-            }
-            cause = cause.cause
-        }
-        return null
     }
 
     private fun haltAfterDrmError() {
