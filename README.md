@@ -4,6 +4,8 @@ Capacitor plugin for **Android**, **iOS**, and **Web** with native audio playlis
 
 Requires **Capacitor 8+** (peer dependency `@capacitor/core >= 8.0.0`).
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W8V527Q5YX)
+
 ## Versioning
 
 **The major tracks the Capacitor major.** `8.x` targets Capacitor 8, as it does for the sibling [capacitor-video-player](https://github.com/phiamo/capacitor-video-player). Minor and patch are this plugin's own.
