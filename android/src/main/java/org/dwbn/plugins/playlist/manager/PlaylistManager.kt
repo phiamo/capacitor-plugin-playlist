@@ -278,11 +278,11 @@ class PlaylistManager(private val application: Application) {
             }
         }
 
+        // Timeline always mirrors audioTracks; a queued placeholder is only kept idle (never loaded).
         val current = audioTracks.getOrNull(currentPosition)
-        if (current != null && current.mediaUrl.contains("localhost/queued")) {
-            player?.pause()
+        if (current != null && isQueuedPlaceholder(current)) {
             player?.stop()
-            player?.clearMediaItems()
+            player?.setMediaItems(audioTracks.map { mediaItemFor(it) }, currentPosition, seekStart)
             mediaServiceRef.get()?.refreshSkipAvailability()
             return null
         }
@@ -377,15 +377,13 @@ class PlaylistManager(private val application: Application) {
         drmSessions.putAll(opened)
         audioTracks[resolvedIndex] = resolvedReplacement
 
-        if (resolvedReplacement.mediaUrl.contains("localhost/queued")) {
-            if (isCurrent) {
-                player?.stop()
-                player?.clearMediaItems()
-            }
+        if (isCurrent && isQueuedPlaceholder(resolvedReplacement)) {
+            player?.stop()
+        }
+        player?.replaceMediaItem(resolvedIndex, mediaItemFor(resolvedReplacement))
+        if (isQueuedPlaceholder(resolvedReplacement)) {
             return Pair(resolvedReplacement, null)
         }
-
-        player?.replaceMediaItem(resolvedIndex, mediaItemFor(resolvedReplacement))
 
         if (isCurrent) {
             startedDrmKey = null
@@ -775,6 +773,9 @@ class PlaylistManager(private val application: Application) {
             return AudioTrack(replacementConfig)
         }
     }
+
+    private fun isQueuedPlaceholder(track: AudioTrack): Boolean =
+        track.mediaUrl.contains("localhost/queued")
 
     private fun mediaItemFor(track: AudioTrack): MediaItem =
         AudioMediaItemFactory.fromAudioTrack(track, drmSessions[sessionKey(track)])

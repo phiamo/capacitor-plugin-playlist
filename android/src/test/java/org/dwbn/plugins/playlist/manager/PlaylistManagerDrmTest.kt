@@ -317,6 +317,56 @@ class PlaylistManagerDrmTest {
         }
     }
 
+    private fun queued(id: String): AudioTrack {
+        val json = JSONObject()
+        json.put("trackId", id)
+        json.put("assetUrl", "https://localhost/queued")
+        json.put("artist", "Artist")
+        json.put("album", "Album")
+        json.put("title", "Title")
+        return AudioTrack(json)
+    }
+
+    @Test
+    fun setAllItems_currentPlaceholder_keepsTimelineSoALaterReplaceCanPlay() {
+        val manager = PlaylistManager(RuntimeEnvironment.getApplication())
+        val player = ExoPlayer.Builder(RuntimeEnvironment.getApplication()).build()
+        try {
+            manager.attachPlayer(player)
+            val options = PlaylistItemOptions(JSONObject().put("playFromId", "b"))
+            assertNull(manager.setAllItems(listOf(queued("a"), queued("b"), queued("c")), options))
+            assertEquals(3, player.mediaItemCount)
+            assertEquals(1, player.currentMediaItemIndex)
+
+            manager.replaceItem(1, "b", plain("b"))
+
+            assertEquals(3, player.mediaItemCount)
+            assertEquals(1, player.currentMediaItemIndex)
+            assertEquals("https://example.com/b.mp3", player.currentMediaItem?.localConfiguration?.uri.toString())
+        } finally {
+            manager.detachPlayer()
+            player.release()
+        }
+    }
+
+    @Test
+    fun replaceItem_currentWithPlaceholder_keepsTimelineInSync() {
+        val manager = PlaylistManager(RuntimeEnvironment.getApplication())
+        val player = ExoPlayer.Builder(RuntimeEnvironment.getApplication()).build()
+        try {
+            manager.attachPlayer(player)
+            assertNull(manager.setAllItems(listOf(plain("a"), plain("b")), PlaylistItemOptions(JSONObject())))
+
+            manager.replaceItem(0, "a", queued("a"))
+
+            assertEquals(2, player.mediaItemCount)
+            assertEquals(androidx.media3.common.Player.STATE_IDLE, player.playbackState)
+        } finally {
+            manager.detachPlayer()
+            player.release()
+        }
+    }
+
     @Test
     fun createDrmError_pinsTypedErrorOnPayload() {
         val entitled = OnStatusCallback.createDrmError(AudioDrm.ERROR_NOT_ENTITLED)
