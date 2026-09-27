@@ -31,7 +31,7 @@ The plugins work on their own. drm-kit is optional and is added by the **app**, 
 | HLS | ✅ | ✅ | ✅ with hls.js |
 | Video handoff | ✅ (with optional prewarm) | ✅ | stub (pause + position) |
 | DRM | ✅ Widevine via [drm-kit](./docs/drm.md) | planned (FairPlay) | — |
-| Minimum | SDK 24 | iOS 18 | modern browsers |
+| Minimum | SDK 24 | iOS 15 | modern browsers |
 
 Requires **Capacitor 8** (`@capacitor/core >= 8.0.0`).
 
