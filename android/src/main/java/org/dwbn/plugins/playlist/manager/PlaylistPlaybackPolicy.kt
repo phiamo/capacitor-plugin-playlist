@@ -1,5 +1,6 @@
 package org.dwbn.plugins.playlist.manager
 
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import org.dwbn.plugins.playlist.AudioDrm
 
@@ -103,13 +104,34 @@ object PlaylistPlaybackPolicy {
     fun drmDiscriminatorFromCause(error: Throwable?): String? {
         var cause = error
         while (cause != null) {
+            if (cause is PlaybackException) {
+                when (cause.errorCode) {
+                    PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED,
+                    PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR,
+                    -> return AudioDrm.ERROR_EXPIRED
+                }
+            }
             val message = cause.message
             if (shouldHaltPlaybackForDrmError(message)) {
                 return message
             }
+            if (messageLooksExpired(message)) {
+                return AudioDrm.ERROR_EXPIRED
+            }
             cause = cause.cause
         }
         return null
+    }
+
+    private fun messageLooksExpired(message: String?): Boolean {
+        if (message == null) {
+            return false
+        }
+        val upper = message.uppercase()
+        return upper.contains("ERROR_KEY_EXPIRED") ||
+            upper.contains("KEY_EXPIRED") ||
+            upper.contains("ERROR_DRM_NO_LICENSE") ||
+            upper.contains("DRM_NO_LICENSE")
     }
 
     /**

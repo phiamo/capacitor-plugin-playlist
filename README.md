@@ -7,6 +7,8 @@ Native audio playlists for Capacitor on **Android**, **iOS** and **Web**. Suppor
 [![license](https://img.shields.io/npm/l/@dwbn/capacitor-plugin-playlist?style=flat-square)](./LICENSE)
 [![Capacitor 8](https://img.shields.io/badge/capacitor-8-119EFF?style=flat-square)](https://capacitorjs.com)
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W8V527Q5YX)
+
 > 📦 **New package name.** This plugin is now published as **`@dwbn/capacitor-plugin-playlist`** in the `@dwbn` npm organization. The unscoped `capacitor-plugin-playlist` is deprecated and receives no further releases. The repository stays here. [How to switch →](./docs/upgrading.md#capacitor-plugin-playlist--dwbncapacitor-plugin-playlist)
 
 ## Part of the DWBN media stack
@@ -99,8 +101,6 @@ Shuffle, audio ads / IMA ([#71](https://github.com/phiamo/capacitor-plugin-playl
 ## History & credits
 
 Started in 2020 as the Capacitor port of [**Rolamix/cordova-plugin-playlist**](https://github.com/Rolamix/cordova-plugin-playlist). It builds on ideas and code from [ExoMedia / PlaylistCore](https://github.com/brianwernick/ExoMedia) (Brian Wernick), the [Bi-Directional AVQueuePlayer](https://github.com/jrtaal/AVBidirectionalQueuePlayer), [cordova-plugin-media](https://github.com/apache/cordova-plugin-media) and [cordova-music-controls-plugin](https://github.com/homerours/cordova-music-controls-plugin). It is maintained by [@phiamo](https://github.com/phiamo) for the DWBN apps, with help from [many contributors](./docs/history.md#contributors). Thank you all 🙏
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W8V527Q5YX)
 
 ## License
 

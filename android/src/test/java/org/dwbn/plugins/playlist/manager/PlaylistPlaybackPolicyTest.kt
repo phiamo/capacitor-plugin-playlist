@@ -152,4 +152,17 @@ class PlaylistPlaybackPolicyTest {
         assertFalse(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("unknown"))
         assertFalse(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError(null))
     }
+
+    @Test
+    fun drmDiscriminator_mapsKeyExpiredMessageToExpired() {
+        assertEquals(
+            "expired",
+            PlaylistPlaybackPolicy.drmDiscriminatorFromCause(RuntimeException("WVCdm ERROR_KEY_EXPIRED")),
+        )
+        assertEquals(
+            "expired",
+            PlaylistPlaybackPolicy.drmDiscriminatorFromCause(RuntimeException("MediaCodec ERROR_DRM_NO_LICENSE")),
+        )
+        assertEquals("expired", PlaylistPlaybackPolicy.drmDiscriminatorFromCause(RuntimeException("expired")))
+    }
 }

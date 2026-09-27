@@ -685,6 +685,7 @@ class PlaylistManager(private val application: Application) {
             val discriminator = PlaylistPlaybackPolicy.drmDiscriminatorFromCause(error)
             if (discriminator != null && PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError(discriminator)) {
                 haltAfterDrmError()
+                currentItem?.let { drmErrorListener?.invoke(it.trackId, discriminator) }
                 return
             }
             if (drmPlaybackHalted) {
