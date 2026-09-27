@@ -13,6 +13,18 @@ import org.junit.Test
 class MediaNotificationPolicyTest {
 
     @Test
+    fun foregroundStartRefused_coversMissingPermission() {
+        // Seen when Android restarted MediaService in the background after the process died.
+        assertTrue(MediaNotificationPolicy.isForegroundStartRefused(SecurityException("FGS not allowed")))
+    }
+
+    @Test
+    fun foregroundStartRefused_letsRealBugsThrough() {
+        assertFalse(MediaNotificationPolicy.isForegroundStartRefused(IllegalStateException("player released")))
+        assertFalse(MediaNotificationPolicy.isForegroundStartRefused(RuntimeException("boom")))
+    }
+
+    @Test
     fun backgroundPlay_usesDefaultMediaNotificationProviderOnMediaSessionService() {
         assertEquals(
             DefaultMediaNotificationProvider::class.java,

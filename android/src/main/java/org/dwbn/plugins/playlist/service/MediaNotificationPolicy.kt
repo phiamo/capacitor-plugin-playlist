@@ -39,6 +39,13 @@ object MediaNotificationPolicy {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             error is android.app.ForegroundServiceStartNotAllowedException
 
+    /**
+     * The system refused [android.app.Service.startForeground]: a background start on Android 12+,
+     * or a missing permission. Seen when Android restarts [MediaService] after the process died.
+     */
+    fun isForegroundStartRefused(error: Throwable): Boolean =
+        error is SecurityException || isForegroundStartNotAllowedFromBackground(error)
+
     /** Distinct from the video plugin session (`org.dwbn.video`); Media3 forbids two empty IDs. */
     const val MEDIA_SESSION_ID = "org.dwbn.playlist"
 

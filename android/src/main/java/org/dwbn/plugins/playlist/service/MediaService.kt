@@ -157,16 +157,12 @@ class MediaService : MediaSessionService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return try {
             super.onStartCommand(intent, flags, startId)
-        } catch (e: SecurityException) {
-            onForegroundStartBlocked(e)
-            START_NOT_STICKY
-        } catch (e: IllegalStateException) {
-            if (MediaNotificationPolicy.isForegroundStartNotAllowedFromBackground(e)) {
-                onForegroundStartBlocked(e)
-                START_NOT_STICKY
-            } else {
+        } catch (e: RuntimeException) {
+            if (!MediaNotificationPolicy.isForegroundStartRefused(e)) {
                 throw e
             }
+            onForegroundStartBlocked(e)
+            START_NOT_STICKY
         }
     }
 
@@ -329,15 +325,28 @@ class MediaService : MediaSessionService() {
         return builder
     }
 
+    /**
+     * When the system restarts this service in the background (e.g. after the process died),
+     * Android 12+ refuses startForeground. Keep running without foreground instead of crashing;
+     * the next foreground start from the app succeeds.
+     */
     private fun startForegroundWith(notification: Notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-            )
-        } else {
-            startForeground(DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                )
+            } else {
+                startForeground(DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID, notification)
+            }
+        } catch (e: RuntimeException) {
+            if (!MediaNotificationPolicy.isForegroundStartRefused(e)) {
+                throw e
+            }
+            onForegroundStartBlocked(e)
+            return
         }
         inForeground = true
         playlistManager.mediaServiceInForeground = true
