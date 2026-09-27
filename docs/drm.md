@@ -10,7 +10,7 @@ The plugin deliberately does **not** depend on a DRM library. The DWBN apps use 
 
 ```gradle
 repositories { maven { url 'https://jitpack.io' } }
-dependencies { implementation 'com.github.phiamo:drm-kit:0.3.0' }
+dependencies { implementation 'com.github.phiamo:drm-kit:0.3.1' }
 ```
 
 ## 2. Register the provider
