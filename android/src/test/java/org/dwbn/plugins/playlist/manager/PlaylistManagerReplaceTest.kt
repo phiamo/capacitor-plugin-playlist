@@ -3,7 +3,9 @@ package org.dwbn.plugins.playlist.manager
 import org.dwbn.plugins.playlist.data.AudioTrack
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -12,8 +14,15 @@ import org.junit.Test
  */
 class PlaylistManagerReplaceTest {
 
-    private fun track(trackId: String? = null, assetUrl: String = "https://example.com/a.mp3"): AudioTrack {
+    private fun track(
+        trackId: String? = null,
+        assetUrl: String = "https://example.com/a.mp3",
+        drm: JSONObject? = null,
+    ): AudioTrack {
         val json = JSONObject()
+        if (drm != null) {
+            json.put("drm", drm)
+        }
         if (trackId != null) {
             json.put("trackId", trackId)
         }
@@ -53,5 +62,21 @@ class PlaylistManagerReplaceTest {
         val result = PlaylistManager.mergeReplacementTrackId(existing, replacement)
 
         assertNull(result.trackId)
+    }
+
+    @Test
+    fun drmReplacement_rebuildsTheMediaSource() {
+        // Emulator 2026-09-27: an in-place update kept the released session; next key request -> unknown.
+        val drm = JSONObject().put("widevineLicenseUrl", "https://license.example/wv").put("playbackSessionId", "ps")
+        val existing = track(trackId = "t", assetUrl = "https://cdn.example/audio.m3u8", drm = drm)
+        val replacement = track(trackId = "t", assetUrl = "https://cdn.example/audio.m3u8", drm = drm)
+
+        assertTrue(PlaylistManager.rebuildSourceOnReplace(existing, replacement))
+        assertTrue(PlaylistManager.rebuildSourceOnReplace(track(trackId = "t"), replacement))
+    }
+
+    @Test
+    fun clearReplacement_keepsInPlaceUpdate() {
+        assertFalse(PlaylistManager.rebuildSourceOnReplace(track(trackId = "t"), track(trackId = "t")))
     }
 }

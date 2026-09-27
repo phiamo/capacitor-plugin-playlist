@@ -381,7 +381,18 @@ class PlaylistManager(private val application: Application) {
         if (isCurrent && isQueuedPlaceholder(resolvedReplacement)) {
             player?.stop()
         }
-        player?.replaceMediaItem(resolvedIndex, mediaItemFor(resolvedReplacement))
+        val replacementItem = mediaItemFor(resolvedReplacement)
+        if (rebuildSourceOnReplace(existing, resolvedReplacement)) {
+            // Media3 updates an equivalent source in place (same URI and DRM config), which keeps
+            // the DrmSessionManager of the session released above; its next key request then
+            // fails. Add then remove so a new source picks up the new session.
+            player?.let { p ->
+                p.addMediaItem(resolvedIndex + 1, replacementItem)
+                p.removeMediaItem(resolvedIndex)
+            }
+        } else {
+            player?.replaceMediaItem(resolvedIndex, replacementItem)
+        }
         if (isQueuedPlaceholder(resolvedReplacement)) {
             return Pair(resolvedReplacement, null)
         }
@@ -768,6 +779,11 @@ class PlaylistManager(private val application: Application) {
             val mid = if (from < currentIndex) currentIndex - 1 else currentIndex
             return if (mid >= to) mid + 1 else mid
         }
+
+        /** DRM sessions are per item, so a DRM replacement needs a fresh media source. */
+        @JvmStatic
+        fun rebuildSourceOnReplace(existing: AudioTrack, replacement: AudioTrack): Boolean =
+            existing.drm != null || replacement.drm != null
 
         @JvmStatic
         fun mergeReplacementTrackId(existing: AudioTrack, replacement: AudioTrack): AudioTrack {

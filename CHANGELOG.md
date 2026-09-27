@@ -4,6 +4,9 @@
 
 **Renamed to `@dwbn/capacitor-plugin-playlist`.** The package now lives in the `@dwbn` npm organization. The unscoped `capacitor-plugin-playlist` is deprecated and receives no further releases. To switch, replace the dependency, change imports from `'capacitor-plugin-playlist'` to `'@dwbn/capacitor-plugin-playlist'`, and run `npx cap sync`. The native plugin name (`Playlist`) and the Android package are unchanged. **iOS:** the pod and the Swift Package product are renamed `CapacitorPluginPlaylist` → `DwbnCapacitorPluginPlaylist`, because Capacitor derives the Swift package name from the npm name.
 
+### Fixed
+- **Android:** replacing a DRM item (`replaceItem`, e.g. restoring the protected track after a video handoff) could leave the player on the released DRM session. Media3 updated the equivalent media source in place and kept the old session's `DrmSessionManager`, so the next license request failed with `unknown`. DRM replacements now always build a new media source.
+
 ### Documentation
 - README shortened to an overview. Guides moved to `docs/`: installation, usage, events, DRM, upgrading, legacy versions, history & credits. The generated API reference now lives in `docs/API.md`.
 - New end-to-end [audio ↔ video handoff guide](./docs/video-handoff.md) together with `@dwbn/capacitor-video-player`, including protected (Widevine) playback with drm-kit.
