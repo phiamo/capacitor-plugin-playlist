@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-**Renamed to `@dwbn/capacitor-plugin-playlist`.** The package now lives in the `@dwbn` npm organization. The unscoped `capacitor-plugin-playlist` is deprecated and receives no further releases. To switch, replace the dependency, change imports from `'capacitor-plugin-playlist'` to `'@dwbn/capacitor-plugin-playlist'`, and run `npx cap sync`. The native plugin name (`Playlist`), the Android package and the iOS pod are unchanged.
+**Renamed to `@dwbn/capacitor-plugin-playlist`.** The package now lives in the `@dwbn` npm organization. The unscoped `capacitor-plugin-playlist` is deprecated and receives no further releases. To switch, replace the dependency, change imports from `'capacitor-plugin-playlist'` to `'@dwbn/capacitor-plugin-playlist'`, and run `npx cap sync`. The native plugin name (`Playlist`) and the Android package are unchanged. **iOS:** the pod and the Swift Package product are renamed `CapacitorPluginPlaylist` → `DwbnCapacitorPluginPlaylist`, because Capacitor derives the Swift package name from the npm name.
 
 ### Documentation
 - README shortened to an overview. Guides moved to `docs/`: installation, usage, events, DRM, upgrading, legacy versions, history & credits. The generated API reference now lives in `docs/API.md`.

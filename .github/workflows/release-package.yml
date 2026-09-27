@@ -44,7 +44,7 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
-      - run: xcodebuild test -scheme CapacitorPluginPlaylist -destination 'platform=iOS Simulator,name=iPhone 16' -skipMacroValidation
+      - run: xcodebuild test -scheme DwbnCapacitorPluginPlaylist -destination 'platform=iOS Simulator,name=iPhone 16' -skipMacroValidation
 
   validate-version:
     needs: [test-ts, test-android, test-ios]

@@ -2,7 +2,9 @@
 
 ## `capacitor-plugin-playlist` → `@dwbn/capacitor-plugin-playlist`
 
-The package moved to the `@dwbn` npm organization. The code, the repository, the native plugin name (`Playlist`), the Android package `org.dwbn.plugins.playlist` and the iOS pod `CapacitorPluginPlaylist` are unchanged.
+The package moved to the `@dwbn` npm organization. The code, the repository, the native plugin name (`Playlist`) and the Android package `org.dwbn.plugins.playlist` are unchanged.
+
+**iOS:** the CocoaPods pod and the Swift Package product are now called **`DwbnCapacitorPluginPlaylist`** (before: `CapacitorPluginPlaylist`). Capacitor derives the Swift package name from the npm name, so the two must match. `npx cap sync` rewrites the Podfile / `CapApp-SPM`. If you referenced the old name by hand, update it.
 
 ```bash
 npm uninstall capacitor-plugin-playlist
