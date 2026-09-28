@@ -180,6 +180,10 @@ export interface AudioTrackDrmOptions {
      * ignored on Android (Widevine only).
      */
     fairplayLicenseUrl?: string;
+    /**
+     * Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still
+     * ignored on Android (Widevine only).
+     */
     fairplayCertificateUrl?: string;
 }
 

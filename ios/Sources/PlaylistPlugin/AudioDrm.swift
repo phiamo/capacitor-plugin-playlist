@@ -36,8 +36,6 @@ public protocol AudioDrmProvider {
 public final class AudioDrm {
 
     public static let codeNoProvider = "noProvider"
-    public static let codeNotSupported = "notSupported"
-    public static let notSupportedMessage = "DRM not supported on this platform yet"
 
     public static let errorBlockedByStreamLimit = "blockedByStreamLimit"
     public static let errorNotEntitled = "notEntitled"

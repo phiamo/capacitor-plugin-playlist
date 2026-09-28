@@ -563,7 +563,7 @@ An audio track for playback by the playlist.
 | **`renewalCredential`**      | <code>string</code>                                                           |                                                                                                                           |
 | **`streamLimit`**            | <code><a href="#audiotrackdrmstreamlimit">AudioTrackDrmStreamLimit</a></code> |                                                                                                                           |
 | **`fairplayLicenseUrl`**     | <code>string</code>                                                           | Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still ignored on Android (Widevine only). |
-| **`fairplayCertificateUrl`** | <code>string</code>                                                           |                                                                                                                           |
+| **`fairplayCertificateUrl`** | <code>string</code>                                                           | Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still ignored on Android (Widevine only). |
 
 
 #### AudioTrackDrmStreamLimit

@@ -790,7 +790,7 @@
         {
           "name": "fairplayCertificateUrl",
           "tags": [],
-          "docs": "",
+          "docs": "Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still\nignored on Android (Widevine only).",
           "complexTypes": [],
           "type": "string | undefined"
         }
