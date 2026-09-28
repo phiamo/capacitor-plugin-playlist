@@ -63,25 +63,27 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         let items = call.getArray("items", [String:Any].self)!
         let options = call.getObject("options")!
 
-        if let refusal = PlaylistDrm.notSupportedRefusal(for: items) {
+        if let refusal = drmNoProviderRejection(for: items) {
             call.reject(refusal.message, refusal.code)
             return
         }
 
         let tracks = createTracks(items)
         audioPlayerImpl.setPlaylistItems(tracks, options: options)
-        
+
         call.resolve();
     }
     @objc func addItem(_ call: CAPPluginCall) {
         let trackInfo = call.getObject("item")
 
-        if let refusal = PlaylistDrm.notSupportedRefusal(for: [trackInfo]) {
+        if let refusal = drmNoProviderRejection(for: [trackInfo]) {
             call.reject(refusal.message, refusal.code)
             return
         }
 
-        guard let track = AudioTrack.initWithDictionary(trackInfo) else {
+        guard let track = AudioTrack.initWithDictionary(trackInfo, onDrmError: { [weak self] trackId, error in
+            self?.audioPlayerImpl.reportDrmError(trackId: trackId, error: error)
+        }) else {
             call.reject("Invalid track")
             return
         }
@@ -120,7 +122,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
             return
         }
 
-        if let refusal = PlaylistDrm.notSupportedRefusal(for: [trackInfo]) {
+        if let refusal = drmNoProviderRejection(for: [trackInfo]) {
             call.reject(refusal.message, refusal.code)
             return
         }
@@ -139,7 +141,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     @objc func addAllItems(_ call: CAPPluginCall) {
         let items = call.getArray("items", [String:Any].self)!
 
-        if let refusal = PlaylistDrm.notSupportedRefusal(for: items) {
+        if let refusal = drmNoProviderRejection(for: items) {
             call.reject(refusal.message, refusal.code)
             return
         }
@@ -332,7 +334,9 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
 
         var newList: [AudioTrack] = []
         for item in items ?? [] {
-            let track = AudioTrack.initWithDictionary(item)
+            let track = AudioTrack.initWithDictionary(item, onDrmError: { [weak self] trackId, error in
+                self?.audioPlayerImpl.reportDrmError(trackId: trackId, error: error)
+            })
             if let track = track {
                 newList.append(track)
             }
@@ -341,21 +345,22 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         return newList;
     }
 
-}
-
-/// iOS refuses `drm` before creating a player (Story 57.5).
-enum PlaylistDrm {
-    static let notSupportedCode = "notSupported"
-    static let notSupportedMessage = "DRM not supported on this platform yet"
-
-    static func notSupportedRefusal(for items: [[String: Any]]) -> (code: String, message: String)? {
-        notSupportedRefusal(for: items.map { Optional($0) })
+    /// Reject `drm` items when no provider is registered (Story 58.5), matching Android's exact
+    /// reject message: `PlaylistPlugin.kt`'s `call.reject("DRM provider is not registered", failure)`.
+    /// A pure presence/registration check -- never opens a session itself (opening happens once,
+    /// in `AudioTrack.initWithDictionary`, to avoid a duplicate/wasted session open here).
+    private func drmNoProviderRejection(for items: [[String: Any]]) -> (code: String, message: String)? {
+        drmNoProviderRejection(for: items.map { Optional($0) })
     }
 
-    static func notSupportedRefusal(for items: [[String: Any]?]) -> (code: String, message: String)? {
-        if items.contains(where: { $0?["drm"] != nil }) {
-            return (notSupportedCode, notSupportedMessage)
+    private func drmNoProviderRejection(for items: [[String: Any]?]) -> (code: String, message: String)? {
+        guard AudioDrm.getProvider() == nil else {
+            return nil
         }
-        return nil
+        guard items.contains(where: { $0?["drm"] != nil }) else {
+            return nil
+        }
+        return (AudioDrm.codeNoProvider, "DRM provider is not registered")
     }
+
 }

@@ -141,10 +141,9 @@ export interface AudioTrack {
      */
     startPosition?: number;
     /**
-     * Optional DRM descriptor fields (API names). Android attaches Widevine through a
-     * host-registered provider. Token URL, heartbeat URL, and Bearer live on that
-     * provider, not here. FairPlay fields may be present and are ignored on Android.
-     * iOS and web refuse items that set this.
+     * Optional DRM descriptor fields (API names). Android attaches Widevine, and iOS attaches
+     * FairPlay (Story 58.5), through a host-registered provider. Token URL, heartbeat URL, and
+     * Bearer live on that provider, not here. Web still refuses items that set this.
      */
     drm?: AudioTrackDrmOptions;
 }
@@ -162,7 +161,10 @@ export interface AudioTrackDrmOptions {
     playbackSessionId?: string;
     renewalCredential?: string;
     streamLimit?: AudioTrackDrmStreamLimit;
-    /** Present on the descriptor; ignored on Android (FairPlay is Epic 58). */
+    /**
+     * Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still
+     * ignored on Android (Widevine only).
+     */
     fairplayLicenseUrl?: string;
     fairplayCertificateUrl?: string;
 }

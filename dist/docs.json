@@ -735,7 +735,7 @@
         {
           "name": "drm",
           "tags": [],
-          "docs": "Optional DRM descriptor fields (API names). Android attaches Widevine through a\nhost-registered provider. Token URL, heartbeat URL, and Bearer live on that\nprovider, not here. FairPlay fields may be present and are ignored on Android.\niOS and web refuse items that set this.",
+          "docs": "Optional DRM descriptor fields (API names). Android attaches Widevine, and iOS attaches\nFairPlay (Story 58.5), through a host-registered provider. Token URL, heartbeat URL, and\nBearer live on that provider, not here. Web still refuses items that set this.",
           "complexTypes": [
             "AudioTrackDrmOptions"
           ],
@@ -783,7 +783,7 @@
         {
           "name": "fairplayLicenseUrl",
           "tags": [],
-          "docs": "Present on the descriptor; ignored on Android (FairPlay is Epic 58).",
+          "docs": "Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still\nignored on Android (Widevine only).",
           "complexTypes": [],
           "type": "string | undefined"
         },

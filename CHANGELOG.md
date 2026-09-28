@@ -4,6 +4,9 @@
 
 **Renamed to `@dwbn/capacitor-plugin-playlist`.** The package now lives in the `@dwbn` npm organization. The unscoped `capacitor-plugin-playlist` is deprecated and receives no further releases. To switch, replace the dependency, change imports from `'capacitor-plugin-playlist'` to `'@dwbn/capacitor-plugin-playlist'`, and run `npx cap sync`. The native plugin name (`Playlist`) and the Android package are unchanged. **iOS:** the pod and the Swift Package product are renamed `CapacitorPluginPlaylist` → `DwbnCapacitorPluginPlaylist`, because Capacitor derives the Swift package name from the npm name.
 
+### Added
+- **iOS:** protected audio playback via a host-registered FairPlay `AudioDrmProvider`/`AudioDrmSession` (`AudioDrm.swift`), mirroring the existing Android `AudioDrm` hook and this plugin's own video-player sibling's `VideoDrm.swift` (Story 58.5). `setPlaylistItems`/`addItem`/`addAllItems`/`replaceItem` now reject `{code: "noProvider"}` for `drm` items when no provider is registered, replacing the `notSupported` placeholder from Story 57.5. DRM session errors surface on the existing `status` channel's `value.error`.
+
 ### Changed
 - **iOS:** the minimum is iOS 15 again (was iOS 18 since 0.9.4). Nothing in the plugin needs more, and iOS 15–17 devices can install apps that use it (Story 58.2).
 

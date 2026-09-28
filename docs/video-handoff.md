@@ -158,14 +158,14 @@ Things the production app adds on top, worth copying once the basics work:
 
 ## Handoff with DRM
 
-When audio and video are Widevine-protected (Android), both plugins get their licenses from the **host app**, not from the plugins themselves. The host adds [drm-kit](https://github.com/phiamo/drm-kit) and registers one provider for each plugin — see [drm.md](./drm.md) for the setup.
+When audio and video are protected (Widevine on Android, FairPlay on iOS), both plugins get their licenses from the **host app**, not from the plugins themselves. The host adds [drm-kit](https://github.com/phiamo/drm-kit) and registers one provider for each plugin — see [drm.md](./drm.md) for the setup.
 
 Extra rules during a protected handoff:
 
 1. **One stream at a time.** Licenses may carry a concurrent-stream limit. Before starting protected video, make sure the audio item no longer holds a license — for example by replacing the current audio item with a placeholder before `prepareForVideoHandoff`. Otherwise the video license request fails with `blockedByStreamLimit` or `notEntitled`.
 2. **Restore the audio item after video.** Before `resumeAfterVideoHandoff`, put the protected item back with `Playlist.replaceItem(...)` (including its `drm` field), or the player resumes on the placeholder.
 3. **Don't auto-retry `blockedByStreamLimit`.** Tell the user another device or stream is active.
-4. **iOS and web** reject items with `drm` (`notSupported`) until FairPlay lands, so only send `drm` on Android.
+4. **Web** rejects items with `drm` (`notSupported`) for now, so only send `drm` on Android and iOS.
 
 ```mermaid
 sequenceDiagram

@@ -225,7 +225,9 @@ final class RmxAudioPlayer: NSObject {
             trackInfo["trackId"] = existing.trackId ?? ""
         }
 
-        guard let replacement = AudioTrack.initWithDictionary(trackInfo) else {
+        guard let replacement = AudioTrack.initWithDictionary(trackInfo, onDrmError: { [weak self] trackId, error in
+            self?.reportDrmError(trackId: trackId, error: error)
+        }) else {
             throw RmxAudioPlayerError.trackIdNotFound
         }
 
@@ -1389,6 +1391,22 @@ final class RmxAudioPlayer: NSObject {
             "code": NSNumber(value: code.rawValue),
             "message": message ?? ""
         ]
+    }
+
+    /// Story 58.5: DRM session errors surface via the existing `status` channel's `value.error`,
+    /// a typed discriminator string -- mirrors Android's `OnStatusCallback.createDrmError`.
+    func createDrmError(_ typedError: String) -> [String: Any] {
+        [
+            "code": NSNumber(value: RmxAudioErrorType.rmxerr_NONE_SUPPORTED.rawValue),
+            "message": "",
+            "error": typedError
+        ]
+    }
+
+    /// Reports a DRM session error for `trackId` on the existing `status` channel
+    /// (`rmxstatus_ERROR`), for a `AudioTrack` DRM session opened via `AudioDrm`.
+    func reportDrmError(trackId: String, error: String) {
+        onStatus(.rmxstatus_ERROR, trackId: trackId, param: createDrmError(error))
     }
 
     func onStatus(_ what: RmxAudioStatusMessage, trackId: String?, param: [String:Any]?) {
