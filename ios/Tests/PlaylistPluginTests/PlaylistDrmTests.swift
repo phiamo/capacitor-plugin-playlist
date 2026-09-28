@@ -172,6 +172,37 @@ final class AudioTrackDrmWiringTests: XCTestCase {
     }
 }
 
+/// Matrix row "drm set, provider registered" / Error Handling: "Session errors surface via
+/// existing status channel value.error, typed string" -- the `onDrmError` closure tests above
+/// only verify the closure itself fires; this verifies it is wired all the way through
+/// `RmxAudioPlayer.reportDrmError` to the real `status` channel (`rmxstatus_ERROR`), matching
+/// `StallDetectionTests`' `RecordingStatusUpdater` pattern.
+@MainActor
+final class RmxAudioPlayerDrmErrorRoutingTests: XCTestCase {
+
+    private final class RecordingStatusUpdater: StatusUpdater {
+        private(set) var calls: [[String: Any]] = []
+        func onStatus(_ data: [String: Any]) {
+            calls.append(data)
+        }
+    }
+
+    func test_reportDrmError_emitsTypedErrorOnStatusChannel() {
+        let player = RmxAudioPlayer()
+        let updater = RecordingStatusUpdater()
+        player.statusUpdater = updater
+
+        player.reportDrmError(trackId: "track-1", error: AudioDrm.errorBlockedByStreamLimit)
+
+        XCTAssertEqual(updater.calls.count, 1)
+        let status = updater.calls[0]["status"] as? [String: Any]
+        XCTAssertEqual((status?["msgType"] as? NSNumber)?.intValue, RmxAudioStatusMessage.rmxstatus_ERROR.rawValue)
+        XCTAssertEqual(status?["trackId"] as? String, "track-1")
+        let value = status?["value"] as? [String: Any]
+        XCTAssertEqual(value?["error"] as? String, AudioDrm.errorBlockedByStreamLimit)
+    }
+}
+
 // MARK: - Fakes
 
 private final class FakeAudioDrmProvider: AudioDrmProvider {
