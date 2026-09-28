@@ -349,11 +349,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     /// reject message: `PlaylistPlugin.kt`'s `call.reject("DRM provider is not registered", failure)`.
     /// A pure presence/registration check -- never opens a session itself (opening happens once,
     /// in `AudioTrack.initWithDictionary`, to avoid a duplicate/wasted session open here).
-    private func drmNoProviderRejection(for items: [[String: Any]]) -> (code: String, message: String)? {
+    func drmNoProviderRejection(for items: [[String: Any]]) -> (code: String, message: String)? {
         drmNoProviderRejection(for: items.map { Optional($0) })
     }
 
-    private func drmNoProviderRejection(for items: [[String: Any]?]) -> (code: String, message: String)? {
+    func drmNoProviderRejection(for items: [[String: Any]?]) -> (code: String, message: String)? {
         guard AudioDrm.getProvider() == nil else {
             return nil
         }
