@@ -556,14 +556,14 @@ An audio track for playback by the playlist.
 
 #### AudioTrackDrmOptions
 
-| Prop                         | Type                                                                          | Description                                                                                                               |
-| ---------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **`widevineLicenseUrl`**     | <code>string</code>                                                           |                                                                                                                           |
-| **`playbackSessionId`**      | <code>string</code>                                                           |                                                                                                                           |
-| **`renewalCredential`**      | <code>string</code>                                                           |                                                                                                                           |
-| **`streamLimit`**            | <code><a href="#audiotrackdrmstreamlimit">AudioTrackDrmStreamLimit</a></code> |                                                                                                                           |
-| **`fairplayLicenseUrl`**     | <code>string</code>                                                           | Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still ignored on Android (Widevine only). |
-| **`fairplayCertificateUrl`** | <code>string</code>                                                           | Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still ignored on Android (Widevine only). |
+| Prop                         | Type                                                                          | Description                                                                                                                       |
+| ---------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **`widevineLicenseUrl`**     | <code>string</code>                                                           | Consumed by Android via the host-registered drm-kit Widevine provider; ignored on iOS (FairPlay only — see `fairplayLicenseUrl`). |
+| **`playbackSessionId`**      | <code>string</code>                                                           |                                                                                                                                   |
+| **`renewalCredential`**      | <code>string</code>                                                           |                                                                                                                                   |
+| **`streamLimit`**            | <code><a href="#audiotrackdrmstreamlimit">AudioTrackDrmStreamLimit</a></code> |                                                                                                                                   |
+| **`fairplayLicenseUrl`**     | <code>string</code>                                                           | Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still ignored on Android (Widevine only).         |
+| **`fairplayCertificateUrl`** | <code>string</code>                                                           | Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still ignored on Android (Widevine only).         |
 
 
 #### AudioTrackDrmStreamLimit

@@ -37,13 +37,14 @@ iOS: once, from `AppDelegate`'s `application(_:didFinishLaunchingWithOptions:)`.
 
 ```swift
 import PlaylistPlugin
+import CapacitorVideoPlayerPlugin // only if you also use the video player
 
 let provider = MyFairPlaySessionProvider()
 AudioDrm.setProvider(provider)   // PlaylistPlugin.AudioDrm
-VideoDrm.setProvider(provider)   // only if you also use the video player
+VideoDrm.setProvider(provider)   // CapacitorVideoPlayerPlugin.VideoDrm — only if you also use the video player
 ```
 
-`MyFairPlaySessionProvider` implements the plugin's `AudioDrmProvider` protocol; its `open(_:onError:)` returns a `MyFairPlaySession` implementing `AudioDrmSession` (`attach(to: AVURLAsset)`, `start()`, `release()`) by wrapping drm-kit's `FairPlaySession`. As on Android, token/heartbeat URLs and the bearer token live in your app, never in the `drm` item. If `MyFairPlaySession` also conforms to `@dwbn/capacitor-video-player`'s `VideoDrmSession`/`VideoDrmProvider` (identical `attach`/`start`/`release` shape), a single `open` implementation can satisfy both providers via covariant return.
+`MyFairPlaySessionProvider` implements the plugin's `AudioDrmProvider` protocol; its `open(_:onError:)` returns a `MyFairPlaySession` implementing `AudioDrmSession` (`attach(to: AVURLAsset)`, `start()`, `release()`) by wrapping drm-kit's `FairPlaySession`. As on Android, token/heartbeat URLs and the bearer token live in your app, never in the `drm` item. To pass the same `provider` instance to both `setProvider` calls above, `MyFairPlaySessionProvider` itself (not just `MyFairPlaySession`) must conform to both this plugin's `AudioDrmProvider` and `@dwbn/capacitor-video-player`'s `VideoDrmProvider` protocols. If `MyFairPlaySession` also conforms to `VideoDrmSession` (identical `attach`/`start`/`release` shape), one concrete session type can serve both — but `MyFairPlaySessionProvider`'s `open(_:onError:)` needs two overloads, one per return type (`VideoDrmSession` / `AudioDrmSession`), both with an identical one-line body. Swift's protocol witness matching does not accept a single covariant-return method (e.g. one declared to return the concrete `MyFairPlaySession` type) for two unrelated protocol requirements sharing the same name.
 
 ## 3. Send `drm` with the item
 
@@ -57,6 +58,8 @@ await Playlist.setPlaylistItems({
     album: 'Talks',
     drm: {
       widevineLicenseUrl: 'https://license.example/widevine',
+      fairplayLicenseUrl: 'https://license.example/fairplay',
+      fairplayCertificateUrl: 'https://license.example/fairplay/cert',
       playbackSessionId: 'ps_123',
       renewalCredential: '…',
       streamLimit: { mode: 'axinom_csl', renewalIntervalSeconds: 300, heartbeatIntervalSeconds: 60 }, // optional, from your playback API

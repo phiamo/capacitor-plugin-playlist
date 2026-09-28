@@ -157,6 +157,10 @@ export interface AudioTrackDrmStreamLimit {
     heartbeatIntervalSeconds?: number;
 }
 export interface AudioTrackDrmOptions {
+    /**
+     * Consumed by Android via the host-registered drm-kit Widevine provider; ignored on iOS
+     * (FairPlay only — see `fairplayLicenseUrl`).
+     */
     widevineLicenseUrl?: string;
     playbackSessionId?: string;
     renewalCredential?: string;

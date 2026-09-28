@@ -1,11 +1,13 @@
 //
-//  PlaylistDrmTests.swift
+//  AudioDrmTests.swift
 //  PlaylistPluginTests
 //
 //  Story 58.5: replaces the old `PlaylistDrm.notSupportedRefusal` coverage (Story 57.5's iOS
 //  placeholder) with `AudioDrm` registry/typed-error coverage (mirrors `VideoDrmTests` from
 //  Story 58.4) plus an `AudioTrack` DRM-wiring test (mirrors
-//  `FullScreenVideoPlayerViewDrmWiringTests`).
+//  `FullScreenVideoPlayerViewDrmWiringTests`) and direct coverage of
+//  `PlaylistPlugin.drmNoProviderRejection(for:)`, the guard actually wired into
+//  `setPlaylistItems`/`addItem`/`replaceItem`/`addAllItems`.
 //
 
 import AVFoundation
@@ -200,6 +202,42 @@ final class RmxAudioPlayerDrmErrorRoutingTests: XCTestCase {
         XCTAssertEqual(status?["trackId"] as? String, "track-1")
         let value = status?["value"] as? [String: Any]
         XCTAssertEqual(value?["error"] as? String, AudioDrm.errorBlockedByStreamLimit)
+    }
+}
+
+/// Direct coverage of `PlaylistPlugin.drmNoProviderRejection(for:)` -- the guard function
+/// actually wired into `setPlaylistItems`/`addItem`/`replaceItem`/`addAllItems`. The behaviour
+/// tests above exercise `AudioDrm` itself; this exercises the plugin-level helper those call
+/// sites share.
+@MainActor
+final class PlaylistPluginDrmNoProviderRejectionTests: XCTestCase {
+
+    override func tearDown() {
+        AudioDrm.setProvider(nil)
+        super.tearDown()
+    }
+
+    func test_drmPresent_noProviderRegistered_rejects() {
+        let plugin = PlaylistPlugin()
+        let refusal = plugin.drmNoProviderRejection(for: [["drm": ["playbackSessionId": "sess-1"]]])
+        XCTAssertEqual(refusal?.code, "noProvider")
+        XCTAssertEqual(refusal?.message, "DRM provider is not registered")
+    }
+
+    func test_drmPresent_providerRegistered_returnsNil() {
+        AudioDrm.setProvider(FakeAudioDrmProvider { _, _ in FakeAudioDrmSession() })
+        let plugin = PlaylistPlugin()
+        let refusal = plugin.drmNoProviderRejection(for: [["drm": ["playbackSessionId": "sess-1"]]])
+        XCTAssertNil(refusal)
+    }
+
+    func test_drmAbsent_returnsNilRegardlessOfProviderState() {
+        let pluginWithoutProvider = PlaylistPlugin()
+        XCTAssertNil(pluginWithoutProvider.drmNoProviderRejection(for: [["trackId": "a"]]))
+
+        AudioDrm.setProvider(FakeAudioDrmProvider { _, _ in FakeAudioDrmSession() })
+        let pluginWithProvider = PlaylistPlugin()
+        XCTAssertNil(pluginWithProvider.drmNoProviderRejection(for: [["trackId": "a"]]))
     }
 }
 
