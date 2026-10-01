@@ -247,6 +247,10 @@ class PlaylistManager(private val application: Application) {
         if (item == null) {
             return
         }
+        val trackId = item.trackId
+        if (!trackId.isNullOrEmpty() && findTrackPosition(trackId) >= 0) {
+            return
+        }
         val countBefore = audioTracks.size
         val insertIndex = if (index >= 0) {
             index.coerceIn(0, audioTracks.size)
@@ -325,8 +329,15 @@ class PlaylistManager(private val application: Application) {
     }
 
     fun addAllItems(its: List<AudioTrack>?) {
+        val incoming = its.orEmpty().filter { track ->
+            val id = track.trackId
+            id.isNullOrEmpty() || findTrackPosition(id) < 0
+        }
+        if (incoming.isEmpty()) {
+            return
+        }
         val current = currentItem
-        its.orEmpty().forEach { track ->
+        incoming.forEach { track ->
             audioTracks.add(track)
             player?.addMediaItem(AudioMediaItemFactory.fromAudioTrack(track))
         }

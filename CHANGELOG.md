@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+- **Android / iOS:** `addItem` / `addAllItems` are now idempotent by `trackId`. A second add of a queued track is a no-op and does not emit `ITEM_ADDED`, so JS retries cannot duplicate the native queue.
+- **Android:** `playTrackById` now switches even while another item is playing. It only skips `beginPlayback` when the requested id is already the current playing track.
+
 ## 8.0.0
 
 **The version scheme changed: the major now tracks the Capacitor major.** This package has required `@capacitor/core >= 8.0.0` since 0.12.0 while still calling itself `0.x`, which made the supported Capacitor version impossible to read off the version number. From here the major matches Capacitor's, as it already does for `capacitor-video-player`. There is no 1.x–7.x and there never will be; 8.0.0 follows 0.15.0 directly.

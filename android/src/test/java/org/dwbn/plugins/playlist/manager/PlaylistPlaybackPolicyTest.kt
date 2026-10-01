@@ -142,4 +142,20 @@ class PlaylistPlaybackPolicyTest {
         assertFalse(PlaylistPlaybackPolicy.hasStalled(5_999, thresholdMs = 6_000))
         assertTrue(PlaylistPlaybackPolicy.hasStalled(6_000, thresholdMs = 6_000))
     }
+
+    @Test
+    fun shouldBeginPlaybackForPlayById_switchesWhenAnotherTrackIsPlaying() {
+        assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(true, 2, 0))
+    }
+
+    @Test
+    fun shouldBeginPlaybackForPlayById_skipsWhenAlreadyPlayingTheSameTrack() {
+        assertFalse(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(true, 1, 1))
+    }
+
+    @Test
+    fun shouldBeginPlaybackForPlayById_startsWhenPaused() {
+        assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(false, 1, 1))
+        assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(false, 2, 0))
+    }
 }

@@ -77,6 +77,18 @@ object PlaylistPlaybackPolicy {
     fun previousSkipIndex(fromIndex: Int, itemCount: Int, loop: Boolean): Int =
         if (fromIndex <= 0 && loop) itemCount - 1 else fromIndex - 1
 
+    /**
+     * [PlaylistPlugin.playTrackById] must switch even while another item is playing.
+     * Skip [PlaylistManager.beginPlayback] only when the requested item is already the current
+     * playing track.
+     */
+    @JvmStatic
+    fun shouldBeginPlaybackForPlayById(
+        alreadyPlaying: Boolean,
+        targetIndex: Int,
+        currentIndex: Int
+    ): Boolean = !(alreadyPlaying && targetIndex == currentIndex)
+
     /** An item played to its end and the player moved on by itself (not a seek or list change). */
     @JvmStatic
     fun isNaturalItemEnd(transitionReason: Int): Boolean =

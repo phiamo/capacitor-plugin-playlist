@@ -158,6 +158,9 @@ final class RmxAudioPlayer: NSObject {
 
     func addItem(_ item: AudioTrack) {
         print("RmxAudioPlayer.execute=addItem, \(item)")
+        guard !isAlreadyQueued(item) else {
+            return
+        }
 
         let tempArr = [item]
         addTracks(tempArr, startPosition: -1)
@@ -165,6 +168,9 @@ final class RmxAudioPlayer: NSObject {
 
     func addItem(_ item: AudioTrack, at index: Int) throws {
         print("RmxAudioPlayer.execute=addItem at index \(index), \(item)")
+        guard !isAlreadyQueued(item) else {
+            return
+        }
 
         let insertIndex = min(max(0, index), avQueuePlayer.queuedAudioTracks.count)
         if insertIndex >= avQueuePlayer.queuedAudioTracks.count {
@@ -545,11 +551,15 @@ final class RmxAudioPlayer: NSObject {
     }
 
     func addTracks(_ tracks: [AudioTrack], startPosition: Float) {
-        for playerItem in tracks {
+        let newTracks = tracks.filter { !isAlreadyQueued($0) }
+        guard !newTracks.isEmpty else {
+            return
+        }
+        for playerItem in newTracks {
             addTrackObservers(playerItem)
         }
 
-        avQueuePlayer.appendItems(tracks)
+        avQueuePlayer.appendItems(newTracks)
 
         if startPosition > 0 {
             seek(to: startPosition, isCommand: false)
@@ -1286,6 +1296,13 @@ final class RmxAudioPlayer: NSObject {
             "track": track,
             "index": NSNumber(value: index)
         ]
+    }
+
+    private func isAlreadyQueued(_ item: AudioTrack) -> Bool {
+        guard let trackId = item.trackId, !trackId.isEmpty else {
+            return false
+        }
+        return avQueuePlayer.queuedAudioTracks.contains { $0.trackId == trackId }
     }
 
     /// Registers the KVO + NotificationCenter observers for a track, without emitting any status

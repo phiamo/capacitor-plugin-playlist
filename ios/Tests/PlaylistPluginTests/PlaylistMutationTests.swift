@@ -71,6 +71,25 @@ final class PlaylistMutationTests: XCTestCase {
         XCTAssertEqual(updater.count(of: .rmxstatus_ITEM_ADDED), 1)
     }
 
+    func testAddItem_duplicateTrackId_isIgnored() throws {
+        let (player, updater) = makePlayer(trackIds: ["a", "b"])
+
+        try player.addItem(makeTrack(id: "a"), at: 1)
+        player.addItem(makeTrack(id: "b"))
+
+        XCTAssertEqual(player.avQueuePlayer.queuedAudioTracks.map { $0.trackId }, ["a", "b"])
+        XCTAssertEqual(updater.count(of: .rmxstatus_ITEM_ADDED), 0)
+    }
+
+    func testAddAllItems_skipsExistingTrackIds() {
+        let (player, updater) = makePlayer(trackIds: ["a", "b"])
+
+        player.addAllItems([makeTrack(id: "b"), makeTrack(id: "c")])
+
+        XCTAssertEqual(player.avQueuePlayer.queuedAudioTracks.map { $0.trackId }, ["a", "b", "c"])
+        XCTAssertEqual(updater.count(of: .rmxstatus_ITEM_ADDED), 1)
+    }
+
     // MARK: - moveItem
 
     func testMoveItem_reordersTracks() throws {
