@@ -7,6 +7,7 @@ import com.getcapacitor.*
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.dwbn.plugins.playlist.data.AudioTrack
 import org.dwbn.plugins.playlist.manager.PlaybackProgress
+import org.dwbn.plugins.playlist.manager.PlaylistPlaybackPolicy
 import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler
 import org.dwbn.plugins.playlist.service.MediaService
 import org.json.JSONArray
@@ -111,13 +112,16 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             val item: JSONObject = call.getObject("item")
             val index: Int = call.getInt("index", -1)!!
             val playerItem: AudioTrack? = getTrackItem(item)
+            val alreadyQueued = playerItem?.trackId?.let {
+                audioPlayerImpl!!.playlistManager.findTrackPosition(it) >= 0
+            } == true
             val failure = audioPlayerImpl!!.getPlaylistManager().addItem(playerItem, index)
             if (failure != null) {
                 call.reject("DRM provider is not registered", failure)
                 return@post
             }
 
-            if (playerItem?.trackId != null) {
+            if (!alreadyQueued && playerItem?.trackId != null) {
                 val payload = playerItem.toDict()
                 if (index >= 0) {
                     payload.put("index", index.coerceIn(0, audioPlayerImpl!!.playlistManager.getAllItems().size - 1))
@@ -192,13 +196,18 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         Handler(Looper.getMainLooper()).post {
             val items: JSONArray = call.getArray("items")
             val trackItems = getTrackItems(items)
-            val failure = audioPlayerImpl!!.playlistManager.addAllItems(trackItems)
+            val playlistManager = audioPlayerImpl!!.playlistManager
+            val newlyAdded = trackItems.filter { item ->
+                val id = item.trackId
+                id.isNullOrEmpty() || playlistManager.findTrackPosition(id) < 0
+            }
+            val failure = playlistManager.addAllItems(trackItems)
             if (failure != null) {
                 call.reject("DRM provider is not registered", failure)
                 return@post
             }
 
-            for (playerItem in trackItems) {
+            for (playerItem in newlyAdded) {
                 if (playerItem.trackId != null) {
                     onStatus(
                         RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED,
@@ -339,10 +348,16 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
                 val position = playlistManager.findTrackPosition(id)
                 if (position >= 0) {
                     val seekPosition = (call.getFloat("position", 0f)!! * 1000.0f).toLong()
+                    val previousIndex = playlistManager.currentPosition
                     playlistManager.currentPosition = position
                     val handler = playlistManager.playlistHandler
                     val alreadyPlaying = handler?.currentMediaPlayer?.isPlaying == true
-                    if (!audioPlayerImpl!!.tryResumeVideoHandoffInPlace(seekPosition) && !alreadyPlaying) {
+                    val shouldBegin = PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(
+                        alreadyPlaying,
+                        position,
+                        previousIndex
+                    )
+                    if (!audioPlayerImpl!!.tryResumeVideoHandoffInPlace(seekPosition) && shouldBegin) {
                         playlistManager.beginPlayback(seekPosition, false)
                     }
                 }

@@ -11,6 +11,8 @@
 - **iOS:** the minimum is iOS 15 again (was iOS 18 since 0.9.4). Nothing in the plugin needs more, and iOS 15–17 devices can install apps that use it (Story 58.2).
 
 ### Fixed
+- **Android / iOS:** `addItem` / `addAllItems` are now idempotent by `trackId`. A second add of a queued track is a no-op and does not emit `ITEM_ADDED`, so JS retries cannot duplicate the native queue.
+- **Android:** `playTrackById` now switches even while another item is playing. It only skips `beginPlayback` when the requested id is already the current playing track.
 - **Android:** no more crash (`ForegroundServiceStartNotAllowedException`) when Android restarts `MediaService` in the background, e.g. after the app process died during playback. Android 12+ refuses `startForeground` there; the service now keeps running without the foreground notification instead of taking the app down.
 - **Android:** replacing a DRM item (`replaceItem`, e.g. restoring the protected track after a video handoff) could leave the player on the released DRM session. Media3 updated the equivalent media source in place and kept the old session's `DrmSessionManager`, so the next license request failed with `unknown`. DRM replacements now always build a new media source.
 

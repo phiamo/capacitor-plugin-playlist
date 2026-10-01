@@ -165,4 +165,20 @@ class PlaylistPlaybackPolicyTest {
         )
         assertEquals("expired", PlaylistPlaybackPolicy.drmDiscriminatorFromCause(RuntimeException("expired")))
     }
+
+    @Test
+    fun shouldBeginPlaybackForPlayById_switchesWhenAnotherTrackIsPlaying() {
+        assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(true, 2, 0))
+    }
+
+    @Test
+    fun shouldBeginPlaybackForPlayById_skipsWhenAlreadyPlayingTheSameTrack() {
+        assertFalse(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(true, 1, 1))
+    }
+
+    @Test
+    fun shouldBeginPlaybackForPlayById_startsWhenPaused() {
+        assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(false, 1, 1))
+        assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(false, 2, 0))
+    }
 }

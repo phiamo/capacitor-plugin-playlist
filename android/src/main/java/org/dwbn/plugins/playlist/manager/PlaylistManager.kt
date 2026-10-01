@@ -298,6 +298,10 @@ class PlaylistManager(private val application: Application) {
         if (item == null) {
             return null
         }
+        val trackId = item.trackId
+        if (!trackId.isNullOrEmpty() && findTrackPosition(trackId) >= 0) {
+            return null
+        }
         val (failure, opened) = openNewSessions(listOf(item))
         if (failure != null) {
             return failure
@@ -408,7 +412,13 @@ class PlaylistManager(private val application: Application) {
     }
 
     fun addAllItems(its: List<AudioTrack>?): String? {
-        val incoming = its.orEmpty()
+        val incoming = its.orEmpty().filter { track ->
+            val id = track.trackId
+            id.isNullOrEmpty() || findTrackPosition(id) < 0
+        }
+        if (incoming.isEmpty()) {
+            return null
+        }
         val (failure, opened) = openNewSessions(incoming)
         if (failure != null) {
             return failure
