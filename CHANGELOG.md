@@ -11,6 +11,7 @@
 - **iOS:** the minimum is iOS 15 again (was iOS 18 since 0.9.4). Nothing in the plugin needs more, and iOS 15–17 devices can install apps that use it (Story 58.2).
 
 ### Fixed
+- **iOS:** catalog listen uses `AVAudioSessionCategoryPlayback` (speaker, ignores the Ring/Silent switch) instead of `.playAndRecord`, which routed to the earpiece or went silent after FairPlay video.
 - **Android / iOS:** `addItem` / `addAllItems` are now idempotent by `trackId`. A second add of a queued track is a no-op and does not emit `ITEM_ADDED`, so JS retries cannot duplicate the native queue.
 - **Android:** `playTrackById` now switches even while another item is playing. It only skips `beginPlayback` when the requested id is already the current playing track.
 - **Android:** no more crash (`ForegroundServiceStartNotAllowedException`) when Android restarts `MediaService` in the background, e.g. after the app process died during playback. Android 12+ refuses `startForeground` there; the service now keeps running without the foreground notification instead of taking the app down.

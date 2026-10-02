@@ -1343,18 +1343,18 @@ final class RmxAudioPlayer: NSObject {
     func activateAudioSession() {
         let avSession = AVAudioSession.sharedInstance()
 
-        // If no devices are connected, play audio through the default speaker (rather than the earpiece).
-        var options: AVAudioSession.CategoryOptions = .defaultToSpeaker
-
-        // If both Bluetooth streaming options are enabled, the low quality stream is preferred; enable A2DP only.
-        options.insert(.allowBluetoothA2DP)
-
+        // Match the video plugin: `.playback` uses the speaker and ignores the Ring/Silent
+        // switch. `.playAndRecord` routed to the earpiece (or went silent when muted), so
+        // FairPlay video looked fine while catalog listen appeared broken.
         do {
-            // Always set category first, even if session is already active
-            // This ensures we have the correct category after video player exits
-            try avSession.setCategory(.playAndRecord, options: options)
+            try avSession.setCategory(.playback, mode: .spokenAudio, options: [.allowBluetoothA2DP])
         } catch {
             print("Error setting category! \(error.localizedDescription)")
+            do {
+                try avSession.setCategory(.playback, options: [.allowBluetoothA2DP])
+            } catch {
+                print("Error setting playback category! \(error.localizedDescription)")
+            }
         }
 
         do {
