@@ -17,7 +17,7 @@ export interface PlaylistPlugin {
     addListener(eventName: 'status', listenerFunc: PlaylistStatusChangeCallback): Promise<PluginListenerHandle>;
 
     /**
-     * Subscribe to offline download progress (**Android only**).
+     * Subscribe to offline download progress (Android and iOS).
      *
      * @param eventName Must be `'download'`.
      * @param listenerFunc Callback receiving `{ downloadId, state, progress, error? }`.
@@ -47,10 +47,10 @@ export interface PlaylistPlugin {
      * Use `options.retainPosition` to keep the current track and playback position.
      *
      * Optional `drm` on items is additive: Android attaches Widevine through a
-     * host-registered provider (`AudioDrm.setProvider`). Without a provider the call
-     * is rejected with code `noProvider` and the previous queue is left unchanged.
-     * iOS and web reject with code `notSupported` (`DRM not supported on this platform yet`)
-     * and do not play. DRM playback errors use the existing `status` listener
+     * host-registered provider (`AudioDrm.setProvider`). iOS uses the host FairPlay
+     * `AudioDrm` provider. Without a provider the call is rejected with code
+     * `noProvider` and the previous queue is left unchanged. Web rejects with code
+     * `notSupported`. DRM playback errors use the existing `status` listener
      * (`RMXSTATUS_ERROR`) with `value.error` set to one of
      * `blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.
      */
@@ -61,7 +61,7 @@ export interface PlaylistPlugin {
      * When `index` is omitted the track is appended. Insertion does not interrupt playback
      * of the current track.
      *
-     * Items with `drm` follow the same provider / `notSupported` rules as `setPlaylistItems`.
+     * Items with `drm` follow the same provider / `noProvider` rules as `setPlaylistItems`.
      */
     addItem(options: AddItemOptions): Promise<void>;
 
@@ -74,7 +74,7 @@ export interface PlaylistPlugin {
      * Replace a track's metadata and source URL in place (e.g. stream URL → local file).
      * When replacing the currently playing track, playback position and play/pause state are preserved.
      *
-     * Items with `drm` follow the same provider / `notSupported` rules as `setPlaylistItems`.
+     * Items with `drm` follow the same provider / `noProvider` rules as `setPlaylistItems`.
      */
     replaceItem(options: ReplaceItemOptions): Promise<void>;
 
@@ -83,7 +83,7 @@ export interface PlaylistPlugin {
      * Raises one `RMXSTATUS_ITEM_ADDED` event per track.
      *
      * If any item has `drm` and cannot open, the whole call fails and the previous
-     * queue is left unchanged (same provider / `notSupported` rules as `setPlaylistItems`).
+     * queue is left unchanged (same provider / `noProvider` rules as `setPlaylistItems`).
      */
     addAllItems(options: AddAllItemOptions): Promise<void>;
 
@@ -202,11 +202,11 @@ export interface PlaylistPlugin {
     getLastKnownPosition(): Promise<GetLastKnownPositionResult>;
 
     /**
-     * **Android only.** Download a protected HLS lecture for offline playback. The host
-     * `AudioOfflineProvider` acquires the offline licence first; only then are segments fetched, so a
+     * Download a protected HLS lecture for offline playback (Android and iOS). The host
+     * `AudioOfflineProvider` acquires the offline licence first; only then is media fetched, so a
      * refused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the
      * outcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL
-     * reuses the segments already cached.
+     * reuses cached segments on Android; on iOS the partial asset is discarded and a new task starts.
      *
      * Rejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.
      * Web rejects `notSupported`.
@@ -214,25 +214,25 @@ export interface PlaylistPlugin {
     startDownload(options: StartDownloadOptions): Promise<{ downloadId: string }>;
 
     /**
-     * **Android only.** Cancel a non-completed download: removes cache, index entry, metadata and
+     * Cancel a non-completed download: removes cache/asset, index entry, metadata and
      * licence. A no-op for completed downloads (use `deleteDownload`).
      */
     cancelDownload(options: DownloadIdOptions): Promise<void>;
 
     /**
-     * **Android only.** Delete a download in any state: cache, index entry, metadata and licence
+     * Delete a download in any state: cache/asset, index entry, metadata and licence
      * are removed. Failures releasing the licence are ignored.
      */
     deleteDownload(options: DownloadIdOptions): Promise<void>;
 
     /**
-     * **Android only.** Renew the offline licence while online. On success `expiresAt` is refreshed;
-     * a refusal rejects with the typed error and (except `network`) moves the download to `expired`.
+     * Renew the offline licence while online. On success `expiresAt` is refreshed;
+     * a refusal rejects with the typed error and emits `expired` only when the provider state is expired.
      */
     renewDownload(options: RenewDownloadOptions): Promise<void>;
 
     /**
-     * **Android only.** All downloads with state, progress and estimated licence expiry.
+     * All downloads with state, progress and estimated licence expiry.
      */
     listDownloads(): Promise<{ downloads: DownloadInfo[] }>;
 }

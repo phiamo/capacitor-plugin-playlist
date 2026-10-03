@@ -68,7 +68,8 @@ final class AudioDrmTests: XCTestCase {
             AudioDrm.errorNotEntitled,
             AudioDrm.errorExpired,
             AudioDrm.errorNetwork,
-            AudioDrm.errorUnknown
+            AudioDrm.errorUnknown,
+            AudioDrm.errorOfflineDeviceLimit
         ] {
             XCTAssertEqual(AudioDrm.typedError(value), value)
         }
@@ -214,6 +215,7 @@ final class PlaylistPluginDrmNoProviderRejectionTests: XCTestCase {
 
     override func tearDown() {
         AudioDrm.setProvider(nil)
+        AudioOffline.setProvider(nil)
         super.tearDown()
     }
 
@@ -239,11 +241,33 @@ final class PlaylistPluginDrmNoProviderRejectionTests: XCTestCase {
         let pluginWithProvider = PlaylistPlugin()
         XCTAssertNil(pluginWithProvider.drmNoProviderRejection(for: [["trackId": "a"]]))
     }
+
+    func test_downloadId_noOfflineProvider_rejects() {
+        let plugin = PlaylistPlugin()
+        let refusal = plugin.drmNoProviderRejection(for: [["downloadId": "dl-1", "assetUrl": ""]])
+        XCTAssertEqual(refusal?.code, "noProvider")
+        XCTAssertEqual(refusal?.message, "Offline provider is not registered")
+    }
+
+    func test_downloadId_offlineProviderRegistered_returnsNil() {
+        AudioOffline.setProvider(FakeAudioOfflineProvider())
+        let plugin = PlaylistPlugin()
+        XCTAssertNil(plugin.drmNoProviderRejection(for: [["downloadId": "dl-1"]]))
+    }
+
+    func test_downloadId_doesNotRequireAudioDrmProvider() {
+        AudioOffline.setProvider(FakeAudioOfflineProvider())
+        let plugin = PlaylistPlugin()
+        XCTAssertNil(plugin.drmNoProviderRejection(for: [[
+            "downloadId": "dl-1",
+            "drm": ["playbackSessionId": "sess-1"]
+        ]]))
+    }
 }
 
 // MARK: - Fakes
 
-private final class FakeAudioDrmProvider: AudioDrmProvider {
+final class FakeAudioDrmProvider: AudioDrmProvider {
     let factory: (JSObject, @escaping (String) -> Void) -> AudioDrmSession
 
     init(_ factory: @escaping (JSObject, @escaping (String) -> Void) -> AudioDrmSession) {
@@ -255,7 +279,7 @@ private final class FakeAudioDrmProvider: AudioDrmProvider {
     }
 }
 
-private final class FakeAudioDrmSession: AudioDrmSession {
+final class FakeAudioDrmSession: AudioDrmSession {
     var onError: ((String) -> Void)?
     var attachedAsset: AVURLAsset?
     var startCalled = false

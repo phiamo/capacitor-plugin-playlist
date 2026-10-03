@@ -92,11 +92,13 @@ Provider errors arrive on the existing `status` listener as `RMXSTATUS_ERROR` wi
 | `network` | License or token server unreachable | Retry with backoff |
 | `unknown` | Anything else | Log and show a generic error |
 
-## Offline downloads (Android)
+## Offline downloads (Android and iOS)
 
-Protected HLS audio (`audio.m3u8`, Widevine) can be downloaded and played offline, in the background and on the lock screen. The plugin owns the segment download (Media3 `DownloadManager` / `DownloadService` beside `MediaService`) and the playback from the download cache. **Licences, renewal and subtitles are delegated to a host `AudioOfflineProvider`**; the plugin never imports drm-kit. iOS is not supported yet (Story 59.5); web rejects `notSupported`.
+Protected HLS audio (`audio.m3u8`) can be downloaded and played offline, in the background and on the lock screen. **Android** uses Widevine via Media3 `DownloadManager` / `DownloadService`; **iOS** uses FairPlay via `AVAssetDownloadURLSession`. The plugin owns the media download and local playback. **Licences, renewal and subtitles are delegated to a host `AudioOfflineProvider`**; the plugin never imports drm-kit. Web rejects `notSupported`.
 
 ### Register the offline provider
+
+**Android** — once, from your `Application` class:
 
 ```java
 @UnstableApi
@@ -135,7 +137,55 @@ class MyOfflineProvider(private val kit: OfflineLicenseManager, private val endp
 }
 ```
 
+**iOS** — once, from `AppDelegate`'s `application(_:didFinishLaunchingWithOptions:)`:
+
+```swift
+import PlaylistPlugin
+
+AudioOffline.setProvider(MyFairPlayOfflineProvider())
+```
+
+| Method | Purpose |
+|---|---|
+| `acquire(downloadId, keyIdentifier, drm) -> String?` | Fetch + persist the persistable FairPlay key. Runs off the main thread, **before any media is fetched**. `keyIdentifier` is the playlist's `skd://` URI. |
+| `needsRenewal(downloadId)` | Quick, local. |
+| `renew(downloadId, drm) -> String?` | Renew online. |
+| `release(downloadId)` | Drop licence and encrypted subtitles. Failures are ignored. |
+| `state(downloadId)` | `none` \| `active` \| `expired`. Quick, local. |
+| `attachOffline(downloadId, asset)` | Answer the local asset's key requests from the stored persistable key. Call before the player item loads. |
+
+Adapter sketch over drm-kit's `FairPlayOfflineLicenseManager` (host wiring is Story 59.6):
+
+```swift
+final class MyFairPlayOfflineProvider: AudioOfflineProvider {
+    let kit: FairPlayOfflineLicenseManager
+    func acquire(downloadId: String, keyIdentifier: String, drm: JSObject) -> String? {
+        // kit.acquire(downloadId:keyIdentifier:endpoints:) — map result.error?.rawValue
+        nil
+    }
+    func needsRenewal(downloadId: String) -> Bool { kit.needsRenewal(downloadId: downloadId) }
+    func renew(downloadId: String, drm: JSObject?) -> String? { /* kit.renew */ nil }
+    func release(downloadId: String) { Task { await kit.release(downloadId: downloadId) } }
+    func state(downloadId: String) -> String { kit.state(downloadId: downloadId).rawValue } // none | active | expired
+    func attachOffline(downloadId: String, asset: AVURLAsset) {
+        kit.addOfflinePlaybackRecipient(asset) // before AVPlayerItem is built
+    }
+}
+```
+
 Map drm-kit's error names to the discriminators if they differ; anything unknown becomes `unknown`.
+
+Also forward the plugin-owned background session (Story 59.6 wires this in the host app):
+
+```swift
+func application(_ application: UIApplication,
+                 handleEventsForBackgroundURLSession identifier: String,
+                 completionHandler: @escaping () -> Void) {
+    AudioOffline.handleEventsForBackgroundURLSession(identifier, completionHandler: completionHandler)
+}
+```
+
+The session identifier is `AudioOffline.backgroundSessionIdentifier` (`org.dwbn.plugins.playlist.offline`).
 
 ### API
 
@@ -152,18 +202,19 @@ await Playlist.deleteDownload({ downloadId: 'dl-42' });  // any state
 await Playlist.addItem({ item: { trackId: 'talk-42', downloadId: 'dl-42', assetUrl: '', title: 'Talk 42', artist: '', album: '' } });
 ```
 
-- `startDownload` resolves once the request is accepted; everything else is reported on `download`. It rejects `noProvider` when no provider is registered.
-- Order: prepare HLS → first track `Format` with `drmInitData` → `provider.acquire` → enqueue segments. The playlist must therefore expose the PSSH to the downloader, via `#EXT-X-SESSION-KEY` in the multivariant playlist (the DWBN backend publishes the Widevine key there for every audio package since Story 59.4a; older packages need the `app:drm:backfill-session-key` backfill); without a format carrying `drmInitData` the download fails with `unknown`.
-- A segment `403` (signed URL expired) ends in `failed`. Call `startDownload` again with a fresh URL: cached segments are reused (the cache key ignores the URL query).
+- `startDownload` resolves once the request is accepted; everything else is reported on the `download` listener. It rejects `noProvider` when no provider is registered. Progress ticks are not retained; terminal states (`queued` / `completed` / `failed` / `expired`) are.
+- **Android** order: prepare HLS → first track `Format` with `drmInitData` → `provider.acquire` → enqueue segments. The playlist must therefore expose the PSSH to the downloader, via `#EXT-X-SESSION-KEY` in the multivariant playlist (the DWBN backend publishes the Widevine key there for every audio package since Story 59.4a; older packages need the `app:drm:backfill-session-key` backfill); without a format carrying `drmInitData` the download fails with `unknown`.
+- **iOS** order: read FairPlay `skd://` from the remote HLS → `provider.acquire(downloadId, keyIdentifier, drm)` off the main thread → only then start `AVAssetDownloadURLSession.makeAssetDownloadTask(downloadConfiguration:)`. No identifier → `unknown`. Prepare I/O → `network`. FairPlay does not run in Simulator.
+- A segment `403` (signed URL expired) ends in `failed`. Call `startDownload` again with a fresh URL: **Android** reuses cached segments (the cache key ignores the URL query); **iOS** starts a new task and discards partial media.
 - `expiresAt` (epoch ms) is the last successful acquire/renew **+ 27 days**. The exact CDM remaining time is not read.
-- A refused `renewDownload` rejects with the typed error and moves the download to `expired` (except `network`).
-- Playing an item with `downloadId` whose provider `state` is `expired` emits the existing `expired` status error and does not play. Streaming items are unchanged.
-- The plugin creates no plaintext audio or subtitle files. `deleteDownload` removes cache, index entry, metadata and calls `provider.release`.
-- Mobile-data policy (Wi-Fi only etc.) is the app's concern. The download service runs as a `dataSync` foreground service (permission `FOREGROUND_SERVICE_DATA_SYNC` is declared in the plugin manifest; the app should request `POST_NOTIFICATIONS` on Android 13+).
+- A refused `renewDownload` rejects with the typed error and emits `expired` only when the provider's state for that download is actually `expired`.
+- Playing an item with `downloadId` whose provider `state` is `expired` emits the existing `expired` status error and does not play. Streaming items are unchanged. Queue mutations of `downloadId` items without a provider reject `noProvider` and leave the queue unchanged.
+- The plugin creates no plaintext audio or subtitle files. `deleteDownload` removes the asset, index entry, metadata and calls `provider.release`. `cancelDownload` does the same for non-completed downloads and is a no-op once completed. A completed `startDownload` is idempotent; a second pending `start` is ignored.
+- Mobile-data policy (Wi-Fi only etc.) is the app's concern. Android's download service runs as a `dataSync` foreground service (permission `FOREGROUND_SERVICE_DATA_SYNC` is declared in the plugin manifest; the app should request `POST_NOTIFICATIONS` on Android 13+).
 
 ### Backup exclusion
 
-Cache, download index and plugin metadata live under `Context.getNoBackupFilesDir()/offline/`, which Android excludes from backup and device transfer. Make sure your own rules do not re-include it, and exclude the provider's own licence/subtitle storage:
+**Android:** cache, download index and plugin metadata live under `Context.getNoBackupFilesDir()/offline/`, which Android excludes from backup and device transfer. Make sure your own rules do not re-include it, and exclude the provider's own licence/subtitle storage:
 
 ```xml
 <!-- res/xml/data_extraction_rules.xml (Android 12+) -->
@@ -179,8 +230,10 @@ Cache, download index and plugin metadata live under `Context.getNoBackupFilesDi
 </full-backup-content>
 ```
 
+**iOS:** media, index and plugin metadata live under Application Support `org.dwbn.plugins.playlist.offline/` with `isExcludedFromBackup`. drm-kit's own keys and encrypted subtitles live in Application Support `drm-kit/` (also excluded from backup). Do not re-include those directories in a custom backup.
+
 ### Manual device checks
 
-On a real device (Pixel 7a preferred): download a protected lecture, switch to airplane mode, play it, lock the screen and confirm lock-screen controls and background playback. Confirm there is no `.mp3` / `.vtt` file and nothing outside `noBackupFilesDir`. Check expiry (`state(...) = expired` refuses playback) and renewal.
+On a real device (Pixel 7a / physical iPhone): download a protected lecture, switch to airplane mode, play it, lock the screen and confirm lock-screen controls and background playback. Confirm there is no `.mp3` / `.vtt` file. On Android nothing should sit outside `noBackupFilesDir`; on iOS the offline directory should have `isExcludedFromBackup`. Check expiry (`state(...) = expired` refuses playback) and renewal. FairPlay will not run in Simulator.
 
 For switching between protected audio and video, see [Handoff with DRM](./video-handoff.md#handoff-with-drm).

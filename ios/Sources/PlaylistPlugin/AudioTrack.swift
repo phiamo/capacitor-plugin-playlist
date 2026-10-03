@@ -15,6 +15,9 @@ final class AudioTrack: AVPlayerItem {
     var artist: String?
     var album: String?
     var title: String?
+    /// Id of a completed offline download (Story 59.5). When set, the item plays the local asset
+    /// with the host provider's offline licence; `assetUrl` is unused for playback.
+    var downloadId: String?
     /// Last known playback position for this track, in seconds. Seeded from the JS-supplied
     /// `startPosition` at construction, and kept fresh by `AVBidirectionalQueuePlayer` whenever
     /// the player skips away from this track, so a later skip back within the same session
@@ -34,19 +37,31 @@ final class AudioTrack: AVPlayerItem {
         guard
             let trackInfo = trackInfo,
             let trackId = trackInfo["trackId"] as? String,
-            !trackId.isEmpty,
-            let assetUrlString = trackInfo["assetUrl"] as? String,
-            let assetUrl = URL(string: assetUrlString)
+            !trackId.isEmpty
         else {
+            return nil
+        }
+
+        let downloadId = Self.parseDownloadId(trackInfo)
+        let assetUrl = Self.resolveAssetURL(trackInfo, downloadId: downloadId)
+        guard let assetUrl else {
             return nil
         }
 
         // Build an explicit AVURLAsset so a registered DRM session can be attached before any
         // AVPlayerItem is constructed from it (Story 58.5) -- AVPlayerItem(url:)'s implicit
-        // asset can't be attached to ahead of time.
+        // asset can't be attached to ahead of time. Offline items call `attachOffline` first
+        // (FairPlay binds to the asset; empty `assetUrl` is ok).
         let asset = AVURLAsset(url: assetUrl)
         var openedSession: AudioDrmSession?
-        if let drm = trackInfo["drm"] as? JSObject {
+        if let downloadId {
+            let expired = AudioOffline.getProvider().map {
+                AudioOffline.stateOf($0, downloadId: downloadId) == AudioOffline.stateExpired
+            } ?? false
+            if !expired {
+                AudioOffline.attachOffline(downloadId: downloadId, asset: asset)
+            }
+        } else if let drm = trackInfo["drm"] as? JSObject {
             let attempt = AudioDrm.open(drm) { error in
                 onDrmError?(trackId, error)
             }
@@ -75,6 +90,7 @@ final class AudioTrack: AVPlayerItem {
         
         track.trackId = trackId
         track.assetUrl = assetUrl
+        track.downloadId = downloadId
         track.artist = trackInfo["artist"] as? String
         track.album = trackInfo["album"] as? String
         track.title = trackInfo["title"] as? String
@@ -90,7 +106,7 @@ final class AudioTrack: AVPlayerItem {
     }
 
     func toDict() -> [String : Any]? {
-        [
+        var info: [String: Any] = [
             "isStream": NSNumber(value: isStream),
             "trackId": trackId ?? "",
             "assetUrl": assetUrl?.absoluteString ?? "",
@@ -100,6 +116,29 @@ final class AudioTrack: AVPlayerItem {
             "title": title ?? "",
             "startPosition": NSNumber(value: startPositionSeconds)
         ]
+        if let downloadId {
+            info["downloadId"] = downloadId
+        }
+        return info
+    }
+
+    private class func parseDownloadId(_ trackInfo: [String: Any]) -> String? {
+        guard let raw = trackInfo["downloadId"] else { return nil }
+        if raw is NSNull { return nil }
+        let id = (raw as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return id.isEmpty ? nil : id
+    }
+
+    private class func resolveAssetURL(_ trackInfo: [String: Any], downloadId: String?) -> URL? {
+        if let downloadId, let local = OfflineDownloads.shared.localAssetURL(downloadId) {
+            return local
+        }
+        if let assetUrlString = trackInfo["assetUrl"] as? String,
+           !assetUrlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let url = URL(string: assetUrlString) {
+            return url
+        }
+        return nil
     }
 
     deinit {

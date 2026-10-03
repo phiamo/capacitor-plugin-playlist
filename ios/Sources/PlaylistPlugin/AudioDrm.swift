@@ -42,6 +42,8 @@ public final class AudioDrm {
     public static let errorExpired = "expired"
     public static let errorNetwork = "network"
     public static let errorUnknown = "unknown"
+    /// Offline licence refused because the user already holds licences on the maximum number of devices.
+    public static let errorOfflineDeviceLimit = "offlineDeviceLimit"
 
     private static let lock = NSLock()
     private static var _provider: AudioDrmProvider?
@@ -100,7 +102,8 @@ public final class AudioDrm {
 
     public static func typedError(_ error: String) -> String {
         switch error {
-        case errorBlockedByStreamLimit, errorNotEntitled, errorExpired, errorNetwork, errorUnknown:
+        case errorBlockedByStreamLimit, errorNotEntitled, errorExpired, errorNetwork,
+             errorUnknown, errorOfflineDeviceLimit:
             return error
         default:
             return errorUnknown

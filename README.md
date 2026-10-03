@@ -1,6 +1,6 @@
 # @dwbn/capacitor-plugin-playlist
 
-Native audio playlists for Capacitor on **Android**, **iOS** and **Web**. Supports background playback, lock-screen and notification controls, a clean handoff to native video, and Widevine DRM on Android.
+Native audio playlists for Capacitor on **Android**, **iOS** and **Web**. Supports background playback, lock-screen and notification controls, a clean handoff to native video, Widevine DRM on Android, FairPlay DRM on iOS, and offline downloads of protected HLS audio on both native platforms.
 
 [![npm](https://img.shields.io/npm/v/@dwbn/capacitor-plugin-playlist?style=flat-square)](https://www.npmjs.com/package/@dwbn/capacitor-plugin-playlist)
 [![CI](https://img.shields.io/github/actions/workflow/status/phiamo/capacitor-plugin-playlist/release-package.yml?branch=main&style=flat-square)](https://github.com/phiamo/capacitor-plugin-playlist/actions/workflows/release-package.yml)
@@ -30,7 +30,8 @@ The plugins work on their own. drm-kit is optional and is added by the **app**, 
 | Lock screen / notification | ✅ MediaStyle notification | ✅ Now Playing / Control Center | Browser media controls |
 | HLS | ✅ | ✅ | ✅ with hls.js |
 | Video handoff | ✅ (with optional prewarm) | ✅ | stub (pause + position) |
-| DRM | ✅ Widevine via [drm-kit](./docs/drm.md) | planned (FairPlay) | — |
+| DRM | ✅ Widevine via [drm-kit](./docs/drm.md) | ✅ FairPlay via [drm-kit](./docs/drm.md) | — |
+| Offline downloads | ✅ Widevine HLS | ✅ FairPlay HLS | — |
 | Minimum | SDK 24 | iOS 15 | modern browsers |
 
 Requires **Capacitor 8** (`@capacitor/core >= 8.0.0`).

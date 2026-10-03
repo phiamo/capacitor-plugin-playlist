@@ -73,7 +73,7 @@ Subscribe to native playback status events (track changes, position, errors, etc
 addListener(eventName: 'download', listenerFunc: (event: DownloadEvent) => void) => Promise<PluginListenerHandle>
 ```
 
-Subscribe to offline download progress (**Android only**).
+Subscribe to offline download progress (Android and iOS).
 
 | Param              | Type                                                                        | Description                                                   |
 | ------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------- |
@@ -504,11 +504,11 @@ or passed to `resumeAfterVideoHandoff`.
 startDownload(options: StartDownloadOptions) => Promise<{ downloadId: string; }>
 ```
 
-**Android only.** Download a protected HLS lecture for offline playback. The host
-`AudioOfflineProvider` acquires the offline licence first; only then are segments fetched, so a
+Download a protected HLS lecture for offline playback (Android and iOS). The host
+`AudioOfflineProvider` acquires the offline licence first; only then is media fetched, so a
 refused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the
 outcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL
-reuses the segments already cached.
+reuses cached segments on Android; on iOS the partial asset is discarded and a new task starts.
 
 Rejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.
 Web rejects `notSupported`.
@@ -528,7 +528,7 @@ Web rejects `notSupported`.
 cancelDownload(options: DownloadIdOptions) => Promise<void>
 ```
 
-**Android only.** Cancel a non-completed download: removes cache, index entry, metadata and
+Cancel a non-completed download: removes cache/asset, index entry, metadata and
 licence. A no-op for completed downloads (use `deleteDownload`).
 
 | Param         | Type                                                            |
@@ -544,7 +544,7 @@ licence. A no-op for completed downloads (use `deleteDownload`).
 deleteDownload(options: DownloadIdOptions) => Promise<void>
 ```
 
-**Android only.** Delete a download in any state: cache, index entry, metadata and licence
+Delete a download in any state: cache/asset, index entry, metadata and licence
 are removed. Failures releasing the licence are ignored.
 
 | Param         | Type                                                            |
@@ -560,8 +560,8 @@ are removed. Failures releasing the licence are ignored.
 renewDownload(options: RenewDownloadOptions) => Promise<void>
 ```
 
-**Android only.** Renew the offline licence while online. On success `expiresAt` is refreshed;
-a refusal rejects with the typed error and (except `network`) moves the download to `expired`.
+Renew the offline licence while online. On success `expiresAt` is refreshed;
+a refusal rejects with the typed error and emits `expired` only when the provider state is expired.
 
 | Param         | Type                                                                  |
 | ------------- | --------------------------------------------------------------------- |
@@ -576,7 +576,7 @@ a refusal rejects with the typed error and (except `network`) moves the download
 listDownloads() => Promise<{ downloads: DownloadInfo[]; }>
 ```
 
-**Android only.** All downloads with state, progress and estimated licence expiry.
+All downloads with state, progress and estimated licence expiry.
 
 **Returns:** <code>Promise&lt;{ downloads: DownloadInfo[]; }&gt;</code>
 
@@ -661,7 +661,7 @@ An audio track for playback by the playlist.
 | **`title`**         | <code>string</code>                                                   | Title of the track                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | **`startPosition`** | <code>number</code>                                                   | Last known playback position to resume from, in seconds, when this track becomes current via a native skip-to-next/previous (e.g. OS notification, headset button, Android Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0.                                                                                                                                                                                                           |
 | **`drm`**           | <code><a href="#audiotrackdrmoptions">AudioTrackDrmOptions</a></code> | Optional DRM descriptor fields (API names). Android attaches Widevine, and iOS attaches FairPlay (Story 58.5), through a host-registered provider. Token URL, heartbeat URL, and Bearer live on that provider, not here. Web still refuses items that set this.                                                                                                                                                                                                   |
-| **`downloadId`**    | <code>string</code>                                                   | **Android only.** Id of a completed offline download (see `startDownload`). The item plays from the download cache with the host provider's offline licence; `assetUrl` is not used for playback. If the licence has expired, playback is refused with the `expired` error. Web refuses items that set this.                                                                                                                                                      |
+| **`downloadId`**    | <code>string</code>                                                   | Id of a completed offline download (see `startDownload`). The item plays from the local download (Android cache / iOS `AVAssetDownload` asset) with the host provider's offline licence; `assetUrl` is not used for playback. If the licence has expired, playback is refused with the `expired` error. Web refuses items that set this.                                                                                                                          |
 
 
 #### AudioTrackDrmOptions
@@ -891,12 +891,12 @@ that were in the previous list.
 
 #### StartDownloadOptions
 
-| Prop             | Type                                                                  | Description                                                                                              |
-| ---------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| **`downloadId`** | <code>string</code>                                                   | Stable id chosen by the app; also the id later set as <a href="#audiotrack">`AudioTrack.downloadId`</a>. |
-| **`url`**        | <code>string</code>                                                   | HLS playlist (`audio.m3u8`). May be re-signed on a resumed start; cached segments are reused.            |
-| **`mimeType`**   | <code>string</code>                                                   | Defaults to HLS (`application/x-mpegURL`).                                                               |
-| **`drm`**        | <code><a href="#audiotrackdrmoptions">AudioTrackDrmOptions</a></code> | Descriptor handed to the host provider's `acquire`.                                                      |
+| Prop             | Type                                                                  | Description                                                                                                                                         |
+| ---------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`downloadId`** | <code>string</code>                                                   | Stable id chosen by the app; also the id later set as <a href="#audiotrack">`AudioTrack.downloadId`</a>.                                            |
+| **`url`**        | <code>string</code>                                                   | HLS playlist (`audio.m3u8`). May be re-signed on a resumed start. Android reuses cached segments; iOS starts a new task and discards partial media. |
+| **`mimeType`**   | <code>string</code>                                                   | Defaults to HLS (`application/x-mpegURL`).                                                                                                          |
+| **`drm`**        | <code><a href="#audiotrackdrmoptions">AudioTrackDrmOptions</a></code> | Descriptor handed to the host provider's `acquire`.                                                                                                 |
 
 
 #### DownloadIdOptions

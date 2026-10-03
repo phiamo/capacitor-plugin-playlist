@@ -459,7 +459,10 @@ final class RmxAudioPlayer: NSObject {
         }
 
             print( "music-controls-play ")
-        
+
+        if refuseIfOfflineExpired(avQueuePlayer.currentAudioTrack) {
+            return
+        }
         avQueuePlayer.play()
     }
 
@@ -683,7 +686,9 @@ final class RmxAudioPlayer: NSObject {
             // Native loop restart, not an explicit JS track selection — resume track 0 at its
             // saved position, matching advanceToNextItem's wraparound.
             avQueuePlayer.setCurrentIndex(0, completionHandler: { _ in }, resumeAtSavedPosition: true)
-            avQueuePlayer.play()
+            if !refuseIfOfflineExpired(avQueuePlayer.currentAudioTrack) {
+                avQueuePlayer.play()
+            }
         }
     }
 
@@ -714,7 +719,9 @@ final class RmxAudioPlayer: NSObject {
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
             if options.contains(.shouldResume) {
                 if wasPlayingInterrupted {
-                    avQueuePlayer.play()
+                    if !refuseIfOfflineExpired(avQueuePlayer.currentAudioTrack) {
+                        avQueuePlayer.play()
+                    }
                 }
             } else {
                 // Interruption ended. Playback should not resume.
@@ -1017,6 +1024,10 @@ final class RmxAudioPlayer: NSObject {
         
         print("Update Track changed: \(info)")
         onStatus(.rmxstatus_TRACK_CHANGED, trackId: trackId, param: info)
+
+        if let playerItem, refuseIfOfflineExpired(playerItem) {
+            return
+        }
 
         if avQueuePlayer.isAtEnd && avQueuePlayer.currentItem == nil {
             if !loop {
@@ -1424,6 +1435,20 @@ final class RmxAudioPlayer: NSObject {
     /// (`rmxstatus_ERROR`), for a `AudioTrack` DRM session opened via `AudioDrm`.
     func reportDrmError(trackId: String, error: String) {
         onStatus(.rmxstatus_ERROR, trackId: trackId, param: createDrmError(error))
+    }
+
+    /// Offline items whose provider `state` is `expired` never play: emit the existing DRM
+    /// `expired` error and do not start playback. Streaming items are unchanged.
+    @discardableResult
+    func refuseIfOfflineExpired(_ track: AudioTrack?) -> Bool {
+        guard let downloadId = track?.downloadId else { return false }
+        guard let provider = AudioOffline.getProvider() else { return false }
+        guard AudioOffline.stateOf(provider, downloadId: downloadId) == AudioOffline.stateExpired else {
+            return false
+        }
+        avQueuePlayer.pause()
+        reportDrmError(trackId: track?.trackId ?? downloadId, error: AudioDrm.errorExpired)
+        return true
     }
 
     func onStatus(_ what: RmxAudioStatusMessage, trackId: String?, param: [String:Any]?) {

@@ -64,7 +64,7 @@
             "text": "listenerFunc Callback receiving `{ downloadId, state, progress, error? }`."
           }
         ],
-        "docs": "Subscribe to offline download progress (**Android only**).",
+        "docs": "Subscribe to offline download progress (Android and iOS).",
         "complexTypes": [
           "PluginListenerHandle",
           "DownloadEvent"
@@ -494,7 +494,7 @@
         ],
         "returns": "Promise<{ downloadId: string; }>",
         "tags": [],
-        "docs": "**Android only.** Download a protected HLS lecture for offline playback. The host\n`AudioOfflineProvider` acquires the offline licence first; only then are segments fetched, so a\nrefused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the\noutcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL\nreuses the segments already cached.\n\nRejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.\nWeb rejects `notSupported`.",
+        "docs": "Download a protected HLS lecture for offline playback (Android and iOS). The host\n`AudioOfflineProvider` acquires the offline licence first; only then is media fetched, so a\nrefused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the\noutcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL\nreuses cached segments on Android; on iOS the partial asset is discarded and a new task starts.\n\nRejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.\nWeb rejects `notSupported`.",
         "complexTypes": [
           "StartDownloadOptions"
         ],
@@ -512,7 +512,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "**Android only.** Cancel a non-completed download: removes cache, index entry, metadata and\nlicence. A no-op for completed downloads (use `deleteDownload`).",
+        "docs": "Cancel a non-completed download: removes cache/asset, index entry, metadata and\nlicence. A no-op for completed downloads (use `deleteDownload`).",
         "complexTypes": [
           "DownloadIdOptions"
         ],
@@ -530,7 +530,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "**Android only.** Delete a download in any state: cache, index entry, metadata and licence\nare removed. Failures releasing the licence are ignored.",
+        "docs": "Delete a download in any state: cache/asset, index entry, metadata and licence\nare removed. Failures releasing the licence are ignored.",
         "complexTypes": [
           "DownloadIdOptions"
         ],
@@ -548,7 +548,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "**Android only.** Renew the offline licence while online. On success `expiresAt` is refreshed;\na refusal rejects with the typed error and (except `network`) moves the download to `expired`.",
+        "docs": "Renew the offline licence while online. On success `expiresAt` is refreshed;\na refusal rejects with the typed error and emits `expired` only when the provider state is expired.",
         "complexTypes": [
           "RenewDownloadOptions"
         ],
@@ -560,7 +560,7 @@
         "parameters": [],
         "returns": "Promise<{ downloads: DownloadInfo[]; }>",
         "tags": [],
-        "docs": "**Android only.** All downloads with state, progress and estimated licence expiry.",
+        "docs": "All downloads with state, progress and estimated licence expiry.",
         "complexTypes": [
           "DownloadInfo"
         ],
@@ -861,7 +861,7 @@
         {
           "name": "downloadId",
           "tags": [],
-          "docs": "**Android only.** Id of a completed offline download (see `startDownload`). The item plays from\nthe download cache with the host provider's offline licence; `assetUrl` is not used for\nplayback. If the licence has expired, playback is refused with the `expired` error.\nWeb refuses items that set this.",
+          "docs": "Id of a completed offline download (see `startDownload`). The item plays from\nthe local download (Android cache / iOS `AVAssetDownload` asset) with the host provider's\noffline licence; `assetUrl` is not used for playback. If the licence has expired, playback\nis refused with the `expired` error. Web refuses items that set this.",
           "complexTypes": [],
           "type": "string | undefined"
         }
@@ -1536,7 +1536,7 @@
         {
           "name": "url",
           "tags": [],
-          "docs": "HLS playlist (`audio.m3u8`). May be re-signed on a resumed start; cached segments are reused.",
+          "docs": "HLS playlist (`audio.m3u8`). May be re-signed on a resumed start. Android reuses cached segments; iOS starts a new task and discards partial media.",
           "complexTypes": [],
           "type": "string"
         },

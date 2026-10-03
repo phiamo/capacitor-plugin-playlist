@@ -159,10 +159,10 @@ export interface AudioTrack {
      */
     drm?: AudioTrackDrmOptions;
     /**
-     * **Android only.** Id of a completed offline download (see `startDownload`). The item plays from
-     * the download cache with the host provider's offline licence; `assetUrl` is not used for
-     * playback. If the licence has expired, playback is refused with the `expired` error.
-     * Web refuses items that set this.
+     * Id of a completed offline download (see `startDownload`). The item plays from
+     * the local download (Android cache / iOS `AVAssetDownload` asset) with the host provider's
+     * offline licence; `assetUrl` is not used for playback. If the licence has expired, playback
+     * is refused with the `expired` error. Web refuses items that set this.
      */
     downloadId?: string;
 }
@@ -201,7 +201,7 @@ export interface DownloadInfo {
 export interface StartDownloadOptions {
     /** Stable id chosen by the app; also the id later set as `AudioTrack.downloadId`. */
     downloadId: string;
-    /** HLS playlist (`audio.m3u8`). May be re-signed on a resumed start; cached segments are reused. */
+    /** HLS playlist (`audio.m3u8`). May be re-signed on a resumed start. Android reuses cached segments; iOS starts a new task and discards partial media. */
     url: string;
     /** Defaults to HLS (`application/x-mpegURL`). */
     mimeType?: string;

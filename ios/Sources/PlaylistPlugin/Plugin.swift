@@ -40,6 +40,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         CAPPluginMethod(name: "prepareForVideoHandoff", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "resumeAfterVideoHandoff", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getLastKnownPosition", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "startDownload", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "cancelDownload", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "deleteDownload", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "renewDownload", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "listDownloads", returnType: CAPPluginReturnPromise),
     ]
     let audioPlayerImpl = RmxAudioPlayer()
     
@@ -297,7 +302,83 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         call.resolve(["position": position])
     }
 
+    // MARK: - Offline downloads (Story 59.5)
+
+    @objc func startDownload(_ call: CAPPluginCall) {
+        let downloadId = call.getString("downloadId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let url = call.getString("url")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let drm = call.getObject("drm")
+        if downloadId.isEmpty || url.isEmpty || drm == nil {
+            call.reject("downloadId, url and drm are required", "invalidArgument")
+            return
+        }
+        let failure = OfflineDownloads.shared.start(downloadId: downloadId, url: url, drm: drm)
+        if let failure {
+            call.reject("Offline provider is not registered", failure)
+            return
+        }
+        call.resolve(["downloadId": downloadId])
+    }
+
+    @objc func cancelDownload(_ call: CAPPluginCall) {
+        let downloadId = call.getString("downloadId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if downloadId.isEmpty {
+            call.reject("downloadId is required", "invalidArgument")
+            return
+        }
+        OfflineDownloads.shared.cancel(downloadId)
+        call.resolve()
+    }
+
+    @objc func deleteDownload(_ call: CAPPluginCall) {
+        let downloadId = call.getString("downloadId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if downloadId.isEmpty {
+            call.reject("downloadId is required", "invalidArgument")
+            return
+        }
+        OfflineDownloads.shared.delete(downloadId)
+        call.resolve()
+    }
+
+    @objc func renewDownload(_ call: CAPPluginCall) {
+        let downloadId = call.getString("downloadId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if downloadId.isEmpty {
+            call.reject("downloadId is required", "invalidArgument")
+            return
+        }
+        OfflineDownloads.shared.renew(downloadId, drm: call.getObject("drm")) { failure in
+            DispatchQueue.main.async {
+                if let failure {
+                    call.reject("Offline licence renewal failed", failure)
+                } else {
+                    call.resolve()
+                }
+            }
+        }
+    }
+
+    @objc func listDownloads(_ call: CAPPluginCall) {
+        let items: [[String: Any]] = OfflineDownloads.shared.list().map { info in
+            var entry: [String: Any] = [
+                "downloadId": info.downloadId,
+                "state": info.state,
+                "progress": Double(info.progress),
+                "needsRenewal": info.needsRenewal
+            ]
+            if let expiresAt = info.expiresAt {
+                entry["expiresAt"] = expiresAt
+            } else {
+                entry["expiresAt"] = NSNull()
+            }
+            return entry
+        }
+        call.resolve(["downloads": items])
+    }
+
     public override func load() {
+        OfflineDownloads.shared.eventSink = { [weak self] event in
+            self?.emitDownload(event)
+        }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applicationWillResignActive),
@@ -325,6 +406,25 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     func onStatus(_ data: [String: Any]) {
         notifyListeners("status", data: data)
     }
+
+    func emitDownload(_ event: DownloadEvent) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            var data: [String: Any] = [
+                "downloadId": event.downloadId,
+                "state": event.state,
+                "progress": Double(event.progress)
+            ]
+            if let error = event.error {
+                data["error"] = error
+            }
+            self.notifyListeners(
+                "download",
+                data: data,
+                retainUntilConsumed: event.state != DownloadStates.downloading
+            )
+        }
+    }
         
     // MARK: - Utility
     func createTracks(_ items: [[String: Any]]?) -> [AudioTrack] {
@@ -345,22 +445,29 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         return newList;
     }
 
-    /// Reject `drm` items when no provider is registered (Story 58.5), matching Android's exact
-    /// reject message: `PlaylistPlugin.kt`'s `call.reject("DRM provider is not registered", failure)`.
-    /// A pure presence/registration check -- never opens a session itself (opening happens once,
-    /// in `AudioTrack.initWithDictionary`, to avoid a duplicate/wasted session open here).
+    /// Reject `drm` items when no `AudioDrm` provider is registered (Story 58.5), and `downloadId`
+    /// items when no `AudioOffline` provider is registered (Story 59.5). `drm` still uses
+    /// `AudioDrm`; `downloadId` uses `AudioOffline`. Queue is left unchanged by the caller.
     func drmNoProviderRejection(for items: [[String: Any]]) -> (code: String, message: String)? {
         drmNoProviderRejection(for: items.map { Optional($0) })
     }
 
     func drmNoProviderRejection(for items: [[String: Any]?]) -> (code: String, message: String)? {
-        guard AudioDrm.getProvider() == nil else {
-            return nil
+        func downloadId(of item: [String: Any]?) -> String? {
+            guard let raw = item?["downloadId"], !(raw is NSNull) else { return nil }
+            let id = (raw as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return id.isEmpty ? nil : id
         }
-        guard items.contains(where: { $0?["drm"] != nil }) else {
-            return nil
+        if items.contains(where: { downloadId(of: $0) != nil }) && AudioOffline.getProvider() == nil {
+            return (AudioDrm.codeNoProvider, "Offline provider is not registered")
         }
-        return (AudioDrm.codeNoProvider, "DRM provider is not registered")
+        let needsStreamingDrm = items.contains { item in
+            item?["drm"] != nil && downloadId(of: item) == nil
+        }
+        if needsStreamingDrm && AudioDrm.getProvider() == nil {
+            return (AudioDrm.codeNoProvider, "DRM provider is not registered")
+        }
+        return nil
     }
 
 }

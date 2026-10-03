@@ -105,7 +105,7 @@ await player.play();
 - Set `mimeType` only when the URL has no usable extension and the type can't be inferred, e.g.
   `mimeType: 'application/x-mpegURL'` for an HLS playlist behind an extensionless URL
 - `albumArt` shown in notification / lock screen (Glide on Android)
-- No built-in download manager — resolve offline paths in your app and pass them as `assetUrl`
+- Protected HLS lectures can be downloaded for offline playback on Android and iOS (`startDownload` / `downloadId` items). See [Protected playback (DRM)](./drm.md#offline-downloads-android-and-ios). Web has no offline playback.
 
 ### Status event stream
 
