@@ -28,6 +28,7 @@ import org.dwbn.plugins.playlist.PlaylistRuntime
 import org.dwbn.plugins.playlist.handoff.VideoPlayerBridge
 import org.dwbn.plugins.playlist.manager.DrmTerminalLoadErrorPolicy
 import org.dwbn.plugins.playlist.manager.PlaylistManager
+import org.dwbn.plugins.playlist.offline.OfflineStorage
 
 /**
  * Media3 [MediaSessionService] hosting one [ExoPlayer] and one [MediaSession] for audio playlists.
@@ -99,7 +100,7 @@ class MediaService : MediaSessionService() {
             .setWakeMode(MediaNotificationPolicy.WAKE_MODE)
             .setStuckBufferingDetectionTimeoutMs(MediaNotificationPolicy.STUCK_BUFFERING_DETECTION_TIMEOUT_MS)
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(this)
+                createMediaSourceFactory()
                     .setDrmSessionManagerProvider(playlistManager.drmSessionManagerProvider())
                     .setLoadErrorHandlingPolicy(DrmTerminalLoadErrorPolicy { playlistManager.drmPlaybackHalted })
             )
@@ -148,6 +149,18 @@ class MediaService : MediaSessionService() {
         // the placeholder above keeps the first title forever (no artist, no track changes).
         addSession(session)
     }
+
+    /**
+     * Playback reads downloaded HLS from the offline cache (read-only, network only on a miss).
+     * A cache that cannot be opened must never break streaming, so fall back to the plain factory.
+     */
+    private fun createMediaSourceFactory(): DefaultMediaSourceFactory =
+        try {
+            DefaultMediaSourceFactory(OfflineStorage.playbackDataSourceFactory(this))
+        } catch (e: Exception) {
+            Log.w(TAG, "offline cache unavailable, streaming only: ${e.javaClass.simpleName}")
+            DefaultMediaSourceFactory(this)
+        }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
         return mediaSession

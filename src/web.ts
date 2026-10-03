@@ -19,7 +19,9 @@ import type {
     SetPlaybackRateOptions,
     SetPlaybackVolumeOptions
 } from './definitions';
-import type { AudioPlayerOptions, AudioTrack } from './interfaces';
+import type {
+    AudioPlayerOptions, AudioTrack, DownloadIdOptions, DownloadInfo, RenewDownloadOptions, StartDownloadOptions
+} from './interfaces';
 import { validateTrack, validateTracks } from './utils';
 
 declare let Hls: any;
@@ -307,6 +309,26 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
             return Promise.resolve();
         }
         return Promise.reject();
+    }
+
+    async startDownload(_options: StartDownloadOptions): Promise<{ downloadId: string }> {
+        throw offlineNotSupported();
+    }
+
+    async cancelDownload(_options: DownloadIdOptions): Promise<void> {
+        throw offlineNotSupported();
+    }
+
+    async deleteDownload(_options: DownloadIdOptions): Promise<void> {
+        throw offlineNotSupported();
+    }
+
+    async renewDownload(_options: RenewDownloadOptions): Promise<void> {
+        throw offlineNotSupported();
+    }
+
+    async listDownloads(): Promise<{ downloads: DownloadInfo[] }> {
+        throw offlineNotSupported();
     }
 
     async setPlaylistItems(options: PlaylistOptions): Promise<void> {
@@ -722,9 +744,16 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 }
 
+/** Offline downloads are native-only (Story 59.4); web rejects `notSupported`. */
+function offlineNotSupported(): Error & { code: string } {
+    const error = new Error('Offline downloads not supported on this platform') as Error & { code: string };
+    error.code = 'notSupported';
+    return error;
+}
+
 /** iOS/web refuse `drm` before creating a player (Story 57.5). */
 export function assertWebDrmNotSupported(items: Array<AudioTrack | null | undefined>): void {
-    if (items.some((item) => item != null && item.drm != null)) {
+    if (items.some((item) => item != null && (item.drm != null || item.downloadId != null))) {
         const error = new Error('DRM not supported on this platform yet') as Error & { code: string };
         error.code = 'notSupported';
         throw error;

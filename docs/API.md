@@ -7,6 +7,7 @@ Most apps use the `Playlist` object shown here. The Cordova-style `RmxAudioPlaye
 <docgen-index>
 
 * [`addListener('status', ...)`](#addlistenerstatus-)
+* [`addListener('download', ...)`](#addlistenerdownload-)
 * [`setOptions(...)`](#setoptions)
 * [`initialize()`](#initialize)
 * [`release()`](#release)
@@ -34,6 +35,11 @@ Most apps use the `Playlist` object shown here. The Cordova-style `RmxAudioPlaye
 * [`prepareForVideoHandoff()`](#prepareforvideohandoff)
 * [`resumeAfterVideoHandoff(...)`](#resumeaftervideohandoff)
 * [`getLastKnownPosition()`](#getlastknownposition)
+* [`startDownload(...)`](#startdownload)
+* [`cancelDownload(...)`](#canceldownload)
+* [`deleteDownload(...)`](#deletedownload)
+* [`renewDownload(...)`](#renewdownload)
+* [`listDownloads()`](#listdownloads)
 * [Interfaces](#interfaces)
 * [Type Aliases](#type-aliases)
 * [Enums](#enums)
@@ -55,6 +61,24 @@ Subscribe to native playback status events (track changes, position, errors, etc
 | ------------------ | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | **`eventName`**    | <code>'status'</code>                                                                 | Must be `'status'`.                                                                                                               |
 | **`listenerFunc`** | <code><a href="#playliststatuschangecallback">PlaylistStatusChangeCallback</a></code> | Callback receiving `{ action, status }` where `status.msgType` is a <a href="#rmxaudiostatusmessage">`RmxAudioStatusMessage`</a>. |
+
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
+
+--------------------
+
+
+### addListener('download', ...)
+
+```typescript
+addListener(eventName: 'download', listenerFunc: (event: DownloadEvent) => void) => Promise<PluginListenerHandle>
+```
+
+Subscribe to offline download progress (**Android only**).
+
+| Param              | Type                                                                        | Description                                                   |
+| ------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| **`eventName`**    | <code>'download'</code>                                                     | Must be `'download'`.                                         |
+| **`listenerFunc`** | <code>(event: <a href="#downloadevent">DownloadEvent</a>) =&gt; void</code> | Callback receiving `{ downloadId, state, progress, error? }`. |
 
 **Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
 
@@ -474,6 +498,91 @@ or passed to `resumeAfterVideoHandoff`.
 --------------------
 
 
+### startDownload(...)
+
+```typescript
+startDownload(options: StartDownloadOptions) => Promise<{ downloadId: string; }>
+```
+
+**Android only.** Download a protected HLS lecture for offline playback. The host
+`AudioOfflineProvider` acquires the offline licence first; only then are segments fetched, so a
+refused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the
+outcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL
+reuses the segments already cached.
+
+Rejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.
+Web rejects `notSupported`.
+
+| Param         | Type                                                                  |
+| ------------- | --------------------------------------------------------------------- |
+| **`options`** | <code><a href="#startdownloadoptions">StartDownloadOptions</a></code> |
+
+**Returns:** <code>Promise&lt;{ downloadId: string; }&gt;</code>
+
+--------------------
+
+
+### cancelDownload(...)
+
+```typescript
+cancelDownload(options: DownloadIdOptions) => Promise<void>
+```
+
+**Android only.** Cancel a non-completed download: removes cache, index entry, metadata and
+licence. A no-op for completed downloads (use `deleteDownload`).
+
+| Param         | Type                                                            |
+| ------------- | --------------------------------------------------------------- |
+| **`options`** | <code><a href="#downloadidoptions">DownloadIdOptions</a></code> |
+
+--------------------
+
+
+### deleteDownload(...)
+
+```typescript
+deleteDownload(options: DownloadIdOptions) => Promise<void>
+```
+
+**Android only.** Delete a download in any state: cache, index entry, metadata and licence
+are removed. Failures releasing the licence are ignored.
+
+| Param         | Type                                                            |
+| ------------- | --------------------------------------------------------------- |
+| **`options`** | <code><a href="#downloadidoptions">DownloadIdOptions</a></code> |
+
+--------------------
+
+
+### renewDownload(...)
+
+```typescript
+renewDownload(options: RenewDownloadOptions) => Promise<void>
+```
+
+**Android only.** Renew the offline licence while online. On success `expiresAt` is refreshed;
+a refusal rejects with the typed error and (except `network`) moves the download to `expired`.
+
+| Param         | Type                                                                  |
+| ------------- | --------------------------------------------------------------------- |
+| **`options`** | <code><a href="#renewdownloadoptions">RenewDownloadOptions</a></code> |
+
+--------------------
+
+
+### listDownloads()
+
+```typescript
+listDownloads() => Promise<{ downloads: DownloadInfo[]; }>
+```
+
+**Android only.** All downloads with state, progress and estimated licence expiry.
+
+**Returns:** <code>Promise&lt;{ downloads: DownloadInfo[]; }&gt;</code>
+
+--------------------
+
+
 ### Interfaces
 
 
@@ -552,6 +661,7 @@ An audio track for playback by the playlist.
 | **`title`**         | <code>string</code>                                                   | Title of the track                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | **`startPosition`** | <code>number</code>                                                   | Last known playback position to resume from, in seconds, when this track becomes current via a native skip-to-next/previous (e.g. OS notification, headset button, Android Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0.                                                                                                                                                                                                           |
 | **`drm`**           | <code><a href="#audiotrackdrmoptions">AudioTrackDrmOptions</a></code> | Optional DRM descriptor fields (API names). Android attaches Widevine, and iOS attaches FairPlay (Story 58.5), through a host-registered provider. Token URL, heartbeat URL, and Bearer live on that provider, not here. Web still refuses items that set this.                                                                                                                                                                                                   |
+| **`downloadId`**    | <code>string</code>                                                   | **Android only.** Id of a completed offline download (see `startDownload`). The item plays from the download cache with the host provider's offline licence; `assetUrl` is not used for playback. If the licence has expired, playback is refused with the `expired` error. Web refuses items that set this.                                                                                                                                                      |
 
 
 #### AudioTrackDrmOptions
@@ -587,6 +697,18 @@ Represents an error reported by the onStatus callback.
 | **`code`**    | <code><a href="#rmxaudioerrortype">RmxAudioErrorType</a></code>   | Error code                                                                                                                                                                                                         |
 | **`message`** | <code>string</code>                                               | The error, as a message                                                                                                                                                                                            |
 | **`error`**   | <code><a href="#audiotrackdrmerror">AudioTrackDrmError</a></code> | Typed DRM failure when the host provider reports one. Exactly one of `blockedByStreamLimit` \| `notEntitled` \| `expired` \| `network` \| `unknown`. Unknown strings are coerced to `unknown`. Not a new listener. |
+
+
+#### DownloadEvent
+
+Payload of the `download` listener.
+
+| Prop             | Type                                                    | Description                                                    |
+| ---------------- | ------------------------------------------------------- | -------------------------------------------------------------- |
+| **`downloadId`** | <code>string</code>                                     |                                                                |
+| **`state`**      | <code><a href="#downloadstate">DownloadState</a></code> |                                                                |
+| **`progress`**   | <code>number</code>                                     | 0..1                                                           |
+| **`error`**      | <code><a href="#downloaderror">DownloadError</a></code> | Set with `failed`, and with `expired` after a refused renewal. |
 
 
 #### AudioPlayerOptions
@@ -767,6 +889,44 @@ that were in the previous list.
 | **`position`** | <code>number</code> |
 
 
+#### StartDownloadOptions
+
+| Prop             | Type                                                                  | Description                                                                                              |
+| ---------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **`downloadId`** | <code>string</code>                                                   | Stable id chosen by the app; also the id later set as <a href="#audiotrack">`AudioTrack.downloadId`</a>. |
+| **`url`**        | <code>string</code>                                                   | HLS playlist (`audio.m3u8`). May be re-signed on a resumed start; cached segments are reused.            |
+| **`mimeType`**   | <code>string</code>                                                   | Defaults to HLS (`application/x-mpegURL`).                                                               |
+| **`drm`**        | <code><a href="#audiotrackdrmoptions">AudioTrackDrmOptions</a></code> | Descriptor handed to the host provider's `acquire`.                                                      |
+
+
+#### DownloadIdOptions
+
+| Prop             | Type                |
+| ---------------- | ------------------- |
+| **`downloadId`** | <code>string</code> |
+
+
+#### RenewDownloadOptions
+
+| Prop             | Type                                                                  | Description                                       |
+| ---------------- | --------------------------------------------------------------------- | ------------------------------------------------- |
+| **`downloadId`** | <code>string</code>                                                   |                                                   |
+| **`drm`**        | <code><a href="#audiotrackdrmoptions">AudioTrackDrmOptions</a></code> | Descriptor handed to the host provider's `renew`. |
+
+
+#### DownloadInfo
+
+One entry of `listDownloads`.
+
+| Prop               | Type                                                    | Description                                                                                                     |
+| ------------------ | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **`downloadId`**   | <code>string</code>                                     |                                                                                                                 |
+| **`state`**        | <code><a href="#downloadstate">DownloadState</a></code> |                                                                                                                 |
+| **`progress`**     | <code>number</code>                                     | 0..1                                                                                                            |
+| **`expiresAt`**    | <code>number \| null</code>                             | Estimated licence expiry (epoch ms): last successful acquire/renew + 27 days. `null` before the licence exists. |
+| **`needsRenewal`** | <code>boolean</code>                                    | The host provider asks for a renewal soon.                                                                      |
+
+
 ### Type Aliases
 
 
@@ -781,6 +941,21 @@ Exactly the five DRM error discriminators. Emitted on the existing `status`
 channel as `value.error` (do not overload numeric <a href="#rmxaudioerrortype">`RmxAudioErrorType`</a> 0–4).
 
 <code>'blockedByStreamLimit' | 'notEntitled' | 'expired' | 'network' | 'unknown'</code>
+
+
+#### DownloadState
+
+Lifecycle states of an offline download (`download` event and `listDownloads`).
+
+<code>'queued' | 'downloading' | 'completed' | 'failed' | 'expired'</code>
+
+
+#### DownloadError
+
+Error discriminators of offline downloads: the five DRM discriminators plus
+`offlineDeviceLimit` (the user already holds offline licences on the maximum number of devices).
+
+<code><a href="#audiotrackdrmerror">AudioTrackDrmError</a> | 'offlineDeviceLimit'</code>
 
 
 ### Enums

@@ -19,6 +19,9 @@ import com.getcapacitor.JSObject
 import org.dwbn.plugins.playlist.AudioDrm
 import org.dwbn.plugins.playlist.AudioDrmSession
 import org.dwbn.plugins.playlist.AudioMediaItemFactory
+import org.dwbn.plugins.playlist.AudioOffline
+import org.dwbn.plugins.playlist.AudioOfflineProvider
+import org.dwbn.plugins.playlist.offline.OfflineDownloads
 import org.dwbn.plugins.playlist.PlaylistItemOptions
 import org.dwbn.plugins.playlist.RmxAudioPlayer
 import org.dwbn.plugins.playlist.TrackRemovalItem
@@ -71,6 +74,9 @@ class PlaylistManager(private val application: Application) {
     var drmPlaybackHalted = false
         private set
     var drmErrorListener: ((trackId: String?, error: String) -> Unit)? = null
+
+    /** Delivery URI of a download (Story 59.4); resolved lazily so streaming never touches the engine. */
+    var offlineUriResolver: (String) -> String? = { id -> OfflineDownloads.get(application).requestUri(id) }
 
     private data class PendingBegin(val seekPosition: Long, val startPaused: Boolean)
 
@@ -579,6 +585,9 @@ class PlaylistManager(private val application: Application) {
                 audioTracks.getOrNull(fromIndex)?.startPositionMs = exoPlayer.currentPosition
             }
             currentPosition = index
+            if (blockIfOfflineExpired(audioTracks[index])) {
+                return
+            }
             exoPlayer.repeatMode = PlaylistPlaybackPolicy.repeatMode(loop, audioTracks.size)
             exoPlayer.seekTo(index, seekPosition)
             exoPlayer.prepare()
@@ -793,7 +802,8 @@ class PlaylistManager(private val application: Application) {
         /** DRM sessions are per item, so a DRM replacement needs a fresh media source. */
         @JvmStatic
         fun rebuildSourceOnReplace(existing: AudioTrack, replacement: AudioTrack): Boolean =
-            existing.drm != null || replacement.drm != null
+            existing.drm != null || replacement.drm != null ||
+                existing.downloadId != null || replacement.downloadId != null
 
         @JvmStatic
         fun mergeReplacementTrackId(existing: AudioTrack, replacement: AudioTrack): AudioTrack {
@@ -808,8 +818,38 @@ class PlaylistManager(private val application: Application) {
     private fun isQueuedPlaceholder(track: AudioTrack): Boolean =
         track.mediaUrl == QUEUED_TRACK_URL
 
-    private fun mediaItemFor(track: AudioTrack): MediaItem =
-        AudioMediaItemFactory.fromAudioTrack(track, drmSessions[sessionKey(track)])
+    private fun mediaItemFor(track: AudioTrack): MediaItem {
+        val downloadId = track.downloadId
+        if (downloadId != null) {
+            val uri = try {
+                offlineUriResolver(downloadId)
+            } catch (e: Exception) {
+                Log.w(TAG, "offline uri unavailable: ${e.javaClass.simpleName}")
+                null
+            } ?: track.mediaUrl
+            return AudioMediaItemFactory.fromOfflineTrack(track, uri, drmSessions[sessionKey(track)])
+        }
+        return AudioMediaItemFactory.fromAudioTrack(track, drmSessions[sessionKey(track)])
+    }
+
+    /** Items with a licence session to open: streaming DRM or an offline download. */
+    private fun needsSession(track: AudioTrack?): Boolean =
+        track != null && (track.drm != null || track.downloadId != null)
+
+    /**
+     * Offline items with an expired licence never play: emit the existing DRM `expired` error and
+     * halt, exactly like a streaming `expired` result.
+     */
+    private fun blockIfOfflineExpired(track: AudioTrack?): Boolean {
+        val downloadId = track?.downloadId ?: return false
+        val provider = AudioOffline.getProvider() ?: return false
+        if (AudioOffline.stateOf(provider, downloadId) != AudioOfflineProvider.STATE_EXPIRED) {
+            return false
+        }
+        haltAfterDrmError()
+        drmErrorListener?.invoke(track.trackId, AudioDrm.ERROR_EXPIRED)
+        return true
+    }
 
     private fun sessionKey(track: AudioTrack): String =
         track.trackId ?: "audio-${track.id}"
@@ -834,6 +874,24 @@ class PlaylistManager(private val application: Application) {
     private fun openNewSessions(tracks: List<AudioTrack>): Pair<String?, Map<String, AudioDrmSession>> {
         val opened = LinkedHashMap<String, AudioDrmSession>()
         for (track in tracks) {
+            val downloadId = track.downloadId
+            if (downloadId != null) {
+                val provider = AudioOffline.getProvider()
+                if (provider == null) {
+                    releaseOpened(opened)
+                    return Pair(AudioDrm.CODE_NO_PROVIDER, emptyMap())
+                }
+                if (AudioOffline.stateOf(provider, downloadId) == AudioOfflineProvider.STATE_EXPIRED) {
+                    continue // refused at play time with the `expired` error
+                }
+                val offline = AudioOffline.openOffline(downloadId)
+                if (offline.failureCode != null) {
+                    releaseOpened(opened)
+                    return Pair(offline.failureCode, emptyMap())
+                }
+                offline.session?.let { opened[sessionKey(track)] = it }
+                continue
+            }
             val drm = drmObject(track) ?: continue
             val attempt = AudioDrm.open(drm) { error ->
                 if (PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError(error)) {
@@ -842,12 +900,7 @@ class PlaylistManager(private val application: Application) {
                 drmErrorListener?.invoke(track.trackId, error)
             }
             if (attempt.failureCode != null) {
-                opened.values.forEach { session ->
-                    try {
-                        session.release()
-                    } catch (_: Exception) {
-                    }
-                }
+                releaseOpened(opened)
                 return Pair(attempt.failureCode, emptyMap())
             }
             attempt.session?.let { opened[sessionKey(track)] = it }
@@ -855,11 +908,20 @@ class PlaylistManager(private val application: Application) {
         return Pair(null, opened)
     }
 
+    private fun releaseOpened(opened: Map<String, AudioDrmSession>) {
+        opened.values.forEach { session ->
+            try {
+                session.release()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     private fun reopenMissingDrmSessions(tracks: List<AudioTrack>) {
         if (drmPlaybackHalted) {
             return
         }
-        val missing = tracks.filter { it.drm != null && !drmSessions.containsKey(sessionKey(it)) }
+        val missing = tracks.filter { needsSession(it) && !drmSessions.containsKey(sessionKey(it)) }
         if (missing.isEmpty()) {
             return
         }
@@ -901,12 +963,15 @@ class PlaylistManager(private val application: Application) {
         val index = player?.currentMediaItemIndex?.takeIf { it in audioTracks.indices }
             ?: currentPosition
         val item = audioTracks.getOrNull(index)
-        val newKey = if (item?.drm != null) sessionKey(item) else null
+        val newKey = if (needsSession(item)) sessionKey(item!!) else null
         if (startedDrmKey != null && startedDrmKey != newKey) {
             releaseSession(startedDrmKey!!)
         }
         startedDrmKey = newKey
         if (newKey == null || item == null) {
+            return
+        }
+        if (blockIfOfflineExpired(item)) {
             return
         }
         var session = drmSessions[newKey]

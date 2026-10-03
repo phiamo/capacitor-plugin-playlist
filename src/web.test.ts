@@ -551,6 +551,33 @@ describe('PlaylistWeb drm', () => {
     });
 });
 
+describe('PlaylistWeb offline downloads (Story 59.4)', () => {
+    let web: PlaylistWeb;
+
+    beforeEach(() => {
+        web = new PlaylistWeb();
+    });
+
+    const notSupported = { code: 'notSupported' };
+
+    it('rejects every download method with notSupported', async () => {
+        await expect(
+            web.startDownload({ downloadId: 'd1', url: 'https://cdn.example/audio.m3u8', drm: {} })
+        ).rejects.toMatchObject(notSupported);
+        await expect(web.cancelDownload({ downloadId: 'd1' })).rejects.toMatchObject(notSupported);
+        await expect(web.deleteDownload({ downloadId: 'd1' })).rejects.toMatchObject(notSupported);
+        await expect(web.renewDownload({ downloadId: 'd1' })).rejects.toMatchObject(notSupported);
+        await expect(web.listDownloads()).rejects.toMatchObject(notSupported);
+    });
+
+    it('refuses playlist items with a downloadId and leaves the playlist unchanged', async () => {
+        await web.addAllItems({ items: [track('a')] });
+        await expect(web.addItem({ item: track('b', { downloadId: 'd1' }) })).rejects.toMatchObject(notSupported);
+        expect((await web.getPlaylist()).items.map((i) => i.trackId)).toEqual(['a']);
+        expect((web as unknown as { audio?: HTMLAudioElement }).audio).toBeUndefined();
+    });
+});
+
 describe('PlaylistWeb — source selection (issue #144)', () => {
     let web: PlaylistWeb;
 

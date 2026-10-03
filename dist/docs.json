@@ -39,6 +39,39 @@
         "slug": "addlistenerstatus-"
       },
       {
+        "name": "addListener",
+        "signature": "(eventName: 'download', listenerFunc: (event: DownloadEvent) => void) => Promise<PluginListenerHandle>",
+        "parameters": [
+          {
+            "name": "eventName",
+            "docs": "Must be `'download'`.",
+            "type": "'download'"
+          },
+          {
+            "name": "listenerFunc",
+            "docs": "Callback receiving `{ downloadId, state, progress, error? }`.",
+            "type": "(event: DownloadEvent) => void"
+          }
+        ],
+        "returns": "Promise<PluginListenerHandle>",
+        "tags": [
+          {
+            "name": "param",
+            "text": "eventName Must be `'download'`."
+          },
+          {
+            "name": "param",
+            "text": "listenerFunc Callback receiving `{ downloadId, state, progress, error? }`."
+          }
+        ],
+        "docs": "Subscribe to offline download progress (**Android only**).",
+        "complexTypes": [
+          "PluginListenerHandle",
+          "DownloadEvent"
+        ],
+        "slug": "addlistenerdownload-"
+      },
+      {
         "name": "setOptions",
         "signature": "(options: AudioPlayerOptions) => Promise<void>",
         "parameters": [
@@ -448,6 +481,90 @@
           "GetLastKnownPositionResult"
         ],
         "slug": "getlastknownposition"
+      },
+      {
+        "name": "startDownload",
+        "signature": "(options: StartDownloadOptions) => Promise<{ downloadId: string; }>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "StartDownloadOptions"
+          }
+        ],
+        "returns": "Promise<{ downloadId: string; }>",
+        "tags": [],
+        "docs": "**Android only.** Download a protected HLS lecture for offline playback. The host\n`AudioOfflineProvider` acquires the offline licence first; only then are segments fetched, so a\nrefused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the\noutcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL\nreuses the segments already cached.\n\nRejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.\nWeb rejects `notSupported`.",
+        "complexTypes": [
+          "StartDownloadOptions"
+        ],
+        "slug": "startdownload"
+      },
+      {
+        "name": "cancelDownload",
+        "signature": "(options: DownloadIdOptions) => Promise<void>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "DownloadIdOptions"
+          }
+        ],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "**Android only.** Cancel a non-completed download: removes cache, index entry, metadata and\nlicence. A no-op for completed downloads (use `deleteDownload`).",
+        "complexTypes": [
+          "DownloadIdOptions"
+        ],
+        "slug": "canceldownload"
+      },
+      {
+        "name": "deleteDownload",
+        "signature": "(options: DownloadIdOptions) => Promise<void>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "DownloadIdOptions"
+          }
+        ],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "**Android only.** Delete a download in any state: cache, index entry, metadata and licence\nare removed. Failures releasing the licence are ignored.",
+        "complexTypes": [
+          "DownloadIdOptions"
+        ],
+        "slug": "deletedownload"
+      },
+      {
+        "name": "renewDownload",
+        "signature": "(options: RenewDownloadOptions) => Promise<void>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "RenewDownloadOptions"
+          }
+        ],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "**Android only.** Renew the offline licence while online. On success `expiresAt` is refreshed;\na refusal rejects with the typed error and (except `network`) moves the download to `expired`.",
+        "complexTypes": [
+          "RenewDownloadOptions"
+        ],
+        "slug": "renewdownload"
+      },
+      {
+        "name": "listDownloads",
+        "signature": "() => Promise<{ downloads: DownloadInfo[]; }>",
+        "parameters": [],
+        "returns": "Promise<{ downloads: DownloadInfo[]; }>",
+        "tags": [],
+        "docs": "**Android only.** All downloads with state, progress and estimated licence expiry.",
+        "complexTypes": [
+          "DownloadInfo"
+        ],
+        "slug": "listdownloads"
       }
     ],
     "properties": []
@@ -740,6 +857,13 @@
             "AudioTrackDrmOptions"
           ],
           "type": "AudioTrackDrmOptions"
+        },
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "**Android only.** Id of a completed offline download (see `startDownload`). The item plays from\nthe download cache with the host provider's offline licence; `assetUrl` is not used for\nplayback. If the licence has expired, playback is refused with the `expired` error.\nWeb refuses items that set this.",
+          "complexTypes": [],
+          "type": "string | undefined"
         }
       ]
     },
@@ -857,6 +981,47 @@
             "AudioTrackDrmError"
           ],
           "type": "AudioTrackDrmError"
+        }
+      ]
+    },
+    {
+      "name": "DownloadEvent",
+      "slug": "downloadevent",
+      "docs": "Payload of the `download` listener.",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [
+            "DownloadState"
+          ],
+          "type": "DownloadState"
+        },
+        {
+          "name": "progress",
+          "tags": [],
+          "docs": "0..1",
+          "complexTypes": [],
+          "type": "number"
+        },
+        {
+          "name": "error",
+          "tags": [],
+          "docs": "Set with `failed`, and with `expired` after a refused renewal.",
+          "complexTypes": [
+            "DownloadError"
+          ],
+          "type": "DownloadError"
         }
       ]
     },
@@ -1353,6 +1518,132 @@
           "type": "number"
         }
       ]
+    },
+    {
+      "name": "StartDownloadOptions",
+      "slug": "startdownloadoptions",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "Stable id chosen by the app; also the id later set as `AudioTrack.downloadId`.",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "url",
+          "tags": [],
+          "docs": "HLS playlist (`audio.m3u8`). May be re-signed on a resumed start; cached segments are reused.",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "mimeType",
+          "tags": [],
+          "docs": "Defaults to HLS (`application/x-mpegURL`).",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "drm",
+          "tags": [],
+          "docs": "Descriptor handed to the host provider's `acquire`.",
+          "complexTypes": [
+            "AudioTrackDrmOptions"
+          ],
+          "type": "AudioTrackDrmOptions"
+        }
+      ]
+    },
+    {
+      "name": "DownloadIdOptions",
+      "slug": "downloadidoptions",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "RenewDownloadOptions",
+      "slug": "renewdownloadoptions",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "drm",
+          "tags": [],
+          "docs": "Descriptor handed to the host provider's `renew`.",
+          "complexTypes": [
+            "AudioTrackDrmOptions"
+          ],
+          "type": "AudioTrackDrmOptions"
+        }
+      ]
+    },
+    {
+      "name": "DownloadInfo",
+      "slug": "downloadinfo",
+      "docs": "One entry of `listDownloads`.",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [
+            "DownloadState"
+          ],
+          "type": "DownloadState"
+        },
+        {
+          "name": "progress",
+          "tags": [],
+          "docs": "0..1",
+          "complexTypes": [],
+          "type": "number"
+        },
+        {
+          "name": "expiresAt",
+          "tags": [],
+          "docs": "Estimated licence expiry (epoch ms): last successful acquire/renew + 27 days. `null` before the licence exists.",
+          "complexTypes": [],
+          "type": "number | null"
+        },
+        {
+          "name": "needsRenewal",
+          "tags": [],
+          "docs": "The host provider asks for a renewal soon.",
+          "complexTypes": [],
+          "type": "boolean"
+        }
+      ]
     }
   ],
   "enums": [
@@ -1592,6 +1883,50 @@
         },
         {
           "text": "'unknown'",
+          "complexTypes": []
+        }
+      ]
+    },
+    {
+      "name": "DownloadState",
+      "slug": "downloadstate",
+      "docs": "Lifecycle states of an offline download (`download` event and `listDownloads`).",
+      "types": [
+        {
+          "text": "'queued'",
+          "complexTypes": []
+        },
+        {
+          "text": "'downloading'",
+          "complexTypes": []
+        },
+        {
+          "text": "'completed'",
+          "complexTypes": []
+        },
+        {
+          "text": "'failed'",
+          "complexTypes": []
+        },
+        {
+          "text": "'expired'",
+          "complexTypes": []
+        }
+      ]
+    },
+    {
+      "name": "DownloadError",
+      "slug": "downloaderror",
+      "docs": "Error discriminators of offline downloads: the five DRM discriminators plus\n`offlineDeviceLimit` (the user already holds offline licences on the maximum number of devices).",
+      "types": [
+        {
+          "text": "AudioTrackDrmError",
+          "complexTypes": [
+            "AudioTrackDrmError"
+          ]
+        },
+        {
+          "text": "'offlineDeviceLimit'",
           "complexTypes": []
         }
       ]

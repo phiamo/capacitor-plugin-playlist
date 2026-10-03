@@ -1,7 +1,8 @@
 import type { PluginListenerHandle } from '@capacitor/core';
 
 import type {
-    AudioPlayerOptions, AudioTrack, PlaylistItemOptions, PlaylistStatusChangeCallback
+    AudioPlayerOptions, AudioTrack, DownloadEvent, DownloadIdOptions, DownloadInfo, PlaylistItemOptions,
+    PlaylistStatusChangeCallback, RenewDownloadOptions, StartDownloadOptions
 } from './interfaces';
 
 
@@ -14,6 +15,14 @@ export interface PlaylistPlugin {
      * @param listenerFunc Callback receiving `{ action, status }` where `status.msgType` is a `RmxAudioStatusMessage`.
      */
     addListener(eventName: 'status', listenerFunc: PlaylistStatusChangeCallback): Promise<PluginListenerHandle>;
+
+    /**
+     * Subscribe to offline download progress (**Android only**).
+     *
+     * @param eventName Must be `'download'`.
+     * @param listenerFunc Callback receiving `{ downloadId, state, progress, error? }`.
+     */
+    addListener(eventName: 'download', listenerFunc: (event: DownloadEvent) => void): Promise<PluginListenerHandle>;
 
     /**
      * Configure plugin behaviour (verbose logging, stream pause handling, notification icon).
@@ -191,6 +200,41 @@ export interface PlaylistPlugin {
      * or passed to `resumeAfterVideoHandoff`.
      */
     getLastKnownPosition(): Promise<GetLastKnownPositionResult>;
+
+    /**
+     * **Android only.** Download a protected HLS lecture for offline playback. The host
+     * `AudioOfflineProvider` acquires the offline licence first; only then are segments fetched, so a
+     * refused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the
+     * outcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL
+     * reuses the segments already cached.
+     *
+     * Rejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.
+     * Web rejects `notSupported`.
+     */
+    startDownload(options: StartDownloadOptions): Promise<{ downloadId: string }>;
+
+    /**
+     * **Android only.** Cancel a non-completed download: removes cache, index entry, metadata and
+     * licence. A no-op for completed downloads (use `deleteDownload`).
+     */
+    cancelDownload(options: DownloadIdOptions): Promise<void>;
+
+    /**
+     * **Android only.** Delete a download in any state: cache, index entry, metadata and licence
+     * are removed. Failures releasing the licence are ignored.
+     */
+    deleteDownload(options: DownloadIdOptions): Promise<void>;
+
+    /**
+     * **Android only.** Renew the offline licence while online. On success `expiresAt` is refreshed;
+     * a refusal rejects with the typed error and (except `network`) moves the download to `expired`.
+     */
+    renewDownload(options: RenewDownloadOptions): Promise<void>;
+
+    /**
+     * **Android only.** All downloads with state, progress and estimated licence expiry.
+     */
+    listDownloads(): Promise<{ downloads: DownloadInfo[] }>;
 }
 
 export interface ResumeAfterVideoHandoffOptions {

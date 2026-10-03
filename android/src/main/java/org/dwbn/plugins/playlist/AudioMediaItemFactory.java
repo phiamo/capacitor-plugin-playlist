@@ -26,6 +26,14 @@ public final class AudioMediaItemFactory {
     return fromUrl(track.getMediaUrl(), track.getMimeType(), track, drmSession);
   }
 
+  /**
+   * Offline item: {@code uri} is the download's request URI (HLS), played from the download cache.
+   * {@code drmSession} is the provider's offline session.
+   */
+  public static MediaItem fromOfflineTrack(AudioTrack track, String uri, AudioDrmSession drmSession) {
+    return fromUrl(uri, MimeTypes.APPLICATION_M3U8, track, drmSession);
+  }
+
   public static MediaItem fromUrl(String url, String declaredMimeType) {
     return fromUrl(url, declaredMimeType, null, null);
   }
