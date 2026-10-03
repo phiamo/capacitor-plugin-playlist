@@ -153,7 +153,7 @@ await Playlist.addItem({ item: { trackId: 'talk-42', downloadId: 'dl-42', assetU
 ```
 
 - `startDownload` resolves once the request is accepted; everything else is reported on `download`. It rejects `noProvider` when no provider is registered.
-- Order: prepare HLS → first track `Format` with `drmInitData` → `provider.acquire` → enqueue segments. The playlist must therefore expose the PSSH to the downloader, e.g. via `#EXT-X-SESSION-KEY` in the multivariant playlist; without a format carrying `drmInitData` the download fails with `unknown`.
+- Order: prepare HLS → first track `Format` with `drmInitData` → `provider.acquire` → enqueue segments. The playlist must therefore expose the PSSH to the downloader, via `#EXT-X-SESSION-KEY` in the multivariant playlist (the DWBN backend publishes the Widevine key there for every audio package since Story 59.4a; older packages need the `app:drm:backfill-session-key` backfill); without a format carrying `drmInitData` the download fails with `unknown`.
 - A segment `403` (signed URL expired) ends in `failed`. Call `startDownload` again with a fresh URL: cached segments are reused (the cache key ignores the URL query).
 - `expiresAt` (epoch ms) is the last successful acquire/renew **+ 27 days**. The exact CDM remaining time is not read.
 - A refused `renewDownload` rejects with the typed error and moves the download to `expired` (except `network`).
