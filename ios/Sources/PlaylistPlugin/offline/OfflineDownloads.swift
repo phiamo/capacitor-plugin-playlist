@@ -272,7 +272,12 @@ final class OfflineDownloads: OfflineEngineListener {
     }
 
     func localAssetURL(_ downloadId: String) -> URL? {
-        engine.get(downloadId)?.localURL
+        guard let url = engine.get(downloadId)?.localURL else { return nil }
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else {
+            return nil
+        }
+        return url
     }
 
     func onChanged(_ download: EngineDownload) {

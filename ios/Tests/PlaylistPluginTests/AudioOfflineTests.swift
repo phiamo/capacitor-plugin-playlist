@@ -103,6 +103,40 @@ final class AudioTrackOfflineWiringTests: XCTestCase {
         super.tearDown()
     }
 
+    func test_resolveCompletedURL_ignoresStaleAbsoluteLocalPath() {
+        let dest = OfflineLocalAsset.movpkgURL(downloadId: "test-1", root: tmp)
+        try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+        let stale = "/var/mobile/Containers/Data/Application/02E6FFDC-87BD-49DF-92F8-90ACC1BCFDB8/Library/Application Support/org.dwbn.plugins.playlist.offline/assets/test-1.movpkg"
+        let resolved = OfflineLocalAsset.resolveCompletedURL(
+            downloadId: "test-1",
+            storedLocalPath: stale,
+            root: tmp
+        )
+        XCTAssertEqual(resolved, dest)
+        XCTAssertFalse(resolved?.path.contains("02E6FFDC") ?? true)
+    }
+
+    func test_resolveCompletedURL_missingPackage_returnsNil() {
+        let stale = "/var/mobile/Containers/Data/Application/DEAD/Library/Application Support/x/assets/test-1.movpkg"
+        XCTAssertNil(OfflineLocalAsset.resolveCompletedURL(
+            downloadId: "test-1",
+            storedLocalPath: stale,
+            root: tmp
+        ))
+    }
+
+    func test_localAssetURL_rejectsMissingFile() {
+        let missing = tmp.appendingPathComponent("gone.movpkg")
+        let engine = FakeEngine()
+        engine.store["d1"] = EngineDownload(id: "d1", state: .completed, progress: 1, localURL: missing, failedByNetwork: false)
+        let downloads = OfflineDownloads(
+            engine: engine,
+            meta: OfflineMetaStore(file: tmp.appendingPathComponent("meta.json")),
+            executor: { $0() }
+        )
+        XCTAssertNil(downloads.localAssetURL("d1"))
+    }
+
     func test_downloadId_emptyAssetUrl_usesLocalAssetAndAttachOffline() {
         let local = tmp.appendingPathComponent("d1.movpkg")
         try? Data().write(to: local)
@@ -132,6 +166,7 @@ final class AudioTrackOfflineWiringTests: XCTestCase {
         XCTAssertEqual(track?.downloadId, "d1")
         XCTAssertEqual(track?.assetUrl, local)
         XCTAssertEqual(stub.attached, ["d1"])
+        XCTAssertFalse(track?.canUseNetworkResourcesForLiveStreamingWhilePaused ?? true)
         XCTAssertEqual(track?.toDict()?["downloadId"] as? String, "d1")
     }
 

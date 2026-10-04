@@ -14,6 +14,7 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
 import java.io.ByteArrayOutputStream
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import androidx.media3.exoplayer.offline.DefaultDownloaderFactory
 import androidx.media3.exoplayer.offline.Download
@@ -142,10 +143,12 @@ class Media3OfflineEngine(context: Context) : OfflineEngine {
         val helperRef = AtomicReference<DownloadHelper>()
         val main = Handler(Looper.getMainLooper())
         main.post {
+            val mediaSource = HlsMediaSource.Factory(http)
+                .setUseSessionKeys(true)
+                .createMediaSource(item)
             val helper = DownloadHelper.Factory()
-                .setDataSourceFactory(http)
                 .setRenderersFactory(DefaultRenderersFactory(appContext))
-                .create(item)
+                .create(mediaSource)
             helperRef.set(helper)
             helper.prepare(object : DownloadHelper.Callback {
                 override fun onPrepared(helper: DownloadHelper, tracksInfoAvailable: Boolean) {

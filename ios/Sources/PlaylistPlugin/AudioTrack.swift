@@ -60,6 +60,8 @@ final class AudioTrack: AVPlayerItem {
             } ?? false
             if !expired {
                 AudioOffline.attachOffline(downloadId: downloadId, asset: asset)
+                // After the key session is attached — preloading first drops the request.
+                asset.resourceLoader.preloadsEligibleContentKeys = true
             }
         } else if let drm = trackInfo["drm"] as? JSObject {
             let attempt = AudioDrm.open(drm) { error in
@@ -74,7 +76,8 @@ final class AudioTrack: AVPlayerItem {
 
         let track = AudioTrack(asset: asset)
         track.drmSession = openedSession
-        track.canUseNetworkResourcesForLiveStreamingWhilePaused = true
+        // Local FairPlay packages must not fall back to the CDN when the radio is off.
+        track.canUseNetworkResourcesForLiveStreamingWhilePaused = downloadId == nil
 
         // Accept common JS representations.
         if let isStream = trackInfo["isStream"] as? Bool {
@@ -91,6 +94,10 @@ final class AudioTrack: AVPlayerItem {
         track.trackId = trackId
         track.assetUrl = assetUrl
         track.downloadId = downloadId
+        if let downloadId {
+            let exists = FileManager.default.fileExists(atPath: assetUrl.path)
+            NSLog("AudioTrack downloadId=%@ path=%@ exists=%@", downloadId, assetUrl.path, exists ? "yes" : "NO")
+        }
         track.artist = trackInfo["artist"] as? String
         track.album = trackInfo["album"] as? String
         track.title = trackInfo["title"] as? String
@@ -130,8 +137,11 @@ final class AudioTrack: AVPlayerItem {
     }
 
     private class func resolveAssetURL(_ trackInfo: [String: Any], downloadId: String?) -> URL? {
-        if let downloadId, let local = OfflineDownloads.shared.localAssetURL(downloadId) {
-            return local
+        if let downloadId {
+            if let local = OfflineDownloads.shared.localAssetURL(downloadId) {
+                return local
+            }
+            print("AudioTrack: downloadId=\(downloadId) has no localAssetURL")
         }
         if let assetUrlString = trackInfo["assetUrl"] as? String,
            !assetUrlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

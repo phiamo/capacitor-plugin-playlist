@@ -46,10 +46,13 @@ class HlsWidevineSessionKeyTest {
     }
 
     @Test
-    fun firstWidevinePssh_skipsFairPlayAndReadsMediaKey() {
+    fun firstWidevinePssh_skipsFairPlaySessionKey() {
         val playlist = """
+            #EXTM3U
             #EXT-X-SESSION-KEY:METHOD=SAMPLE-AES,URI="skd://session-kid",KEYFORMAT="com.apple.streamingkeydelivery"
-            #EXT-X-KEY:METHOD=SAMPLE-AES,URI="data:text/plain;base64,$TEST1_PSSH_B64",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
+            #EXT-X-SESSION-KEY:METHOD=SAMPLE-AES,URI="data:text/plain;base64,$TEST1_PSSH_B64",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
+            #EXT-X-STREAM-INF:BANDWIDTH=99508,CODECS="mp4a.40.2"
+            audio/stream.m3u8
         """.trimIndent()
 
         assertNotNull(HlsWidevineSessionKey.firstWidevinePssh(playlist))

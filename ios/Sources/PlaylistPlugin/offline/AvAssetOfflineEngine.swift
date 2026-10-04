@@ -123,6 +123,43 @@ enum HlsFairPlayKey {
     }
 }
 
+/// Resolves a completed `.movpkg` from the current sandbox. Stored absolute `localPath` values
+/// (old app-container UUIDs) are never trusted after restore/reinstall.
+enum OfflineLocalAsset {
+    static func fileName(for downloadId: String) -> String {
+        let name = (downloadId as NSString).lastPathComponent
+        if name.isEmpty || name == "." || name == ".." {
+            return "_"
+        }
+        return name
+    }
+
+    static func relativeHint(downloadId: String) -> String {
+        "assets/\(fileName(for: downloadId)).movpkg"
+    }
+
+    static func movpkgURL(downloadId: String, root: URL) -> URL {
+        OfflineStorage.assetsDirectory(root: root)
+            .appendingPathComponent("\(fileName(for: downloadId)).movpkg", isDirectory: true)
+    }
+
+    /// Ignores `storedLocalPath`. Returns the current-sandbox URL when the package exists.
+    static func resolveCompletedURL(
+        downloadId: String,
+        storedLocalPath: String?,
+        root: URL,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        _ = storedLocalPath
+        let dest = movpkgURL(downloadId: downloadId, root: root)
+        var isDir: ObjCBool = false
+        guard fileManager.fileExists(atPath: dest.path, isDirectory: &isDir) else {
+            return nil
+        }
+        return dest
+    }
+}
+
 /// `AVAssetDownloadURLSession` implementation. A failed download is discarded; a retry with a
 /// fresh URL starts a new task (no query-stripped cache reuse).
 final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelegate {
@@ -184,6 +221,7 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
         let asset = AVURLAsset(url: prepared.url)
         // Persistable key must be on the download asset as well as the later local playback asset.
         AudioOffline.attachOffline(downloadId: prepared.downloadId, asset: asset)
+        asset.resourceLoader.preloadsEligibleContentKeys = true
         let config = AVAssetDownloadConfiguration(asset: asset, title: prepared.downloadId)
         let task = session.makeAssetDownloadTask(downloadConfiguration: config)
         task.taskDescription = prepared.downloadId
@@ -342,17 +380,12 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
     }
 
     private func movpkgURL(for downloadId: String) -> URL {
-        OfflineStorage.assetsDirectory(root: root)
-            .appendingPathComponent("\(Self.sanitizedFileName(downloadId)).movpkg", isDirectory: true)
+        OfflineLocalAsset.movpkgURL(downloadId: downloadId, root: root)
     }
 
     /// Single path component so `/` and `..` cannot leave `assets/`.
-    private static func sanitizedFileName(_ downloadId: String) -> String {
-        let name = (downloadId as NSString).lastPathComponent
-        if name.isEmpty || name == "." || name == ".." {
-            return "_"
-        }
-        return name
+    static func sanitizedFileName(_ downloadId: String) -> String {
+        OfflineLocalAsset.fileName(for: downloadId)
     }
 
     private func update(
@@ -390,8 +423,8 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
                 "progress": download.progress,
                 "failedByNetwork": download.failedByNetwork
             ]
-            if let local = download.localURL {
-                item["localPath"] = local.path
+            if download.state == .completed {
+                item["localPath"] = OfflineLocalAsset.relativeHint(downloadId: id)
             }
             rootObj[id] = item
         }
@@ -413,13 +446,25 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
         else {
             return
         }
+        var downgraded = false
         for (id, value) in rootObj {
             guard let item = value as? [String: Any] else { continue }
-            let state = EngineState(rawValue: item["state"] as? String ?? "") ?? .failed
+            var state = EngineState(rawValue: item["state"] as? String ?? "") ?? .failed
             let progress = (item["progress"] as? NSNumber)?.floatValue ?? 0
-            let path = item["localPath"] as? String
-            let local = path.flatMap { URL(fileURLWithPath: $0) }
             let failedByNetwork = item["failedByNetwork"] as? Bool ?? true
+            var local: URL?
+            if state == .completed {
+                local = OfflineLocalAsset.resolveCompletedURL(
+                    downloadId: id,
+                    storedLocalPath: item["localPath"] as? String,
+                    root: root,
+                    fileManager: fileManager
+                )
+                if local == nil {
+                    state = .failed
+                    downgraded = true
+                }
+            }
             store[id] = EngineDownload(
                 id: id,
                 state: state,
@@ -427,6 +472,9 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
                 localURL: local,
                 failedByNetwork: failedByNetwork
             )
+        }
+        if downgraded {
+            persistIndexLocked()
         }
     }
 

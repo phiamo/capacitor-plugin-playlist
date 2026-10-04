@@ -210,7 +210,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     }
     @objc func seekTo(_ call: CAPPluginCall) {
         let to = call.getFloat("position", 0.0)
-        audioPlayerImpl.seek(to: to, isCommand: false)
+        audioPlayerImpl.seek(to: to, isCommand: true)
         call.resolve();
     }
     @objc func playTrackByIndex(_ call: CAPPluginCall) {
