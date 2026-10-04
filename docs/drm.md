@@ -94,7 +94,7 @@ Provider errors arrive on the existing `status` listener as `RMXSTATUS_ERROR` wi
 
 ## Offline downloads (Android and iOS)
 
-Protected HLS audio (`audio.m3u8`) can be downloaded and played offline, in the background and on the lock screen. **Android** uses Widevine via Media3 `DownloadManager` / `DownloadService`; **iOS** uses FairPlay via `AVAssetDownloadURLSession`. The plugin owns the media download and local playback. **Licences, renewal and subtitles are delegated to a host `AudioOfflineProvider`**; the plugin never imports drm-kit. Web rejects `notSupported`.
+Protected HLS audio (`audio.m3u8`) can be downloaded and played offline, in the background and on the lock screen. **Android** uses Widevine via Media3 `DownloadManager` / `DownloadService`; **iOS** uses FairPlay via `AVAssetDownloadURLSession`. The plugin owns the media download and local playback. **Licences and renewal are delegated to a host `AudioOfflineProvider`**; the plugin never imports drm-kit. Web rejects `notSupported`.
 
 ### Register the offline provider
 
@@ -118,7 +118,7 @@ public class App extends Application {
 | `String acquire(downloadId, Format, JSObject drm)` | Fetch + persist the offline licence. Runs on a background thread, **before any segment is fetched**. A refusal fails the download without media traffic. |
 | `boolean needsRenewal(downloadId)` | Quick, local. Reported in `listDownloads`. |
 | `String renew(downloadId, JSObject drm)` | Renew online. |
-| `void release(downloadId)` | Drop licence and encrypted subtitles. Failures are ignored. |
+| `void release(downloadId)` | Drop the stored licence. Failures are ignored. |
 | `String state(downloadId)` | `none` \| `active` \| `expired`. Quick, local. |
 | `AudioDrmSession openOffline(downloadId)` | Session with the offline `DrmSessionManager` + `DrmConfiguration` (stored `keySetId`). |
 
@@ -150,7 +150,7 @@ AudioOffline.setProvider(MyFairPlayOfflineProvider())
 | `acquire(downloadId, keyIdentifier, drm) -> String?` | Fetch + persist the persistable FairPlay key. Runs off the main thread, **before any media is fetched**. `keyIdentifier` is the playlist's `skd://` URI. |
 | `needsRenewal(downloadId)` | Quick, local. |
 | `renew(downloadId, drm) -> String?` | Renew online. |
-| `release(downloadId)` | Drop licence and encrypted subtitles. Failures are ignored. |
+| `release(downloadId)` | Drop the stored licence. Failures are ignored. |
 | `state(downloadId)` | `none` \| `active` \| `expired`. Quick, local. |
 | `attachOffline(downloadId, asset)` | Answer the local asset's key requests from the stored persistable key. Call before the player item loads. |
 
@@ -209,12 +209,12 @@ await Playlist.addItem({ item: { trackId: 'talk-42', downloadId: 'dl-42', assetU
 - `expiresAt` (epoch ms) is the last successful acquire/renew **+ 27 days**. The exact CDM remaining time is not read.
 - A refused `renewDownload` rejects with the typed error and emits `expired` only when the provider's state for that download is actually `expired`.
 - Playing an item with `downloadId` whose provider `state` is `expired` emits the existing `expired` status error and does not play. Streaming items are unchanged. Queue mutations of `downloadId` items without a provider reject `noProvider` and leave the queue unchanged.
-- The plugin creates no plaintext audio or subtitle files. `deleteDownload` removes the asset, index entry, metadata and calls `provider.release`. `cancelDownload` does the same for non-completed downloads and is a no-op once completed. A completed `startDownload` is idempotent; a second pending `start` is ignored.
+- The plugin creates no plaintext audio files. `deleteDownload` removes the asset, index entry, metadata and calls `provider.release`. `cancelDownload` does the same for non-completed downloads and is a no-op once completed. A completed `startDownload` is idempotent; a second pending `start` is ignored.
 - Mobile-data policy (Wi-Fi only etc.) is the app's concern. Android's download service runs as a `dataSync` foreground service (permission `FOREGROUND_SERVICE_DATA_SYNC` is declared in the plugin manifest; the app should request `POST_NOTIFICATIONS` on Android 13+).
 
 ### Backup exclusion
 
-**Android:** cache, download index and plugin metadata live under `Context.getNoBackupFilesDir()/offline/`, which Android excludes from backup and device transfer. Make sure your own rules do not re-include it, and exclude the provider's own licence/subtitle storage:
+**Android:** cache, download index and plugin metadata live under `Context.getNoBackupFilesDir()/offline/`, which Android excludes from backup and device transfer. Make sure your own rules do not re-include it, and exclude the provider's own licence storage:
 
 ```xml
 <!-- res/xml/data_extraction_rules.xml (Android 12+) -->
@@ -230,10 +230,10 @@ await Playlist.addItem({ item: { trackId: 'talk-42', downloadId: 'dl-42', assetU
 </full-backup-content>
 ```
 
-**iOS:** media, index and plugin metadata live under Application Support `org.dwbn.plugins.playlist.offline/` with `isExcludedFromBackup`. drm-kit's own keys and encrypted subtitles live in Application Support `drm-kit/` (also excluded from backup). Do not re-include those directories in a custom backup.
+**iOS:** media, index and plugin metadata live under Application Support `org.dwbn.plugins.playlist.offline/` with `isExcludedFromBackup`. drm-kit's own keys live in Application Support `drm-kit/` (also excluded from backup). Do not re-include those directories in a custom backup.
 
 ### Manual device checks
 
-On a real device (Pixel 7a / physical iPhone): download a protected lecture, switch to airplane mode, play it, lock the screen and confirm lock-screen controls and background playback. Confirm there is no `.mp3` / `.vtt` file. On Android nothing should sit outside `noBackupFilesDir`; on iOS the offline directory should have `isExcludedFromBackup`. Check expiry (`state(...) = expired` refuses playback) and renewal. FairPlay will not run in Simulator.
+On a real device (Pixel 7a / physical iPhone): download a protected lecture, switch to airplane mode, play it, lock the screen and confirm lock-screen controls and background playback. Confirm there is no `.mp3` file. On Android nothing should sit outside `noBackupFilesDir`; on iOS the offline directory should have `isExcludedFromBackup`. Check expiry (`state(...) = expired` refuses playback) and renewal. FairPlay will not run in Simulator.
 
 For switching between protected audio and video, see [Handoff with DRM](./video-handoff.md#handoff-with-drm).

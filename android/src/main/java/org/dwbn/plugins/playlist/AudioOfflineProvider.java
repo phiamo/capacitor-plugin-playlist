@@ -6,7 +6,7 @@ import androidx.media3.common.util.UnstableApi;
 import com.getcapacitor.JSObject;
 
 /**
- * Host-registered owner of offline licences, renewal and subtitles (Story 59.4). The host wraps
+ * Host-registered owner of offline licences and renewal (Story 59.4). The host wraps
  * drm-kit {@code OfflineLicenseManager}; this plugin never imports drm-kit.
  *
  * <p>Error results are the five {@link AudioDrm} discriminators plus {@link
@@ -44,7 +44,7 @@ public interface AudioOfflineProvider {
   @Nullable
   String renew(String downloadId, @Nullable JSObject drm);
 
-  /** Drop the stored licence (and encrypted subtitles) of {@code downloadId}. Failures are ignored. */
+  /** Drop the stored licence of {@code downloadId}. Failures are ignored. */
   void release(String downloadId);
 
   /** One of {@link #STATE_NONE}, {@link #STATE_ACTIVE}, {@link #STATE_EXPIRED}. Quick and local. */

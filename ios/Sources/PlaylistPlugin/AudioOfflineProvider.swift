@@ -2,7 +2,7 @@
 //  AudioOfflineProvider.swift
 //  PlaylistPlugin
 //
-//  Host-registered owner of offline FairPlay licences, renewal and subtitles (Story 59.5).
+//  Host-registered owner of offline FairPlay licences and renewal (Story 59.5).
 //  The host wraps drm-kit `FairPlayOfflineLicenseManager`; this plugin never imports drm-kit.
 //
 
@@ -10,7 +10,7 @@ import AVFoundation
 import Capacitor
 import Foundation
 
-/// Host-registered owner of offline licences, renewal and subtitles. Register from the app at
+/// Host-registered owner of offline licences and renewal. Register from the app at
 /// launch via `AudioOffline.setProvider(_:)`. Errors are the five `AudioDrm` discriminators plus
 /// `offlineDeviceLimit`; anything else is coerced to `unknown`.
 ///
@@ -37,7 +37,7 @@ public protocol AudioOfflineProvider: AnyObject {
     /// - Returns: `nil` on success, otherwise an error discriminator.
     func renew(downloadId: String, drm: JSObject?) -> String?
 
-    /// Drop the stored licence (and encrypted subtitles) of `downloadId`. Failures are ignored.
+    /// Drop the stored licence of `downloadId`. Failures are ignored.
     func release(downloadId: String)
 
     /// One of `none` | `active` | `expired`. Quick and local.

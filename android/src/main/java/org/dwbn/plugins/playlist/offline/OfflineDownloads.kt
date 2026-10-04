@@ -48,7 +48,7 @@ data class DownloadInfo(
 /**
  * Download orchestration (Story 59.4). Order on start: prepare HLS -> first `Format` with
  * `drmInitData` -> `provider.acquire` (background) -> only then enqueue segments, so a refused
- * licence (incl. `offlineDeviceLimit`) fetches no media. Licences, renewal and subtitles belong to
+ * licence (incl. `offlineDeviceLimit`) fetches no media. Licences and renewal belong to
  * the host [AudioOfflineProvider]; this class never touches drm-kit.
  */
 @UnstableApi

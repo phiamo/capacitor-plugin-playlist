@@ -4,7 +4,7 @@
 //
 //  Download orchestration (Story 59.5). Order on start: read FairPlay `skd://` from the remote
 //  HLS → `provider.acquire` (background) → only then start the download task, so a refused
-//  licence (incl. `offlineDeviceLimit`) fetches no media. Licences, renewal and subtitles belong
+//  licence (incl. `offlineDeviceLimit`) fetches no media. Licences and renewal belong
 //  to the host `AudioOfflineProvider`; this class never touches drm-kit.
 //
 
