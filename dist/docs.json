@@ -121,7 +121,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Replace the entire playlist. Clears all previous items.\nUse `options.retainPosition` to keep the current track and playback position.\n\nOptional `drm` on items is additive: Android attaches Widevine through a\nhost-registered provider (`AudioDrm.setProvider`). Without a provider the call\nis rejected with code `noProvider` and the previous queue is left unchanged.\niOS and web reject with code `notSupported` (`DRM not supported on this platform yet`)\nand do not play. DRM playback errors use the existing `status` listener\n(`RMXSTATUS_ERROR`) with `value.error` set to one of\n`blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.",
+        "docs": "Replace the entire playlist. Clears all previous items.\nUse `options.retainPosition` to keep the current track and playback position.\n\nOptional `drm` on items is additive: Android attaches Widevine through a\nhost-registered provider (`AudioDrm.setProvider`). iOS uses the host FairPlay\n`AudioDrm` provider. Without a provider the call is rejected with code\n`noProvider` and the previous queue is left unchanged. Web rejects with code\n`notSupported`. DRM playback errors use the existing `status` listener\n(`RMXSTATUS_ERROR`) with `value.error` set to one of\n`blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.",
         "complexTypes": [
           "PlaylistOptions"
         ],
@@ -139,7 +139,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Append a single track to the end of the playlist, or insert at a 0-based index.\nWhen `index` is omitted the track is appended. Insertion does not interrupt playback\nof the current track.\n\nItems with `drm` follow the same provider / `notSupported` rules as `setPlaylistItems`.",
+        "docs": "Append a single track to the end of the playlist, or insert at a 0-based index.\nWhen `index` is omitted the track is appended. Insertion does not interrupt playback\nof the current track.\n\nItems with `drm` follow the same provider / `noProvider` rules as `setPlaylistItems`.",
         "complexTypes": [
           "AddItemOptions"
         ],
@@ -175,7 +175,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Replace a track's metadata and source URL in place (e.g. stream URL → local file).\nWhen replacing the currently playing track, playback position and play/pause state are preserved.\n\nItems with `drm` follow the same provider / `notSupported` rules as `setPlaylistItems`.",
+        "docs": "Replace a track's metadata and source URL in place (e.g. stream URL → local file).\nWhen replacing the currently playing track, playback position and play/pause state are preserved.\n\nItems with `drm` follow the same provider / `noProvider` rules as `setPlaylistItems`.",
         "complexTypes": [
           "ReplaceItemOptions"
         ],
@@ -193,7 +193,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Append multiple tracks to the end of the playlist.\nRaises one `RMXSTATUS_ITEM_ADDED` event per track.\n\nIf any item has `drm` and cannot open, the whole call fails and the previous\nqueue is left unchanged (same provider / `notSupported` rules as `setPlaylistItems`).",
+        "docs": "Append multiple tracks to the end of the playlist.\nRaises one `RMXSTATUS_ITEM_ADDED` event per track.\n\nIf any item has `drm` and cannot open, the whole call fails and the previous\nqueue is left unchanged (same provider / `noProvider` rules as `setPlaylistItems`).",
         "complexTypes": [
           "AddAllItemOptions"
         ],

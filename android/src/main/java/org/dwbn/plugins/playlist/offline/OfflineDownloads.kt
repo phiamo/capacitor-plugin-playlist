@@ -106,9 +106,11 @@ class OfflineDownloads(
             val prepared = try {
                 engine.prepare(downloadId, url, mimeType)
             } catch (e: IOException) {
+                Log.w(TAG, "prepare IOException id=$downloadId ${e.javaClass.simpleName}: ${e.message}")
                 fail(downloadId, AudioDrm.ERROR_NETWORK, token)
                 return
             } catch (e: RuntimeException) {
+                Log.w(TAG, "prepare RuntimeException id=$downloadId ${e.javaClass.simpleName}: ${e.message}")
                 fail(downloadId, AudioDrm.ERROR_UNKNOWN, token)
                 return
             }
@@ -124,9 +126,11 @@ class OfflineDownloads(
             val refusal = try {
                 provider.acquire(downloadId, format, drm ?: JSObject())
             } catch (e: RuntimeException) {
+                Log.w(TAG, "acquire threw ${e.javaClass.simpleName}: ${e.message}")
                 AudioDrm.ERROR_UNKNOWN
             }
             if (refusal != null) {
+                Log.w(TAG, "acquire refused id=$downloadId error=$refusal")
                 fail(downloadId, AudioOffline.typedError(refusal), token)
                 return
             }

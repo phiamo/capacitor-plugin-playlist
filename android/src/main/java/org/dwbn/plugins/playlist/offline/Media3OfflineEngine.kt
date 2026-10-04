@@ -1,14 +1,18 @@
 package org.dwbn.plugins.playlist.offline
 
 import android.content.Context
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
+import java.io.ByteArrayOutputStream
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import androidx.media3.exoplayer.offline.DefaultDownloaderFactory
@@ -121,35 +125,101 @@ class Media3OfflineEngine(context: Context) : OfflineEngine {
         }
     }
 
+    /**
+     * Media3 [DownloadHelper] / [DefaultTrackSelector] must be created and read on the main looper.
+     * The worker waits on a latch so main is not blocked for the HLS fetch.
+     */
     override fun prepare(downloadId: String, url: String, mimeType: String?): PreparedDownload {
+        check(Looper.myLooper() != Looper.getMainLooper()) {
+            "prepare blocks; call from a background thread"
+        }
         val item = MediaItem.Builder()
             .setUri(url)
             .setMimeType(mimeType ?: MimeTypes.APPLICATION_M3U8)
             .build()
-        val helper = DownloadHelper.Factory()
-            .setDataSourceFactory(http)
-            .setRenderersFactory(DefaultRenderersFactory(appContext))
-            .create(item)
-        val latch = CountDownLatch(1)
-        val error = AtomicReference<IOException?>()
-        val tracksAvailable = AtomicReference(false)
-        helper.prepare(object : DownloadHelper.Callback {
-            override fun onPrepared(helper: DownloadHelper, tracksInfoAvailable: Boolean) {
-                tracksAvailable.set(tracksInfoAvailable)
-                latch.countDown()
-            }
+        val done = CountDownLatch(1)
+        val outcome = AtomicReference<Result<PreparedRead>>()
+        val helperRef = AtomicReference<DownloadHelper>()
+        val main = Handler(Looper.getMainLooper())
+        main.post {
+            val helper = DownloadHelper.Factory()
+                .setDataSourceFactory(http)
+                .setRenderersFactory(DefaultRenderersFactory(appContext))
+                .create(item)
+            helperRef.set(helper)
+            helper.prepare(object : DownloadHelper.Callback {
+                override fun onPrepared(helper: DownloadHelper, tracksInfoAvailable: Boolean) {
+                    outcome.set(runCatching { readPrepared(downloadId, helper, tracksInfoAvailable) })
+                    done.countDown()
+                }
 
-            override fun onPrepareError(helper: DownloadHelper, e: IOException) {
-                error.set(e)
-                latch.countDown()
-            }
-        })
+                override fun onPrepareError(helper: DownloadHelper, e: IOException) {
+                    helper.release()
+                    outcome.set(Result.failure(e))
+                    done.countDown()
+                }
+            })
+        }
         try {
-            if (!latch.await(PREPARE_TIMEOUT_S, TimeUnit.SECONDS)) {
+            if (!done.await(PREPARE_TIMEOUT_S, TimeUnit.SECONDS)) {
+                main.post { helperRef.get()?.release() }
                 throw IOException("prepare timed out")
             }
-            error.get()?.let { throw it }
-            val formats = if (tracksAvailable.get() && helper.periodCount > 0) {
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            main.post { helperRef.get()?.release() }
+            throw IOException("prepare interrupted")
+        }
+        val result = outcome.get() ?: throw IOException("prepare produced no result")
+        val read = result.getOrThrow()
+        var format = read.prepared.format
+        var sessionKeyFallback = false
+        if (format == null) {
+            val playlist = try {
+                fetchUtf8(url)
+            } catch (e: IOException) {
+                Log.w(TAG, "session-key fetch failed id=$downloadId ${e.javaClass.simpleName}: ${e.message}")
+                null
+            }
+            format = playlist?.let { HlsWidevineSessionKey.formatFromPlaylist(it) }
+            sessionKeyFallback = format != null
+        }
+        Log.i(
+            TAG,
+            "prepare id=$downloadId tracksInfoAvailable=${read.tracksInfoAvailable} " +
+                "periodCount=${read.periodCount} formats=${read.formatCount} drm=${read.drmCount} " +
+                "sessionKeyFallback=$sessionKeyFallback",
+        )
+        return PreparedDownload(downloadId, format, read.prepared.handle)
+    }
+
+    private fun fetchUtf8(url: String): String {
+        val source = http.createDataSource()
+        source.open(DataSpec(Uri.parse(url)))
+        try {
+            val out = ByteArrayOutputStream()
+            val buf = ByteArray(8 * 1024)
+            while (true) {
+                val n = source.read(buf, 0, buf.size)
+                if (n == C.RESULT_END_OF_INPUT) {
+                    break
+                }
+                out.write(buf, 0, n)
+            }
+            return out.toString(Charsets.UTF_8.name())
+        } finally {
+            source.close()
+        }
+    }
+
+    private fun readPrepared(
+        downloadId: String,
+        helper: DownloadHelper,
+        tracksInfoAvailable: Boolean,
+    ): PreparedRead {
+        try {
+            val periodCount = if (tracksInfoAvailable) helper.periodCount else 0
+            val formats = if (tracksInfoAvailable && periodCount > 0) {
                 helper.getTracks(0).groups.flatMap { group ->
                     (0 until group.length).map { group.getTrackFormat(it) to group.isTrackSelected(it) }
                 }
@@ -157,14 +227,25 @@ class Media3OfflineEngine(context: Context) : OfflineEngine {
                 emptyList()
             }
             val request = helper.getDownloadRequest(downloadId, null)
-            return PreparedDownload(downloadId, OfflineFormats.firstWithDrmInitData(formats), request)
-        } catch (e: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw IOException("prepare interrupted")
+            return PreparedRead(
+                PreparedDownload(downloadId, OfflineFormats.firstWithDrmInitData(formats), request),
+                tracksInfoAvailable,
+                periodCount,
+                formats.size,
+                formats.count { it.first.drmInitData != null },
+            )
         } finally {
             helper.release()
         }
     }
+
+    private data class PreparedRead(
+        val prepared: PreparedDownload,
+        val tracksInfoAvailable: Boolean,
+        val periodCount: Int,
+        val formatCount: Int,
+        val drmCount: Int,
+    )
 
     override fun enqueue(prepared: PreparedDownload) {
         val request = prepared.handle as DownloadRequest

@@ -893,6 +893,21 @@ class PlaylistWeb extends core.WebPlugin {
         }
         return Promise.reject();
     }
+    async startDownload(_options) {
+        throw offlineNotSupported();
+    }
+    async cancelDownload(_options) {
+        throw offlineNotSupported();
+    }
+    async deleteDownload(_options) {
+        throw offlineNotSupported();
+    }
+    async renewDownload(_options) {
+        throw offlineNotSupported();
+    }
+    async listDownloads() {
+        throw offlineNotSupported();
+    }
     async setPlaylistItems(options) {
         var _a, _b, _c;
         assertWebDrmNotSupported(options.items);
@@ -1256,9 +1271,15 @@ class PlaylistWeb extends core.WebPlugin {
         });
     }
 }
+/** Offline downloads are native-only (Story 59.4); web rejects `notSupported`. */
+function offlineNotSupported() {
+    const error = new Error('Offline downloads not supported on this platform');
+    error.code = 'notSupported';
+    return error;
+}
 /** iOS/web refuse `drm` before creating a player (Story 57.5). */
 function assertWebDrmNotSupported(items) {
-    if (items.some((item) => item != null && item.drm != null)) {
+    if (items.some((item) => item != null && (item.drm != null || item.downloadId != null))) {
         const error = new Error('DRM not supported on this platform yet');
         error.code = 'notSupported';
         throw error;

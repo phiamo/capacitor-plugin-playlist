@@ -1,7 +1,7 @@
 import { WebPlugin } from '@capacitor/core';
 import { RmxAudioStatusMessage } from './Constants';
 import type { AddAllItemOptions, AddItemOptions, MoveItemOptions, PlayByIdOptions, PlayByIndexOptions, PlaylistOptions, PlaylistPlugin, RemoveItemOptions, RemoveItemsOptions, ReplaceItemOptions, SeekToOptions, SelectByIdOptions, SelectByIndexOptions, SetLoopOptions, SetPlaybackRateOptions, SetPlaybackVolumeOptions } from './definitions';
-import type { AudioPlayerOptions, AudioTrack } from './interfaces';
+import type { AudioPlayerOptions, AudioTrack, DownloadIdOptions, DownloadInfo, RenewDownloadOptions, StartDownloadOptions } from './interfaces';
 export declare class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     protected audio: HTMLAudioElement | undefined;
     protected playlistItems: AudioTrack[];
@@ -38,6 +38,15 @@ export declare class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     setLoop(options: SetLoopOptions): Promise<void>;
     setOptions(options: AudioPlayerOptions): Promise<void>;
     setPlaybackVolume(options: SetPlaybackVolumeOptions): Promise<void>;
+    startDownload(_options: StartDownloadOptions): Promise<{
+        downloadId: string;
+    }>;
+    cancelDownload(_options: DownloadIdOptions): Promise<void>;
+    deleteDownload(_options: DownloadIdOptions): Promise<void>;
+    renewDownload(_options: RenewDownloadOptions): Promise<void>;
+    listDownloads(): Promise<{
+        downloads: DownloadInfo[];
+    }>;
     setPlaylistItems(options: PlaylistOptions): Promise<void>;
     skipForward(): Promise<void>;
     skipBack(): Promise<void>;

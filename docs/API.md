@@ -135,10 +135,10 @@ Replace the entire playlist. Clears all previous items.
 Use `options.retainPosition` to keep the current track and playback position.
 
 Optional `drm` on items is additive: Android attaches Widevine through a
-host-registered provider (`AudioDrm.setProvider`). Without a provider the call
-is rejected with code `noProvider` and the previous queue is left unchanged.
-iOS and web reject with code `notSupported` (`DRM not supported on this platform yet`)
-and do not play. DRM playback errors use the existing `status` listener
+host-registered provider (`AudioDrm.setProvider`). iOS uses the host FairPlay
+`AudioDrm` provider. Without a provider the call is rejected with code
+`noProvider` and the previous queue is left unchanged. Web rejects with code
+`notSupported`. DRM playback errors use the existing `status` listener
 (`RMXSTATUS_ERROR`) with `value.error` set to one of
 `blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.
 
@@ -159,7 +159,7 @@ Append a single track to the end of the playlist, or insert at a 0-based index.
 When `index` is omitted the track is appended. Insertion does not interrupt playback
 of the current track.
 
-Items with `drm` follow the same provider / `notSupported` rules as `setPlaylistItems`.
+Items with `drm` follow the same provider / `noProvider` rules as `setPlaylistItems`.
 
 | Param         | Type                                                      |
 | ------------- | --------------------------------------------------------- |
@@ -192,7 +192,7 @@ replaceItem(options: ReplaceItemOptions) => Promise<void>
 Replace a track's metadata and source URL in place (e.g. stream URL → local file).
 When replacing the currently playing track, playback position and play/pause state are preserved.
 
-Items with `drm` follow the same provider / `notSupported` rules as `setPlaylistItems`.
+Items with `drm` follow the same provider / `noProvider` rules as `setPlaylistItems`.
 
 | Param         | Type                                                              |
 | ------------- | ----------------------------------------------------------------- |
@@ -211,7 +211,7 @@ Append multiple tracks to the end of the playlist.
 Raises one `RMXSTATUS_ITEM_ADDED` event per track.
 
 If any item has `drm` and cannot open, the whole call fails and the previous
-queue is left unchanged (same provider / `notSupported` rules as `setPlaylistItems`).
+queue is left unchanged (same provider / `noProvider` rules as `setPlaylistItems`).
 
 | Param         | Type                                                            |
 | ------------- | --------------------------------------------------------------- |

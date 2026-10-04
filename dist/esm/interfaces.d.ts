@@ -146,6 +146,58 @@ export interface AudioTrack {
      * Bearer live on that provider, not here. Web still refuses items that set this.
      */
     drm?: AudioTrackDrmOptions;
+    /**
+     * Id of a completed offline download (see `startDownload`). The item plays from
+     * the local download (Android cache / iOS `AVAssetDownload` asset) with the host provider's
+     * offline licence; `assetUrl` is not used for playback. If the licence has expired, playback
+     * is refused with the `expired` error. Web refuses items that set this.
+     */
+    downloadId?: string;
+}
+/** Lifecycle states of an offline download (`download` event and `listDownloads`). */
+export type DownloadState = 'queued' | 'downloading' | 'completed' | 'failed' | 'expired';
+/**
+ * Error discriminators of offline downloads: the five DRM discriminators plus
+ * `offlineDeviceLimit` (the user already holds offline licences on the maximum number of devices).
+ */
+export type DownloadError = AudioTrackDrmError | 'offlineDeviceLimit';
+/** Payload of the `download` listener. */
+export interface DownloadEvent {
+    downloadId: string;
+    state: DownloadState;
+    /** 0..1 */
+    progress: number;
+    /** Set with `failed`, and with `expired` after a refused renewal. */
+    error?: DownloadError;
+}
+/** One entry of `listDownloads`. */
+export interface DownloadInfo {
+    downloadId: string;
+    state: DownloadState;
+    /** 0..1 */
+    progress: number;
+    /** Estimated licence expiry (epoch ms): last successful acquire/renew + 27 days. `null` before the licence exists. */
+    expiresAt: number | null;
+    /** The host provider asks for a renewal soon. */
+    needsRenewal: boolean;
+}
+export interface StartDownloadOptions {
+    /** Stable id chosen by the app; also the id later set as `AudioTrack.downloadId`. */
+    downloadId: string;
+    /** HLS playlist (`audio.m3u8`). May be re-signed on a resumed start. Android reuses cached segments; iOS starts a new task and discards partial media. */
+    url: string;
+    /** Defaults to HLS (`application/x-mpegURL`). */
+    mimeType?: string;
+    /** Descriptor handed to the host provider's `acquire`. */
+    drm: AudioTrackDrmOptions;
+}
+export interface DownloadIdOptions {
+    downloadId: string;
+}
+export interface RenewDownloadOptions {
+    downloadId: string;
+    /** Descriptor handed to the host provider's `renew`. */
+    drm?: AudioTrackDrmOptions;
 }
 /**
  * Optional playlist-item DRM fields. Names match the playback API and video plugin.
