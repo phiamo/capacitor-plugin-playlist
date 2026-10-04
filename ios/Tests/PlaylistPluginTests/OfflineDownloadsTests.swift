@@ -180,6 +180,24 @@ final class OfflineDownloadsTests: XCTestCase {
         XCTAssertEqual(downloads.list().count, 1)
     }
 
+    func test_list_skipsFailedEngineRows() {
+        engine.emit("ghost", .failed, 0.2)
+        XCTAssertTrue(downloads.list().isEmpty)
+    }
+
+    func test_init_purgesFailedEngineRows() {
+        engine.emit("ghost", .failed, 0.2)
+        let cleaned = OfflineDownloads(
+            engine: engine,
+            meta: meta,
+            executor: { $0() },
+            clock: { now },
+            providerSource: { provider }
+        )
+        XCTAssertNil(engine.get("ghost"))
+        XCTAssertTrue(cleaned.list().isEmpty)
+    }
+
     func test_delete_completed_removesAssetMetaAndLicence_ignoringReleaseFailure() {
         downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8", drm: drm())
         engine.emit("d1", .completed, 1)

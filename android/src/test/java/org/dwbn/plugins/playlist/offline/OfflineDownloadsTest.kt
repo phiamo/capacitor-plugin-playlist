@@ -311,6 +311,20 @@ class OfflineDownloadsTest {
     }
 
     @Test
+    fun list_skipsFailedEngineRows() {
+        engine.emit("ghost", EngineState.FAILED, 0.2f)
+        assertTrue(downloads.list().isEmpty())
+    }
+
+    @Test
+    fun init_purgesFailedEngineRows() {
+        engine.emit("ghost", EngineState.FAILED, 0.2f)
+        val cleaned = OfflineDownloads(engine, meta, { it.run() }, { now }, { provider })
+        assertNull(engine.get("ghost"))
+        assertTrue(cleaned.list().isEmpty())
+    }
+
+    @Test
     fun list_marksCompletedDownloadExpiredWhenProviderSaysSo() {
         downloads.start("d1", "https://cdn.example/a.m3u8", null, drm())
         engine.emit("d1", EngineState.COMPLETED, 1f)

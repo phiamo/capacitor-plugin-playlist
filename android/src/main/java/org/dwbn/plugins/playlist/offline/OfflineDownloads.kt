@@ -72,6 +72,7 @@ class OfflineDownloads(
 
     init {
         engine.listener = this
+        purgeFailed()
     }
 
     /**
@@ -240,6 +241,9 @@ class OfflineDownloads(
         val seen = HashSet<String>()
         val out = ArrayList<DownloadInfo>()
         for (download in engine.all()) {
+            if (download.state == EngineState.FAILED) {
+                continue
+            }
             seen.add(download.id)
             var state = stateName(download)
             if (state == DownloadStates.COMPLETED && provider != null &&
@@ -263,6 +267,19 @@ class OfflineDownloads(
             }
         }
         return out
+    }
+
+    private fun purgeFailed() {
+        for (download in engine.all()) {
+            if (download.state == EngineState.FAILED) {
+                try {
+                    engine.remove(download.id)
+                } catch (e: RuntimeException) {
+                    Log.w(TAG, "purge failed row failed: ${e.javaClass.simpleName}")
+                }
+                meta.remove(download.id)
+            }
+        }
     }
 
     private fun needsRenewal(provider: AudioOfflineProvider?, downloadId: String): Boolean =

@@ -418,6 +418,9 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
     private func persistIndexLocked() {
         var rootObj: [String: Any] = [:]
         for (id, download) in store {
+            if download.state == .failed {
+                continue
+            }
             var item: [String: Any] = [
                 "state": download.state.rawValue,
                 "progress": download.progress,
@@ -446,10 +449,14 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
         else {
             return
         }
-        var downgraded = false
+        var dropped = false
         for (id, value) in rootObj {
             guard let item = value as? [String: Any] else { continue }
-            var state = EngineState(rawValue: item["state"] as? String ?? "") ?? .failed
+            let state = EngineState(rawValue: item["state"] as? String ?? "") ?? .failed
+            if state == .failed {
+                dropped = true
+                continue
+            }
             let progress = (item["progress"] as? NSNumber)?.floatValue ?? 0
             let failedByNetwork = item["failedByNetwork"] as? Bool ?? true
             var local: URL?
@@ -461,8 +468,8 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
                     fileManager: fileManager
                 )
                 if local == nil {
-                    state = .failed
-                    downgraded = true
+                    dropped = true
+                    continue
                 }
             }
             store[id] = EngineDownload(
@@ -473,7 +480,7 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
                 failedByNetwork: failedByNetwork
             )
         }
-        if downgraded {
+        if dropped {
             persistIndexLocked()
         }
     }

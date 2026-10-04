@@ -76,6 +76,7 @@ final class OfflineDownloads: OfflineEngineListener {
         self.clock = clock
         self.providerSource = providerSource
         engine.listener = self
+        purgeFailed()
     }
 
     /// Starts (or retries with a fresh URL) a download. Returns a failure code synchronously
@@ -236,7 +237,7 @@ final class OfflineDownloads: OfflineEngineListener {
         let provider = providerSource()
         var seen = Set<String>()
         var out: [DownloadInfo] = []
-        for download in engine.all() {
+        for download in engine.all() where download.state != .failed {
             seen.insert(download.id)
             var state = stateName(download)
             if state == DownloadStates.completed,
@@ -293,6 +294,13 @@ final class OfflineDownloads: OfflineEngineListener {
 
     func onRemoved(_ downloadId: String) {
         // Removal is already reflected by the callers (cancel/delete); nothing to emit.
+    }
+
+    private func purgeFailed() {
+        for download in engine.all() where download.state == .failed {
+            engine.remove(download.id)
+            meta.remove(download.id)
+        }
     }
 
     private func needsRenewal(_ provider: AudioOfflineProvider?, downloadId: String) -> Bool {
