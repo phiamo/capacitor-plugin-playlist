@@ -103,6 +103,64 @@ final class AudioTrackOfflineWiringTests: XCTestCase {
         super.tearDown()
     }
 
+    func test_promote_sameURL_keepsPackage() {
+        let dest = tmp.appendingPathComponent("same.movpkg")
+        try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+        XCTAssertEqual(OfflineLocalAsset.promote(location: dest, dest: dest), dest)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dest.path))
+    }
+
+    func test_promote_movesIntoDest() {
+        let from = tmp.appendingPathComponent("from.movpkg")
+        let dest = tmp.appendingPathComponent("dest.movpkg")
+        try? FileManager.default.createDirectory(at: from, withIntermediateDirectories: true)
+        XCTAssertEqual(OfflineLocalAsset.promote(location: from, dest: dest), dest)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dest.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: from.path))
+    }
+
+    func test_adopt_userManaged_keepsPackage() {
+        let home = tmp.appendingPathComponent("home", isDirectory: true)
+        let from = home.appendingPathComponent("Library/com.apple.UserManagedAssets.abc/test-1_DEAD.movpkg", isDirectory: true)
+        let dest = tmp.appendingPathComponent("dest.movpkg")
+        try? FileManager.default.createDirectory(at: from, withIntermediateDirectories: true)
+        XCTAssertEqual(OfflineLocalAsset.adopt(location: from, dest: dest), from)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: from.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dest.path))
+    }
+
+    func test_resolveCompletedURL_usesUserManagedWhenDestMissing() {
+        let home = tmp.appendingPathComponent("home", isDirectory: true)
+        let pkg = home.appendingPathComponent("Library/com.apple.UserManagedAssets.abc/test-1_DEAD.movpkg", isDirectory: true)
+        try? FileManager.default.createDirectory(at: pkg, withIntermediateDirectories: true)
+        let resolved = OfflineLocalAsset.resolveCompletedURL(
+            downloadId: "test-1",
+            storedLocalPath: nil,
+            root: tmp,
+            home: home
+        )
+        XCTAssertEqual(resolved, pkg)
+    }
+
+    func test_downloadId_fromUserManagedPackage() {
+        let pkg = URL(fileURLWithPath: "/tmp/Library/com.apple.UserManagedAssets.abc/test-1_1501FE2C90197FE0.movpkg")
+        XCTAssertEqual(OfflineLocalAsset.downloadId(fromUserManagedPackage: pkg), "test-1")
+    }
+
+    func test_persistablePath_usesHomeRelativeUserManaged() {
+        let home = tmp.appendingPathComponent("home", isDirectory: true)
+        let dest = OfflineLocalAsset.movpkgURL(downloadId: "test-1", root: tmp)
+        let pkg = home.appendingPathComponent("Library/com.apple.UserManagedAssets.abc/test-1_DEAD.movpkg")
+        XCTAssertEqual(
+            OfflineLocalAsset.persistablePath(url: pkg, dest: dest, downloadId: "test-1", home: home),
+            "Library/com.apple.UserManagedAssets.abc/test-1_DEAD.movpkg"
+        )
+        XCTAssertEqual(
+            OfflineLocalAsset.persistablePath(url: dest, dest: dest, downloadId: "test-1", home: home),
+            OfflineLocalAsset.relativeHint(downloadId: "test-1")
+        )
+    }
+
     func test_resolveCompletedURL_ignoresStaleAbsoluteLocalPath() {
         let dest = OfflineLocalAsset.movpkgURL(downloadId: "test-1", root: tmp)
         try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)

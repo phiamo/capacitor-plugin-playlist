@@ -85,8 +85,9 @@ final class OfflineDownloads: OfflineEngineListener {
         guard let provider = providerSource() else {
             return AudioOffline.codeNoProvider
         }
-        if engine.get(downloadId)?.state == .completed, meta.get(downloadId) != nil {
+        if engine.get(downloadId)?.state == .completed {
             if AudioOffline.stateOf(provider, downloadId: downloadId) == AudioOffline.stateActive {
+                persistLicenceClock(provider, downloadId: downloadId)
                 emit(downloadId, DownloadStates.completed, 1, nil)
                 return nil
             }

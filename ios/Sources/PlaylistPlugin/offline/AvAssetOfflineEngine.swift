@@ -143,20 +143,141 @@ enum OfflineLocalAsset {
             .appendingPathComponent("\(fileName(for: downloadId)).movpkg", isDirectory: true)
     }
 
+    static func packageExists(_ url: URL, fileManager: FileManager = .default) -> Bool {
+        fileManager.fileExists(atPath: url.path)
+    }
+
+    static func sandboxHome(fileManager: FileManager = .default) -> URL {
+        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+    }
+
+    static func isUserManaged(_ url: URL) -> Bool {
+        url.path.contains("/com.apple.UserManagedAssets")
+    }
+
+    static func userManagedPackages(
+        downloadId: String,
+        fileManager: FileManager = .default,
+        home: URL = sandboxHome()
+    ) -> [URL] {
+        let library = home.appendingPathComponent("Library", isDirectory: true)
+        guard let dirs = try? fileManager.contentsOfDirectory(
+            at: library,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+        let prefix = "\(fileName(for: downloadId))_"
+        var out: [URL] = []
+        for dir in dirs where dir.lastPathComponent.hasPrefix("com.apple.UserManagedAssets") {
+            guard let pkgs = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+                continue
+            }
+            for pkg in pkgs where pkg.pathExtension == "movpkg" && pkg.lastPathComponent.hasPrefix(prefix) {
+                out.append(pkg)
+            }
+        }
+        return out
+    }
+
+    static func newestUserManagedPackage(
+        downloadId: String,
+        fileManager: FileManager = .default,
+        home: URL = sandboxHome()
+    ) -> URL? {
+        userManagedPackages(downloadId: downloadId, fileManager: fileManager, home: home)
+            .filter { packageExists($0, fileManager: fileManager) }
+            .max { lhs, rhs in
+                lhs.lastPathComponent < rhs.lastPathComponent
+            }
+    }
+
+    static func downloadId(fromUserManagedPackage url: URL) -> String? {
+        let name = url.deletingPathExtension().lastPathComponent
+        guard let idx = name.lastIndex(of: "_"), idx > name.startIndex else { return nil }
+        return String(name[..<idx])
+    }
+
+    /// `AVAssetDownloadConfiguration` writes into UserManagedAssets. Keep that package; do not move it.
+    static func adopt(
+        location: URL,
+        dest: URL,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        if packageExists(location, fileManager: fileManager), isUserManaged(location) {
+            return location
+        }
+        return promote(location: location, dest: dest, fileManager: fileManager)
+    }
+
+    static func persistablePath(url: URL, dest: URL, downloadId: String, home: URL) -> String {
+        if url.standardizedFileURL == dest.standardizedFileURL {
+            return relativeHint(downloadId: downloadId)
+        }
+        let homePath = home.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        if path.hasPrefix(homePath + "/") {
+            return String(path.dropFirst(homePath.count + 1))
+        }
+        return path
+    }
+
+    /// Moves a non-system download into `assets/`. Keeps whichever package exists if move/copy fails
+    /// (iOS 18+ often already wrote to the destination, or errors after a successful move).
+    static func promote(
+        location: URL,
+        dest: URL,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        let from = location.standardizedFileURL
+        let to = dest.standardizedFileURL
+        if from == to {
+            return packageExists(to, fileManager: fileManager) ? to : nil
+        }
+        if packageExists(to, fileManager: fileManager), !packageExists(from, fileManager: fileManager) {
+            return to
+        }
+        if packageExists(to, fileManager: fileManager) {
+            try? fileManager.removeItem(at: to)
+        }
+        do {
+            try fileManager.moveItem(at: from, to: to)
+            return to
+        } catch {
+            do {
+                try fileManager.copyItem(at: from, to: to)
+                try? fileManager.removeItem(at: from)
+                return to
+            } catch {
+                if packageExists(to, fileManager: fileManager) { return to }
+                if packageExists(from, fileManager: fileManager) { return from }
+                return nil
+            }
+        }
+    }
+
     /// Ignores `storedLocalPath`. Returns the current-sandbox URL when the package exists.
     static func resolveCompletedURL(
         downloadId: String,
         storedLocalPath: String?,
         root: URL,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        home: URL = sandboxHome()
     ) -> URL? {
-        _ = storedLocalPath
         let dest = movpkgURL(downloadId: downloadId, root: root)
-        var isDir: ObjCBool = false
-        guard fileManager.fileExists(atPath: dest.path, isDirectory: &isDir) else {
-            return nil
+        if packageExists(dest, fileManager: fileManager) {
+            return dest
         }
-        return dest
+        if let storedLocalPath, !storedLocalPath.isEmpty {
+            let candidate = storedLocalPath.hasPrefix("/")
+                ? URL(fileURLWithPath: storedLocalPath)
+                : home.appendingPathComponent(storedLocalPath)
+            if packageExists(candidate, fileManager: fileManager) {
+                return candidate
+            }
+        }
+        return newestUserManagedPackage(downloadId: downloadId, fileManager: fileManager, home: home)
     }
 }
 
@@ -171,6 +292,7 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
     private let lock = NSLock()
     private var store: [String: EngineDownload] = [:]
     private var tasks: [String: AVAssetDownloadTask] = [:]
+    private var pendingLocations: [String: URL] = [:]
     private lazy var session: AVAssetDownloadURLSession = makeSession()
 
     init(
@@ -272,20 +394,36 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
     func urlSession(
         _ session: URLSession,
         assetDownloadTask: AVAssetDownloadTask,
+        willDownloadTo location: URL
+    ) {
+        guard let downloadId = assetDownloadTask.taskDescription else { return }
+        lock.lock()
+        pendingLocations[downloadId] = location
+        if let current = store[downloadId] {
+            store[downloadId] = EngineDownload(
+                id: current.id,
+                state: current.state,
+                progress: current.progress,
+                localURL: location,
+                failedByNetwork: current.failedByNetwork
+            )
+        }
+        lock.unlock()
+        NSLog("Offline download willDownloadTo id=%@ name=%@", downloadId, location.lastPathComponent)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        assetDownloadTask: AVAssetDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        guard let downloadId = assetDownloadTask.taskDescription,
-              isLive(assetDownloadTask, downloadId: downloadId) else { return }
-        let dest = movpkgURL(for: downloadId)
-        try? fileManager.removeItem(at: dest)
-        do {
-            try fileManager.moveItem(at: location, to: dest)
-            OfflineStorage.excludeFromBackup(dest)
-            update(downloadId, state: .completed, progress: 1, localURL: dest, failedByNetwork: false)
-        } catch {
-            update(downloadId, state: .failed, progress: progress(of: downloadId), localURL: nil, failedByNetwork: false)
-            try? fileManager.removeItem(at: location)
-        }
+        guard let downloadId = assetDownloadTask.taskDescription else { return }
+        lock.lock()
+        let known = store[downloadId] != nil
+        pendingLocations[downloadId] = location
+        lock.unlock()
+        guard known else { return }
+        keepPackage(downloadId, location: location)
     }
 
     func urlSession(
@@ -309,34 +447,90 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let downloadId = task.taskDescription else { return }
         lock.lock()
-        let live = store[downloadId] != nil && tasks[downloadId] === task
-        if live {
+        let known = store[downloadId] != nil
+        let mapped = tasks[downloadId] === task
+        if mapped {
             tasks.removeValue(forKey: downloadId)
         }
         let current = store[downloadId]
+        let pending = pendingLocations[downloadId]
         lock.unlock()
-        guard live else { return }
-        if let error = error {
-            let network = isNetworkError(error)
-            discardMedia(downloadId)
-            update(downloadId, state: .failed, progress: current?.progress ?? 0, localURL: nil, failedByNetwork: network)
+        guard known, mapped || current?.state == .completed else { return }
+        if let package = existingPackage(downloadId, current: current, task: task, pending: pending) {
+            if current?.state != .completed {
+                OfflineStorage.excludeFromBackup(package)
+                update(downloadId, state: .completed, progress: 1, localURL: package, failedByNetwork: false)
+            }
+            if let error {
+                NSLog("Offline download finished with leftover error id=%@ error=%@", downloadId, String(describing: error))
+            }
+            lock.lock()
+            pendingLocations.removeValue(forKey: downloadId)
+            lock.unlock()
             return
         }
-        if current?.state != .completed {
-            // Finished without a location (or move failed): treat as a failed download.
-            discardMedia(downloadId)
-            update(downloadId, state: .failed, progress: current?.progress ?? 0, localURL: nil, failedByNetwork: false)
+        if current?.state == .completed {
+            return
         }
+        if let error = error {
+            NSLog("Offline download failed id=%@ error=%@", downloadId, String(describing: error))
+            discardMedia(downloadId)
+            update(downloadId, state: .failed, progress: current?.progress ?? 0, localURL: nil, failedByNetwork: isNetworkError(error))
+            return
+        }
+        NSLog("Offline download finished without a package id=%@", downloadId)
+        discardMedia(downloadId)
+        update(downloadId, state: .failed, progress: current?.progress ?? 0, localURL: nil, failedByNetwork: false)
+    }
+
+    private func keepPackage(_ downloadId: String, location: URL) {
+        let dest = movpkgURL(for: downloadId)
+        guard let kept = OfflineLocalAsset.adopt(location: location, dest: dest, fileManager: fileManager) else {
+            NSLog("Offline download adopt failed id=%@ from=%@", downloadId, location.lastPathComponent)
+            return
+        }
+        OfflineStorage.excludeFromBackup(kept)
+        lock.lock()
+        let alreadyDone = store[downloadId]?.state == .completed
+        lock.unlock()
+        if !alreadyDone {
+            update(downloadId, state: .completed, progress: 1, localURL: kept, failedByNetwork: false)
+        }
+    }
+
+    private func existingPackage(
+        _ downloadId: String,
+        current: EngineDownload?,
+        task: URLSessionTask,
+        pending: URL?
+    ) -> URL? {
+        let dest = movpkgURL(for: downloadId)
+        if OfflineLocalAsset.packageExists(dest, fileManager: fileManager) {
+            return dest
+        }
+        let candidates = [pending, current?.localURL].compactMap { $0 }
+        for url in candidates where OfflineLocalAsset.packageExists(url, fileManager: fileManager) {
+            return OfflineLocalAsset.adopt(location: url, dest: dest, fileManager: fileManager) ?? url
+        }
+        if let systemDest = (task as? AVAssetDownloadTask).flatMap({
+            ($0 as NSObject).value(forKey: "destinationURL") as? URL
+        }), OfflineLocalAsset.packageExists(systemDest, fileManager: fileManager) {
+            return OfflineLocalAsset.adopt(location: systemDest, dest: dest, fileManager: fileManager) ?? systemDest
+        }
+        return OfflineLocalAsset.newestUserManagedPackage(downloadId: downloadId, fileManager: fileManager)
     }
 
     private func makeSession() -> AVAssetDownloadURLSession {
         let config = URLSessionConfiguration.background(withIdentifier: AudioOffline.backgroundSessionIdentifier)
         config.isDiscretionary = false
         config.sessionSendsLaunchEvents = true
+        let queue = OperationQueue()
+        queue.name = "org.dwbn.plugins.playlist.offline-session"
+        queue.maxConcurrentOperationCount = 1
         let session = AVAssetDownloadURLSession(
             configuration: config,
             assetDownloadDelegate: self,
-            delegateQueue: OperationQueue()
+            delegateQueue: queue
         )
         session.getAllTasks { [weak self] all in
             guard let self else { return }
@@ -357,19 +551,27 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
         if let task = tasks.removeValue(forKey: downloadId) {
             task.cancel()
         }
+        pendingLocations.removeValue(forKey: downloadId)
         if let local = store[downloadId]?.localURL {
             try? fileManager.removeItem(at: local)
         }
         try? fileManager.removeItem(at: movpkgURL(for: downloadId))
+        for pkg in OfflineLocalAsset.userManagedPackages(downloadId: downloadId, fileManager: fileManager) {
+            try? fileManager.removeItem(at: pkg)
+        }
     }
 
     private func discardMedia(_ downloadId: String) {
         lock.lock()
         defer { lock.unlock() }
+        pendingLocations.removeValue(forKey: downloadId)
         if let local = store[downloadId]?.localURL {
             try? fileManager.removeItem(at: local)
         }
         try? fileManager.removeItem(at: movpkgURL(for: downloadId))
+        for pkg in OfflineLocalAsset.userManagedPackages(downloadId: downloadId, fileManager: fileManager) {
+            try? fileManager.removeItem(at: pkg)
+        }
     }
 
     /// Ignore system callbacks after cancel/delete already cleared this download.
@@ -426,8 +628,13 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
                 "progress": download.progress,
                 "failedByNetwork": download.failedByNetwork
             ]
-            if download.state == .completed {
-                item["localPath"] = OfflineLocalAsset.relativeHint(downloadId: id)
+            if download.state == .completed, let local = download.localURL {
+                item["localPath"] = OfflineLocalAsset.persistablePath(
+                    url: local,
+                    dest: OfflineLocalAsset.movpkgURL(downloadId: id, root: root),
+                    downloadId: id,
+                    home: OfflineLocalAsset.sandboxHome(fileManager: fileManager)
+                )
             }
             rootObj[id] = item
         }
@@ -480,9 +687,41 @@ final class AvAssetOfflineEngine: NSObject, OfflineEngine, AVAssetDownloadDelega
                 failedByNetwork: failedByNetwork
             )
         }
+        if recoverUserManagedLocked() {
+            dropped = true
+        }
         if dropped {
             persistIndexLocked()
         }
+    }
+
+    @discardableResult
+    private func recoverUserManagedLocked() -> Bool {
+        let home = OfflineLocalAsset.sandboxHome(fileManager: fileManager)
+        let library = home.appendingPathComponent("Library", isDirectory: true)
+        guard let dirs = try? fileManager.contentsOfDirectory(at: library, includingPropertiesForKeys: nil) else {
+            return false
+        }
+        var recovered = false
+        for dir in dirs where dir.lastPathComponent.hasPrefix("com.apple.UserManagedAssets") {
+            guard let pkgs = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+                continue
+            }
+            for pkg in pkgs where pkg.pathExtension == "movpkg" {
+                guard let id = OfflineLocalAsset.downloadId(fromUserManagedPackage: pkg),
+                      store[id] == nil,
+                      OfflineLocalAsset.packageExists(pkg, fileManager: fileManager) else { continue }
+                store[id] = EngineDownload(
+                    id: id,
+                    state: .completed,
+                    progress: 1,
+                    localURL: pkg,
+                    failedByNetwork: false
+                )
+                recovered = true
+            }
+        }
+        return recovered
     }
 
     private func mapFetchError(_ error: Error) -> OfflineEngineError {
