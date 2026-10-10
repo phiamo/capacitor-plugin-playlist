@@ -11,7 +11,7 @@
 import Capacitor
 import Foundation
 
-/// Licence clock: `expiresAt` = last successful acquire/renew + 27 days (CDM time is not read).
+/// Fallback licence clock when the host provider does not report a real expiry.
 enum OfflineExpiry {
     static let licenseValidityDays: Int64 = 27
     static let licenseValidityMs: Int64 = licenseValidityDays * 24 * 60 * 60 * 1000
@@ -86,8 +86,12 @@ final class OfflineDownloads: OfflineEngineListener {
             return AudioOffline.codeNoProvider
         }
         if engine.get(downloadId)?.state == .completed, meta.get(downloadId) != nil {
-            emit(downloadId, DownloadStates.completed, 1, nil)
-            return nil
+            if AudioOffline.stateOf(provider, downloadId: downloadId) == AudioOffline.stateActive {
+                emit(downloadId, DownloadStates.completed, 1, nil)
+                return nil
+            }
+            // Leftover media with an unusable licence (Story 59.7): drop and re-acquire.
+            removeAll(downloadId)
         }
         let token = NSObject()
         pendingLock.lock()
@@ -152,8 +156,7 @@ final class OfflineDownloads: OfflineEngineListener {
             return
         }
         do {
-            let now = clock()
-            meta.put(downloadId, entry: OfflineMetaStore.Entry(acquiredAt: now, expiresAt: OfflineExpiry.expiresAt(now)))
+            persistLicenceClock(provider, downloadId: downloadId)
             try engine.enqueue(prepared)
         } catch {
             releaseQuietly(provider, downloadId: downloadId)
@@ -213,8 +216,7 @@ final class OfflineDownloads: OfflineEngineListener {
             guard let self else { return }
             let refusal = provider.renew(downloadId: downloadId, drm: drm)
             if refusal == nil {
-                let now = self.clock()
-                self.meta.put(downloadId, entry: OfflineMetaStore.Entry(acquiredAt: now, expiresAt: OfflineExpiry.expiresAt(now)))
+                self.persistLicenceClock(provider, downloadId: downloadId)
                 let current = self.engine.get(downloadId)
                 self.emit(
                     downloadId,
@@ -250,7 +252,7 @@ final class OfflineDownloads: OfflineEngineListener {
                     downloadId: download.id,
                     state: state,
                     progress: download.progress,
-                    expiresAt: meta.get(download.id)?.expiresAt,
+                    expiresAt: licenceExpiresAt(provider, downloadId: download.id),
                     needsRenewal: needsRenewal(provider, downloadId: download.id)
                 )
             )
@@ -264,7 +266,7 @@ final class OfflineDownloads: OfflineEngineListener {
                     downloadId: id,
                     state: DownloadStates.queued,
                     progress: 0,
-                    expiresAt: meta.get(id)?.expiresAt,
+                    expiresAt: licenceExpiresAt(provider, downloadId: id),
                     needsRenewal: false
                 )
             )
@@ -301,6 +303,19 @@ final class OfflineDownloads: OfflineEngineListener {
             engine.remove(download.id)
             meta.remove(download.id)
         }
+    }
+
+    private func persistLicenceClock(_ provider: AudioOfflineProvider, downloadId: String) {
+        let now = clock()
+        let fromProvider = provider.expiresAt(downloadId: downloadId)
+        meta.put(downloadId, entry: OfflineMetaStore.Entry(acquiredAt: now, expiresAt: fromProvider ?? OfflineExpiry.expiresAt(now)))
+    }
+
+    private func licenceExpiresAt(_ provider: AudioOfflineProvider?, downloadId: String) -> Int64? {
+        if let provider, let value = provider.expiresAt(downloadId: downloadId) {
+            return value
+        }
+        return meta.get(downloadId)?.expiresAt
     }
 
     private func needsRenewal(_ provider: AudioOfflineProvider?, downloadId: String) -> Bool {

@@ -117,6 +117,7 @@ public class App extends Application {
 |---|---|
 | `String acquire(downloadId, Format, JSObject drm)` | Fetch + persist the offline licence. Runs on a background thread, **before any segment is fetched**. A refusal fails the download without media traffic. |
 | `boolean needsRenewal(downloadId)` | Quick, local. Reported in `listDownloads`. |
+| `Long expiresAt(downloadId)` | Real licence expiry (epoch ms) from drm-kit. `null` when unknown. |
 | `String renew(downloadId, JSObject drm)` | Renew online. |
 | `void release(downloadId)` | Drop the stored licence. Failures are ignored. |
 | `String state(downloadId)` | `none` \| `active` \| `expired`. Quick, local. |
@@ -130,6 +131,7 @@ class MyOfflineProvider(private val kit: OfflineLicenseManager, private val endp
     override fun acquire(downloadId: String, format: Format, drm: JSObject): String? =
         kit.acquire(downloadId, format, endpoints(drm)).error?.name           // e.g. "notEntitled", "offlineDeviceLimit"
     override fun needsRenewal(downloadId: String) = kit.needsRenewal(downloadId)
+    override fun expiresAt(downloadId: String): Long? = kit.expiresAt(downloadId)
     override fun renew(downloadId: String, drm: JSObject?): String? = kit.renew(downloadId).error?.name
     override fun release(downloadId: String) = kit.release(downloadId)
     override fun state(downloadId: String) = kit.state(downloadId).name.lowercase()  // none | active | expired
@@ -149,6 +151,7 @@ AudioOffline.setProvider(MyFairPlayOfflineProvider())
 |---|---|
 | `acquire(downloadId, keyIdentifier, drm) -> String?` | Fetch + persist the persistable FairPlay key. Runs off the main thread, **before any media is fetched**. `keyIdentifier` is the playlist's `skd://` URI. |
 | `needsRenewal(downloadId)` | Quick, local. |
+| `expiresAt(downloadId) -> Int64?` | Real licence expiry (epoch ms) from drm-kit. `nil` when unknown. |
 | `renew(downloadId, drm) -> String?` | Renew online. |
 | `release(downloadId)` | Drop the stored licence. Failures are ignored. |
 | `state(downloadId)` | `none` \| `active` \| `expired`. Quick, local. |
@@ -164,6 +167,9 @@ final class MyFairPlayOfflineProvider: AudioOfflineProvider {
         nil
     }
     func needsRenewal(downloadId: String) -> Bool { kit.needsRenewal(downloadId: downloadId) }
+    func expiresAt(downloadId: String) -> Int64? {
+        kit.expiresAt(downloadId: downloadId).map { Int64($0.timeIntervalSince1970 * 1000) }
+    }
     func renew(downloadId: String, drm: JSObject?) -> String? { /* kit.renew */ nil }
     func release(downloadId: String) { Task { await kit.release(downloadId: downloadId) } }
     func state(downloadId: String) -> String { kit.state(downloadId: downloadId).rawValue } // none | active | expired
@@ -206,7 +212,7 @@ await Playlist.addItem({ item: { trackId: 'talk-42', downloadId: 'dl-42', assetU
 - **Android** order: prepare HLS → first track `Format` with `drmInitData` → `provider.acquire` → enqueue segments. The playlist must therefore expose the PSSH to the downloader, via `#EXT-X-SESSION-KEY` in the multivariant playlist (the DWBN backend publishes the Widevine key there for every audio package since Story 59.4a; older packages need the `app:drm:backfill-session-key` backfill); without a format carrying `drmInitData` the download fails with `unknown`.
 - **iOS** order: read FairPlay `skd://` from the remote HLS → `provider.acquire(downloadId, keyIdentifier, drm)` off the main thread → only then start `AVAssetDownloadURLSession.makeAssetDownloadTask(downloadConfiguration:)`. No identifier → `unknown`. Prepare I/O → `network`. FairPlay does not run in Simulator.
 - A segment `403` (signed URL expired) ends in `failed`. Call `startDownload` again with a fresh URL: **Android** reuses cached segments (the cache key ignores the URL query); **iOS** starts a new task and discards partial media.
-- `expiresAt` (epoch ms) is the last successful acquire/renew **+ 27 days**. The exact CDM remaining time is not read.
+- `expiresAt` (epoch ms) is the host provider's real licence expiry (Widevine CDM remaining time / FairPlay `licenseExpiresAt`). If the provider returns nothing, the plugin falls back to last acquire/renew + 27 days.
 - A refused `renewDownload` rejects with the typed error and emits `expired` only when the provider's state for that download is actually `expired`.
 - Playing an item with `downloadId` whose provider `state` is `expired` emits the existing `expired` status error and does not play. Streaming items are unchanged. Queue mutations of `downloadId` items without a provider reject `noProvider` and leave the queue unchanged.
 - The plugin creates no plaintext audio files. `deleteDownload` removes the asset, index entry, metadata and calls `provider.release`. `cancelDownload` does the same for non-completed downloads and is a no-op once completed. A completed `startDownload` is idempotent; a second pending `start` is ignored.

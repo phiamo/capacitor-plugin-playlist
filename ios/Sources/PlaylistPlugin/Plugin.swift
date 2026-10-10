@@ -462,7 +462,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
             return (AudioDrm.codeNoProvider, "Offline provider is not registered")
         }
         let needsStreamingDrm = items.contains { item in
-            item?["drm"] != nil && downloadId(of: item) == nil
+            item?["drm"] is [String: Any] && downloadId(of: item) == nil
         }
         if needsStreamingDrm && AudioDrm.getProvider() == nil {
             return (AudioDrm.codeNoProvider, "DRM provider is not registered")

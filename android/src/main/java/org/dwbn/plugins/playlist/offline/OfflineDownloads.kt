@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
-/** Licence clock: `expiresAt` = last successful acquire/renew + 27 days (CDM time is not read). */
+/** Fallback licence clock when the host provider does not report a real expiry. */
 object OfflineExpiry {
     const val LICENSE_VALIDITY_DAYS = 27L
     const val LICENSE_VALIDITY_MS = LICENSE_VALIDITY_DAYS * 24 * 60 * 60 * 1000
@@ -83,8 +83,12 @@ class OfflineDownloads(
         val provider = providerSource() ?: return AudioOffline.CODE_NO_PROVIDER
         val existing = engine.get(downloadId)
         if (existing?.state == EngineState.COMPLETED && meta.get(downloadId) != null) {
-            emit(downloadId, DownloadStates.COMPLETED, 1f, null)
-            return null
+            if (AudioOffline.stateOf(provider, downloadId) == AudioOfflineProvider.STATE_ACTIVE) {
+                emit(downloadId, DownloadStates.COMPLETED, 1f, null)
+                return null
+            }
+            // Leftover media with an unusable licence (Story 59.7): drop and re-acquire.
+            removeAll(downloadId)
         }
         val token = Any()
         if (pending.putIfAbsent(downloadId, token) != null) {
@@ -141,8 +145,7 @@ class OfflineDownloads(
                 return
             }
             try {
-                val now = clock()
-                meta.put(downloadId, OfflineMetaStore.Entry(now, OfflineExpiry.expiresAt(now)))
+                persistLicenceClock(provider, downloadId)
                 engine.enqueue(prepared)
             } catch (e: Exception) {
                 Log.w(TAG, "enqueue failed: ${e.javaClass.simpleName}")
@@ -216,8 +219,7 @@ class OfflineDownloads(
                 AudioDrm.ERROR_UNKNOWN
             }
             if (refusal == null) {
-                val now = clock()
-                meta.put(downloadId, OfflineMetaStore.Entry(now, OfflineExpiry.expiresAt(now)))
+                persistLicenceClock(provider, downloadId)
                 val current = engine.get(downloadId)
                 emit(
                     downloadId,
@@ -256,14 +258,14 @@ class OfflineDownloads(
                     download.id,
                     state,
                     download.progress,
-                    meta.get(download.id)?.expiresAt,
+                    licenceExpiresAt(provider, download.id),
                     needsRenewal(provider, download.id)
                 )
             )
         }
         for (id in pending.keys) {
             if (seen.add(id)) {
-                out.add(DownloadInfo(id, DownloadStates.QUEUED, 0f, meta.get(id)?.expiresAt, false))
+                out.add(DownloadInfo(id, DownloadStates.QUEUED, 0f, licenceExpiresAt(provider, id), false))
             }
         }
         return out
@@ -280,6 +282,26 @@ class OfflineDownloads(
                 meta.remove(download.id)
             }
         }
+    }
+
+    private fun persistLicenceClock(provider: AudioOfflineProvider, downloadId: String) {
+        val now = clock()
+        val fromProvider = try {
+            provider.expiresAt(downloadId)
+        } catch (_: RuntimeException) {
+            null
+        }
+        meta.put(downloadId, OfflineMetaStore.Entry(now, fromProvider ?: OfflineExpiry.expiresAt(now)))
+    }
+
+    private fun licenceExpiresAt(provider: AudioOfflineProvider?, downloadId: String): Long? {
+        if (provider != null) {
+            try {
+                provider.expiresAt(downloadId)?.let { return it }
+            } catch (_: RuntimeException) {
+            }
+        }
+        return meta.get(downloadId)?.expiresAt
     }
 
     private fun needsRenewal(provider: AudioOfflineProvider?, downloadId: String): Boolean =

@@ -33,6 +33,10 @@ public protocol AudioOfflineProvider: AnyObject {
     /// Whether the stored licence should be renewed soon. Quick and local.
     func needsRenewal(downloadId: String) -> Bool
 
+    /// Real licence expiry (epoch ms) from the host/drm-kit. `nil` when unknown.
+    /// Called from `listDownloads` / acquire / renew off the main thread.
+    func expiresAt(downloadId: String) -> Int64?
+
     /// Renew the licence of a downloaded item while online.
     /// - Returns: `nil` on success, otherwise an error discriminator.
     func renew(downloadId: String, drm: JSObject?) -> String?

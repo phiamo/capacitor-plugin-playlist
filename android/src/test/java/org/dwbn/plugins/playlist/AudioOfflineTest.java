@@ -40,6 +40,11 @@ public class AudioOfflineTest {
     }
 
     @Override
+    public Long expiresAt(String downloadId) {
+      return null;
+    }
+
+    @Override
     public String renew(String downloadId, JSObject drm) {
       return null;
     }

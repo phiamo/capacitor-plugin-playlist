@@ -72,6 +72,15 @@ final class OfflineDownloadsTests: XCTestCase {
         XCTAssertEqual(info?.expiresAt, now + OfflineExpiry.licenseValidityMs)
     }
 
+    func test_start_usesProviderExpiresAtInsteadOfTwentySevenDayEstimate() {
+        provider.expiresAtResult = now + 300_000
+
+        downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8", drm: drm())
+        engine.emit("d1", .completed, 1)
+
+        XCTAssertEqual(downloads.list().first?.expiresAt, now + 300_000)
+    }
+
     func test_start_licenceRefused_fetchesNoMediaAndFails() {
         provider.acquireResult = AudioDrm.errorOfflineDeviceLimit
         downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8", drm: drm())
@@ -146,6 +155,16 @@ final class OfflineDownloadsTests: XCTestCase {
         XCTAssertEqual(events.last?.state, DownloadStates.completed)
     }
 
+    func test_start_completedWithExpiredLicence_redownloads() {
+        downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8", drm: drm())
+        engine.emit("d1", .completed, 1)
+        provider.stateResult = AudioOffline.stateExpired
+        calls.removeAll()
+
+        XCTAssertNil(downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8?t=2", drm: drm()))
+        XCTAssertEqual(calls, ["remove:d1", "release:d1", "prepare:d1", "acquire:d1", "enqueue:d1"])
+    }
+
     func test_cancelDuringLicenceRequest_releasesLicenceAndEnqueuesNothing() {
         provider.onAcquire = { [weak self] in self?.downloads.cancel("d1") }
         downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8", drm: drm())
@@ -191,8 +210,8 @@ final class OfflineDownloadsTests: XCTestCase {
             engine: engine,
             meta: meta,
             executor: { $0() },
-            clock: { now },
-            providerSource: { provider }
+            clock: { [self] in now },
+            providerSource: { [self] in provider }
         )
         XCTAssertNil(engine.get("ghost"))
         XCTAssertTrue(cleaned.list().isEmpty)
@@ -221,6 +240,17 @@ final class OfflineDownloadsTests: XCTestCase {
         XCTAssertNil(result)
         XCTAssertEqual(downloads.list().first?.expiresAt, now + OfflineExpiry.licenseValidityMs)
         XCTAssertEqual(events.last?.state, DownloadStates.completed)
+    }
+
+    func test_renew_success_usesProviderExpiresAt() {
+        downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8", drm: drm())
+        engine.emit("d1", .completed, 1)
+        provider.expiresAtResult = now + 300_000
+        var result: String? = "pending"
+        downloads.renew("d1", drm: nil) { result = $0 }
+
+        XCTAssertNil(result)
+        XCTAssertEqual(downloads.list().first?.expiresAt, now + 300_000)
     }
 
     func test_renew_refused_movesToExpiredWithTypedError() {

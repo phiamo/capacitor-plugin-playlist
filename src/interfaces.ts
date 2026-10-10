@@ -192,7 +192,7 @@ export interface DownloadInfo {
     state: DownloadState;
     /** 0..1 */
     progress: number;
-    /** Estimated licence expiry (epoch ms): last successful acquire/renew + 27 days. `null` before the licence exists. */
+    /** Licence expiry (epoch ms) from the host provider. `null` before the licence exists. */
     expiresAt: number | null;
     /** The host provider asks for a renewal soon. */
     needsRenewal: boolean;

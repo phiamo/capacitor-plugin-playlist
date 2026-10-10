@@ -37,6 +37,13 @@ public interface AudioOfflineProvider {
   boolean needsRenewal(String downloadId);
 
   /**
+   * Real licence expiry (epoch ms) from the host/drm-kit. {@code null} when unknown.
+   * Called from {@code listDownloads} / acquire / renew off the main thread.
+   */
+  @Nullable
+  Long expiresAt(String downloadId);
+
+  /**
    * Renew the licence of a downloaded item while online.
    *
    * @return {@code null} on success, otherwise an error discriminator

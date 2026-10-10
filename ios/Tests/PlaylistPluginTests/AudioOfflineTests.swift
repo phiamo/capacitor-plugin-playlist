@@ -322,6 +322,10 @@ final class FakeAudioOfflineProvider: AudioOfflineProvider {
 
     func needsRenewal(downloadId: String) -> Bool { needsRenewalResult }
 
+    var expiresAtResult: Int64?
+
+    func expiresAt(downloadId: String) -> Int64? { expiresAtResult }
+
     func renew(downloadId: String, drm: JSObject?) -> String? {
         if renewResult != nil && expireOnRenewRefusal {
             stateResult = AudioOffline.stateExpired

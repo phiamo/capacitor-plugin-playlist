@@ -923,7 +923,7 @@ One entry of `listDownloads`.
 | **`downloadId`**   | <code>string</code>                                     |                                                                                                                 |
 | **`state`**        | <code><a href="#downloadstate">DownloadState</a></code> |                                                                                                                 |
 | **`progress`**     | <code>number</code>                                     | 0..1                                                                                                            |
-| **`expiresAt`**    | <code>number \| null</code>                             | Estimated licence expiry (epoch ms): last successful acquire/renew + 27 days. `null` before the licence exists. |
+| **`expiresAt`**    | <code>number \| null</code>                             | Licence expiry (epoch ms) from the host provider. `null` before the licence exists. |
 | **`needsRenewal`** | <code>boolean</code>                                    | The host provider asks for a renewal soon.                                                                      |
 
 

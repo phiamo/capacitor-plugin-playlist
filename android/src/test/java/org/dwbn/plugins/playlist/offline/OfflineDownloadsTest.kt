@@ -79,6 +79,16 @@ class OfflineDownloadsTest {
     }
 
     @Test
+    fun start_usesProviderExpiresAtInsteadOfTwentySevenDayEstimate() {
+        provider.expiresAtResult = now + 300_000L
+
+        downloads.start("d1", "https://cdn.example/a.m3u8", null, drm())
+        engine.emit("d1", EngineState.COMPLETED, 1f)
+
+        assertEquals(now + 300_000L, downloads.list().single().expiresAt)
+    }
+
+    @Test
     fun start_licenceRefused_fetchesNoMediaAndFails() {
         provider.acquireResult = AudioDrm.ERROR_OFFLINE_DEVICE_LIMIT
 
@@ -166,6 +176,18 @@ class OfflineDownloadsTest {
     }
 
     @Test
+    fun start_completedWithExpiredLicence_redownloads() {
+        downloads.start("d1", "https://cdn.example/a.m3u8", null, drm())
+        engine.emit("d1", EngineState.COMPLETED, 1f)
+        provider.stateResult = AudioOfflineProvider.STATE_EXPIRED
+        calls.clear()
+
+        assertNull(downloads.start("d1", "https://cdn.example/a.m3u8?t=2", null, drm()))
+
+        assertEquals(listOf("remove:d1", "release:d1", "prepare:d1", "acquire:d1", "enqueue:d1"), calls)
+    }
+
+    @Test
     fun cancelDuringLicenceRequest_releasesLicenceAndEnqueuesNothing() {
         provider.onAcquire = { downloads.cancel("d1") }
 
@@ -228,6 +250,19 @@ class OfflineDownloadsTest {
         assertNull(result)
         assertEquals(now + OfflineExpiry.LICENSE_VALIDITY_MS, downloads.list().single().expiresAt)
         assertEquals(DownloadStates.COMPLETED, events.last().state)
+    }
+
+    @Test
+    fun renew_success_usesProviderExpiresAt() {
+        downloads.start("d1", "https://cdn.example/a.m3u8", null, drm())
+        engine.emit("d1", EngineState.COMPLETED, 1f)
+        provider.expiresAtResult = now + 300_000L
+        var result: String? = "pending"
+
+        downloads.renew("d1", null) { result = it }
+
+        assertNull(result)
+        assertEquals(now + 300_000L, downloads.list().single().expiresAt)
     }
 
     @Test
@@ -430,6 +465,7 @@ class OfflineDownloadsTest {
         var releaseThrows = false
         var stateResult = AudioOfflineProvider.STATE_ACTIVE
         var needsRenewalResult = false
+        var expiresAtResult: Long? = null
         var onAcquire: (() -> Unit)? = null
         var expireOnRenewRefusal = false
 
@@ -441,6 +477,8 @@ class OfflineDownloadsTest {
         }
 
         override fun needsRenewal(downloadId: String): Boolean = needsRenewalResult
+
+        override fun expiresAt(downloadId: String): Long? = expiresAtResult
 
         override fun renew(downloadId: String, drm: JSObject?): String? {
             if (renewResult != null && expireOnRenewRefusal) {

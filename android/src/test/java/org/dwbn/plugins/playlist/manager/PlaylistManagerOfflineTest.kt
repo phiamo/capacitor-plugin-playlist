@@ -165,6 +165,8 @@ class PlaylistManagerOfflineTest {
 
         override fun needsRenewal(downloadId: String): Boolean = false
 
+        override fun expiresAt(downloadId: String): Long? = null
+
         override fun renew(downloadId: String, drm: JSObject?): String? = null
 
         override fun release(downloadId: String) {}

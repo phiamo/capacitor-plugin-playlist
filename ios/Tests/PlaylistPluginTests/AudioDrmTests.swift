@@ -242,6 +242,11 @@ final class PlaylistPluginDrmNoProviderRejectionTests: XCTestCase {
         XCTAssertNil(pluginWithProvider.drmNoProviderRejection(for: [["trackId": "a"]]))
     }
 
+    func test_explicitDrmNull_isTreatedAsAbsent() {
+        let plugin = PlaylistPlugin()
+        XCTAssertNil(plugin.drmNoProviderRejection(for: [["trackId": "a", "drm": NSNull()]]))
+    }
+
     func test_downloadId_noOfflineProvider_rejects() {
         let plugin = PlaylistPlugin()
         let refusal = plugin.drmNoProviderRejection(for: [["downloadId": "dl-1", "assetUrl": ""]])
