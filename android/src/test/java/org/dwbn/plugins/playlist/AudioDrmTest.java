@@ -87,6 +87,7 @@ public class AudioDrmTest {
     assertEquals(AudioDrm.ERROR_NOT_ENTITLED, AudioDrm.typedError("notEntitled"));
     assertEquals(AudioDrm.ERROR_EXPIRED, AudioDrm.typedError("expired"));
     assertEquals(AudioDrm.ERROR_NETWORK, AudioDrm.typedError("network"));
+    assertEquals(AudioDrm.ERROR_RATE_LIMITED, AudioDrm.typedError("rateLimited"));
     assertEquals(AudioDrm.ERROR_UNKNOWN, AudioDrm.typedError("unknown"));
   }
 

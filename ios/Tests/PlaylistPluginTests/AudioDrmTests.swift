@@ -69,7 +69,8 @@ final class AudioDrmTests: XCTestCase {
             AudioDrm.errorExpired,
             AudioDrm.errorNetwork,
             AudioDrm.errorUnknown,
-            AudioDrm.errorOfflineDeviceLimit
+            AudioDrm.errorOfflineDeviceLimit,
+            AudioDrm.errorRateLimited,
         ] {
             XCTAssertEqual(AudioDrm.typedError(value), value)
         }

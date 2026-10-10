@@ -22,6 +22,7 @@ public final class AudioDrm {
   public static final String ERROR_UNKNOWN = "unknown";
   /** Offline licence refused because the user already holds licences on the maximum number of devices. */
   public static final String ERROR_OFFLINE_DEVICE_LIMIT = "offlineDeviceLimit";
+  public static final String ERROR_RATE_LIMITED = "rateLimited";
 
   private static volatile AudioDrmProvider provider;
 
@@ -71,6 +72,7 @@ public final class AudioDrm {
       ERROR_EXPIRED.equals(error) ||
       ERROR_NETWORK.equals(error) ||
       ERROR_OFFLINE_DEVICE_LIMIT.equals(error) ||
+      ERROR_RATE_LIMITED.equals(error) ||
       ERROR_UNKNOWN.equals(error)
     ) {
       return error;
