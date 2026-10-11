@@ -61,7 +61,7 @@ final class RmxAudioPlayer: NSObject {
     private let nowPlayingInfoQueue = DispatchQueue(label: "RMXAudioPlayerNowPlayingQueue")
     private let coverArtworkCache = NSCache<NSURL, MPMediaItemArtwork>()
     private var isReplacingItems = false
-    private var isWaitingToStartPlayback = false
+    var isWaitingToStartPlayback = false
     private var loop = false
     private var isWebViewActive = true
 
@@ -241,12 +241,15 @@ final class RmxAudioPlayer: NSObject {
         registerTrackObservers(replacement)
         avQueuePlayer.queuedAudioTracks[resolvedIndex] = replacement
         // Stream→local swap: do not keep the old stream head (often the end) or auto-play
-        // before FairPlay is ready. JS follows with playTrackById.
+        // before FairPlay is ready. JS follows with playTrackById, which arms the
+        // readyToPlay flag when it actually wants audio. Only keep that backup when
+        // the queue was already playing — otherwise a finished download starts audio
+        // while the user is paused.
         if replacement.downloadId != nil {
             // Do not pause: a paused FairPlay .movpkg with
             // canUseNetworkResourcesForLiveStreamingWhilePaused=false never becomes ready.
-            // JS follows with playTrackById; if the item is still loading, readyToPlay starts it.
-            isWaitingToStartPlayback = true
+            let wasPlaying = avQueuePlayer.isPlaying
+            isWaitingToStartPlayback = wasPlaying
             rebuildQueuePreservingCurrentPlayback(
                 seekTo: Float(replacement.startPositionSeconds),
                 resumePlaying: false
