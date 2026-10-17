@@ -39,6 +39,39 @@
         "slug": "addlistenerstatus-"
       },
       {
+        "name": "addListener",
+        "signature": "(eventName: 'download', listenerFunc: (event: DownloadEvent) => void) => Promise<PluginListenerHandle>",
+        "parameters": [
+          {
+            "name": "eventName",
+            "docs": "Must be `'download'`.",
+            "type": "'download'"
+          },
+          {
+            "name": "listenerFunc",
+            "docs": "Callback receiving `{ downloadId, state, progress, error? }`.",
+            "type": "(event: DownloadEvent) => void"
+          }
+        ],
+        "returns": "Promise<PluginListenerHandle>",
+        "tags": [
+          {
+            "name": "param",
+            "text": "eventName Must be `'download'`."
+          },
+          {
+            "name": "param",
+            "text": "listenerFunc Callback receiving `{ downloadId, state, progress, error? }`."
+          }
+        ],
+        "docs": "Subscribe to offline download progress (Android and iOS).",
+        "complexTypes": [
+          "PluginListenerHandle",
+          "DownloadEvent"
+        ],
+        "slug": "addlistenerdownload-"
+      },
+      {
         "name": "setOptions",
         "signature": "(options: AudioPlayerOptions) => Promise<void>",
         "parameters": [
@@ -88,7 +121,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Replace the entire playlist. Clears all previous items.\nUse `options.retainPosition` to keep the current track and playback position.",
+        "docs": "Replace the entire playlist. Clears all previous items.\nUse `options.retainPosition` to keep the current track and playback position.\n\nOptional `drm` on items is additive: Android attaches Widevine through a\nhost-registered provider (`AudioDrm.setProvider`). iOS uses the host FairPlay\n`AudioDrm` provider. Without a provider the call is rejected with code\n`noProvider` and the previous queue is left unchanged. Web rejects with code\n`notSupported`. DRM playback errors use the existing `status` listener\n(`RMXSTATUS_ERROR`) with `value.error` set to one of\n`blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.",
         "complexTypes": [
           "PlaylistOptions"
         ],
@@ -106,7 +139,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Append a single track to the end of the playlist, or insert at a 0-based index.\nWhen `index` is omitted the track is appended. Insertion does not interrupt playback\nof the current track.",
+        "docs": "Append a single track to the end of the playlist, or insert at a 0-based index.\nWhen `index` is omitted the track is appended. Insertion does not interrupt playback\nof the current track.\n\nItems with `drm` follow the same provider / `noProvider` rules as `setPlaylistItems`.",
         "complexTypes": [
           "AddItemOptions"
         ],
@@ -142,7 +175,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Replace a track's metadata and source URL in place (e.g. stream URL → local file).\nWhen replacing the currently playing track, playback position and play/pause state are preserved.",
+        "docs": "Replace a track's metadata and source URL in place (e.g. stream URL → local file).\nWhen replacing the currently playing track, playback position and play/pause state are preserved.\n\nItems with `drm` follow the same provider / `noProvider` rules as `setPlaylistItems`.",
         "complexTypes": [
           "ReplaceItemOptions"
         ],
@@ -160,7 +193,7 @@
         ],
         "returns": "Promise<void>",
         "tags": [],
-        "docs": "Append multiple tracks to the end of the playlist.\nRaises one `RMXSTATUS_ITEM_ADDED` event per track.",
+        "docs": "Append multiple tracks to the end of the playlist.\nRaises one `RMXSTATUS_ITEM_ADDED` event per track.\n\nIf any item has `drm` and cannot open, the whole call fails and the previous\nqueue is left unchanged (same provider / `noProvider` rules as `setPlaylistItems`).",
         "complexTypes": [
           "AddAllItemOptions"
         ],
@@ -448,6 +481,90 @@
           "GetLastKnownPositionResult"
         ],
         "slug": "getlastknownposition"
+      },
+      {
+        "name": "startDownload",
+        "signature": "(options: StartDownloadOptions) => Promise<{ downloadId: string; }>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "StartDownloadOptions"
+          }
+        ],
+        "returns": "Promise<{ downloadId: string; }>",
+        "tags": [],
+        "docs": "Download a protected HLS lecture for offline playback (Android and iOS). The host\n`AudioOfflineProvider` acquires the offline licence first; only then is media fetched, so a\nrefused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the\noutcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL\nreuses cached segments on Android; on iOS the partial asset is discarded and a new task starts.\n\nRejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.\nWeb rejects `notSupported`.",
+        "complexTypes": [
+          "StartDownloadOptions"
+        ],
+        "slug": "startdownload"
+      },
+      {
+        "name": "cancelDownload",
+        "signature": "(options: DownloadIdOptions) => Promise<void>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "DownloadIdOptions"
+          }
+        ],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "Cancel a non-completed download: removes cache/asset, index entry, metadata and\nlicence. A no-op for completed downloads (use `deleteDownload`).",
+        "complexTypes": [
+          "DownloadIdOptions"
+        ],
+        "slug": "canceldownload"
+      },
+      {
+        "name": "deleteDownload",
+        "signature": "(options: DownloadIdOptions) => Promise<void>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "DownloadIdOptions"
+          }
+        ],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "Delete a download in any state: cache/asset, index entry, metadata and licence\nare removed. Failures releasing the licence are ignored.",
+        "complexTypes": [
+          "DownloadIdOptions"
+        ],
+        "slug": "deletedownload"
+      },
+      {
+        "name": "renewDownload",
+        "signature": "(options: RenewDownloadOptions) => Promise<void>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "RenewDownloadOptions"
+          }
+        ],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "Renew the offline licence while online. On success `expiresAt` is refreshed;\na refusal rejects with the typed error and emits `expired` only when the provider state is expired.",
+        "complexTypes": [
+          "RenewDownloadOptions"
+        ],
+        "slug": "renewdownload"
+      },
+      {
+        "name": "listDownloads",
+        "signature": "() => Promise<{ downloads: DownloadInfo[]; }>",
+        "parameters": [],
+        "returns": "Promise<{ downloads: DownloadInfo[]; }>",
+        "tags": [],
+        "docs": "All downloads with state, progress and estimated licence expiry.",
+        "complexTypes": [
+          "DownloadInfo"
+        ],
+        "slug": "listdownloads"
       }
     ],
     "properties": []
@@ -731,6 +848,105 @@
           "docs": "Last known playback position to resume from, in seconds, when this track becomes\ncurrent via a native skip-to-next/previous (e.g. OS notification, headset button,\nAndroid Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0.",
           "complexTypes": [],
           "type": "number | undefined"
+        },
+        {
+          "name": "drm",
+          "tags": [],
+          "docs": "Optional DRM descriptor fields (API names). Android attaches Widevine, and iOS attaches\nFairPlay (Story 58.5), through a host-registered provider. Token URL, heartbeat URL, and\nBearer live on that provider, not here. Web still refuses items that set this.",
+          "complexTypes": [
+            "AudioTrackDrmOptions"
+          ],
+          "type": "AudioTrackDrmOptions"
+        },
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "Id of a completed offline download (see `startDownload`). The item plays from\nthe local download (Android cache / iOS `AVAssetDownload` asset) with the host provider's\noffline licence; `assetUrl` is not used for playback. If the licence has expired, playback\nis refused with the `expired` error. Web refuses items that set this.",
+          "complexTypes": [],
+          "type": "string | undefined"
+        }
+      ]
+    },
+    {
+      "name": "AudioTrackDrmOptions",
+      "slug": "audiotrackdrmoptions",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "widevineLicenseUrl",
+          "tags": [],
+          "docs": "Consumed by Android via the host-registered drm-kit Widevine provider; ignored on iOS\n(FairPlay only — see `fairplayLicenseUrl`).",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "playbackSessionId",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "renewalCredential",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "streamLimit",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [
+            "AudioTrackDrmStreamLimit"
+          ],
+          "type": "AudioTrackDrmStreamLimit"
+        },
+        {
+          "name": "fairplayLicenseUrl",
+          "tags": [],
+          "docs": "Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still\nignored on Android (Widevine only).",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "fairplayCertificateUrl",
+          "tags": [],
+          "docs": "Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still\nignored on Android (Widevine only).",
+          "complexTypes": [],
+          "type": "string | undefined"
+        }
+      ]
+    },
+    {
+      "name": "AudioTrackDrmStreamLimit",
+      "slug": "audiotrackdrmstreamlimit",
+      "docs": "Optional playlist-item DRM fields. Names match the playback API and video plugin.\nToken / heartbeat URLs and Bearer are supplied by the host provider (57.6).",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "mode",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "renewalIntervalSeconds",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "number | undefined"
+        },
+        {
+          "name": "heartbeatIntervalSeconds",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "number | undefined"
         }
       ]
     },
@@ -756,6 +972,56 @@
           "docs": "The error, as a message",
           "complexTypes": [],
           "type": "string"
+        },
+        {
+          "name": "error",
+          "tags": [],
+          "docs": "Typed DRM failure when the host provider reports one. Exactly one of\n`blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.\nUnknown strings are coerced to `unknown`. Not a new listener.",
+          "complexTypes": [
+            "AudioTrackDrmError"
+          ],
+          "type": "AudioTrackDrmError"
+        }
+      ]
+    },
+    {
+      "name": "DownloadEvent",
+      "slug": "downloadevent",
+      "docs": "Payload of the `download` listener.",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [
+            "DownloadState"
+          ],
+          "type": "DownloadState"
+        },
+        {
+          "name": "progress",
+          "tags": [],
+          "docs": "0..1",
+          "complexTypes": [],
+          "type": "number"
+        },
+        {
+          "name": "error",
+          "tags": [],
+          "docs": "Set with `failed`, and with `expired` after a refused renewal.",
+          "complexTypes": [
+            "DownloadError"
+          ],
+          "type": "DownloadError"
         }
       ]
     },
@@ -1252,6 +1518,132 @@
           "type": "number"
         }
       ]
+    },
+    {
+      "name": "StartDownloadOptions",
+      "slug": "startdownloadoptions",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "Stable id chosen by the app; also the id later set as `AudioTrack.downloadId`.",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "url",
+          "tags": [],
+          "docs": "HLS playlist (`audio.m3u8`). May be re-signed on a resumed start. Android reuses cached segments; iOS starts a new task and discards partial media.",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "mimeType",
+          "tags": [],
+          "docs": "Defaults to HLS (`application/x-mpegURL`).",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "drm",
+          "tags": [],
+          "docs": "Descriptor handed to the host provider's `acquire`.",
+          "complexTypes": [
+            "AudioTrackDrmOptions"
+          ],
+          "type": "AudioTrackDrmOptions"
+        }
+      ]
+    },
+    {
+      "name": "DownloadIdOptions",
+      "slug": "downloadidoptions",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "RenewDownloadOptions",
+      "slug": "renewdownloadoptions",
+      "docs": "",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "drm",
+          "tags": [],
+          "docs": "Descriptor handed to the host provider's `renew`.",
+          "complexTypes": [
+            "AudioTrackDrmOptions"
+          ],
+          "type": "AudioTrackDrmOptions"
+        }
+      ]
+    },
+    {
+      "name": "DownloadInfo",
+      "slug": "downloadinfo",
+      "docs": "One entry of `listDownloads`.",
+      "tags": [],
+      "methods": [],
+      "properties": [
+        {
+          "name": "downloadId",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [],
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "tags": [],
+          "docs": "",
+          "complexTypes": [
+            "DownloadState"
+          ],
+          "type": "DownloadState"
+        },
+        {
+          "name": "progress",
+          "tags": [],
+          "docs": "0..1",
+          "complexTypes": [],
+          "type": "number"
+        },
+        {
+          "name": "expiresAt",
+          "tags": [],
+          "docs": "Estimated licence expiry (epoch ms): last successful acquire/renew + 27 days. `null` before the licence exists.",
+          "complexTypes": [],
+          "type": "number | null"
+        },
+        {
+          "name": "needsRenewal",
+          "tags": [],
+          "docs": "The host provider asks for a renewal soon.",
+          "complexTypes": [],
+          "type": "boolean"
+        }
+      ]
     }
   ],
   "enums": [
@@ -1465,6 +1857,77 @@
           "complexTypes": [
             "PlaylistStatusChangeCallbackArg"
           ]
+        }
+      ]
+    },
+    {
+      "name": "AudioTrackDrmError",
+      "slug": "audiotrackdrmerror",
+      "docs": "Exactly the five DRM error discriminators. Emitted on the existing `status`\nchannel as `value.error` (do not overload numeric `RmxAudioErrorType` 0–4).",
+      "types": [
+        {
+          "text": "'blockedByStreamLimit'",
+          "complexTypes": []
+        },
+        {
+          "text": "'notEntitled'",
+          "complexTypes": []
+        },
+        {
+          "text": "'expired'",
+          "complexTypes": []
+        },
+        {
+          "text": "'network'",
+          "complexTypes": []
+        },
+        {
+          "text": "'unknown'",
+          "complexTypes": []
+        }
+      ]
+    },
+    {
+      "name": "DownloadState",
+      "slug": "downloadstate",
+      "docs": "Lifecycle states of an offline download (`download` event and `listDownloads`).",
+      "types": [
+        {
+          "text": "'queued'",
+          "complexTypes": []
+        },
+        {
+          "text": "'downloading'",
+          "complexTypes": []
+        },
+        {
+          "text": "'completed'",
+          "complexTypes": []
+        },
+        {
+          "text": "'failed'",
+          "complexTypes": []
+        },
+        {
+          "text": "'expired'",
+          "complexTypes": []
+        }
+      ]
+    },
+    {
+      "name": "DownloadError",
+      "slug": "downloaderror",
+      "docs": "Error discriminators of offline downloads: the five DRM discriminators plus\n`offlineDeviceLimit` (the user already holds offline licences on the maximum number of devices).",
+      "types": [
+        {
+          "text": "AudioTrackDrmError",
+          "complexTypes": [
+            "AudioTrackDrmError"
+          ]
+        },
+        {
+          "text": "'offlineDeviceLimit'",
+          "complexTypes": []
         }
       ]
     }

@@ -16,6 +16,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -25,7 +26,9 @@ import com.google.common.util.concurrent.ListenableFuture
 import org.dwbn.plugins.playlist.FakeR
 import org.dwbn.plugins.playlist.PlaylistRuntime
 import org.dwbn.plugins.playlist.handoff.VideoPlayerBridge
+import org.dwbn.plugins.playlist.manager.DrmTerminalLoadErrorPolicy
 import org.dwbn.plugins.playlist.manager.PlaylistManager
+import org.dwbn.plugins.playlist.offline.OfflineStorage
 
 /**
  * Media3 [MediaSessionService] hosting one [ExoPlayer] and one [MediaSession] for audio playlists.
@@ -96,6 +99,11 @@ class MediaService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(MediaNotificationPolicy.WAKE_MODE)
             .setStuckBufferingDetectionTimeoutMs(MediaNotificationPolicy.STUCK_BUFFERING_DETECTION_TIMEOUT_MS)
+            .setMediaSourceFactory(
+                createMediaSourceFactory()
+                    .setDrmSessionManagerProvider(playlistManager.drmSessionManagerProvider())
+                    .setLoadErrorHandlingPolicy(DrmTerminalLoadErrorPolicy { playlistManager.drmPlaybackHalted })
+            )
             .build()
         exoPlayer = player
         // Load items before the session is built so the notification controller sees a timeline.
@@ -142,6 +150,18 @@ class MediaService : MediaSessionService() {
         addSession(session)
     }
 
+    /**
+     * Playback reads downloaded HLS from the offline cache (read-only, network only on a miss).
+     * A cache that cannot be opened must never break streaming, so fall back to the plain factory.
+     */
+    private fun createMediaSourceFactory(): DefaultMediaSourceFactory =
+        try {
+            DefaultMediaSourceFactory(OfflineStorage.playbackDataSourceFactory(this))
+        } catch (e: Exception) {
+            Log.w(TAG, "offline cache unavailable, streaming only: ${e.javaClass.simpleName}")
+            DefaultMediaSourceFactory(this)
+        }
+
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
         return mediaSession
     }
@@ -150,16 +170,12 @@ class MediaService : MediaSessionService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return try {
             super.onStartCommand(intent, flags, startId)
-        } catch (e: SecurityException) {
-            onForegroundStartBlocked(e)
-            START_NOT_STICKY
-        } catch (e: IllegalStateException) {
-            if (MediaNotificationPolicy.isForegroundStartNotAllowedFromBackground(e)) {
-                onForegroundStartBlocked(e)
-                START_NOT_STICKY
-            } else {
+        } catch (e: RuntimeException) {
+            if (!MediaNotificationPolicy.isForegroundStartRefused(e)) {
                 throw e
             }
+            onForegroundStartBlocked(e)
+            START_NOT_STICKY
         }
     }
 
@@ -322,15 +338,28 @@ class MediaService : MediaSessionService() {
         return builder
     }
 
+    /**
+     * When the system restarts this service in the background (e.g. after the process died),
+     * Android 12+ refuses startForeground. Keep running without foreground instead of crashing;
+     * the next foreground start from the app succeeds.
+     */
     private fun startForegroundWith(notification: Notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-            )
-        } else {
-            startForeground(DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                )
+            } else {
+                startForeground(DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID, notification)
+            }
+        } catch (e: RuntimeException) {
+            if (!MediaNotificationPolicy.isForegroundStartRefused(e)) {
+                throw e
+            }
+            onForegroundStartBlocked(e)
+            return
         }
         inForeground = true
         playlistManager.mediaServiceInForeground = true

@@ -144,6 +144,29 @@ class PlaylistPlaybackPolicyTest {
     }
 
     @Test
+    fun drmHalt_terminalDiscriminatorsStopPlayback() {
+        assertTrue(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("notEntitled"))
+        assertTrue(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("blockedByStreamLimit"))
+        assertTrue(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("expired"))
+        assertFalse(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("network"))
+        assertFalse(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError("unknown"))
+        assertFalse(PlaylistPlaybackPolicy.shouldHaltPlaybackForDrmError(null))
+    }
+
+    @Test
+    fun drmDiscriminator_mapsKeyExpiredMessageToExpired() {
+        assertEquals(
+            "expired",
+            PlaylistPlaybackPolicy.drmDiscriminatorFromCause(RuntimeException("WVCdm ERROR_KEY_EXPIRED")),
+        )
+        assertEquals(
+            "expired",
+            PlaylistPlaybackPolicy.drmDiscriminatorFromCause(RuntimeException("MediaCodec ERROR_DRM_NO_LICENSE")),
+        )
+        assertEquals("expired", PlaylistPlaybackPolicy.drmDiscriminatorFromCause(RuntimeException("expired")))
+    }
+
+    @Test
     fun shouldBeginPlaybackForPlayById_switchesWhenAnotherTrackIsPlaying() {
         assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(true, 2, 0))
     }

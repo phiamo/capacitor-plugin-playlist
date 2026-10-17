@@ -2,12 +2,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "CapacitorPluginPlaylist",
+    name: "DwbnCapacitorPluginPlaylist",
     platforms: [.iOS(.v15)],
     products: [
         .library(
+            name: "DwbnCapacitorPluginPlaylist",
+            targets: ["PlaylistPlugin"]),
+        .library(
             name: "CapacitorPluginPlaylist",
-            targets: ["PlaylistPlugin"])
+            targets: ["PlaylistPlugin"]),
     ],
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", from: "8.0.0")

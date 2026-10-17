@@ -20,5 +20,15 @@ class OnStatusCallback internal constructor(private val plugin: PlaylistPlugin) 
             }
             return error
         }
+
+        fun createDrmError(discriminator: String): JSONObject {
+            val error = createErrorWithCode(RmxAudioErrorType.RMXERR_NONE_SUPPORTED, discriminator)
+            try {
+                error.put("error", AudioDrm.typedError(discriminator))
+            } catch (e: JSONException) {
+                android.util.Log.e(TAG, "Exception while raising onStatus: ", e)
+            }
+            return error
+        }
     }
 }

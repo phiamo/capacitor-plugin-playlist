@@ -48,6 +48,8 @@ class AudioTrack(private val config: JSONObject) {
             info.put("album", album)
             info.put("title", title)
             info.put("startPosition", startPositionMs / 1000.0)
+            drm?.let { info.put("drm", it) }
+            downloadId?.let { info.put("downloadId", it) }
         } catch (_: JSONException) {
             // I can think of no reason this would ever fail
         }
@@ -65,8 +67,21 @@ class AudioTrack(private val config: JSONObject) {
             } else trackId
         }
 
+    /**
+     * Id of a completed offline download (Story 59.4). When set, the item plays from the download
+     * cache with the host provider's offline licence; `assetUrl` is not used for playback.
+     */
+    val downloadId: String?
+        get() {
+            if (config.isNull("downloadId")) {
+                return null
+            }
+            val id = config.optString("downloadId").trim()
+            return if (id == "") null else id
+        }
+
     val downloaded: Boolean
-        get() = false
+        get() = downloadId != null
 
     val downloadedMediaUri: String?
         get() = null
@@ -106,4 +121,11 @@ class AudioTrack(private val config: JSONObject) {
 
     val artist: String
         get() = config.optString("artist")
+
+    /**
+     * Optional DRM descriptor on the track. Null when omitted; FairPlay fields may be present
+     * and are ignored on Android.
+     */
+    val drm: JSONObject?
+        get() = config.optJSONObject("drm")
 }

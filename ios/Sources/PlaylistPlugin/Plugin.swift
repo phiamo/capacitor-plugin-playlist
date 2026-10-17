@@ -40,6 +40,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         CAPPluginMethod(name: "prepareForVideoHandoff", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "resumeAfterVideoHandoff", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getLastKnownPosition", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "startDownload", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "cancelDownload", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "deleteDownload", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "renewDownload", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "listDownloads", returnType: CAPPluginReturnPromise),
     ]
     let audioPlayerImpl = RmxAudioPlayer()
     
@@ -62,16 +67,28 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     @objc func setPlaylistItems(_ call: CAPPluginCall) {
         let items = call.getArray("items", [String:Any].self)!
         let options = call.getObject("options")!
-        
+
+        if let refusal = drmNoProviderRejection(for: items) {
+            call.reject(refusal.message, refusal.code)
+            return
+        }
+
         let tracks = createTracks(items)
         audioPlayerImpl.setPlaylistItems(tracks, options: options)
-        
+
         call.resolve();
     }
     @objc func addItem(_ call: CAPPluginCall) {
         let trackInfo = call.getObject("item")
 
-        guard let track = AudioTrack.initWithDictionary(trackInfo) else {
+        if let refusal = drmNoProviderRejection(for: [trackInfo]) {
+            call.reject(refusal.message, refusal.code)
+            return
+        }
+
+        guard let track = AudioTrack.initWithDictionary(trackInfo, onDrmError: { [weak self] trackId, error in
+            self?.audioPlayerImpl.reportDrmError(trackId: trackId, error: error)
+        }) else {
             call.reject("Invalid track")
             return
         }
@@ -110,6 +127,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
             return
         }
 
+        if let refusal = drmNoProviderRejection(for: [trackInfo]) {
+            call.reject(refusal.message, refusal.code)
+            return
+        }
+
         do {
             try audioPlayerImpl.replaceItem(
                 at: call.getInt("index"),
@@ -123,7 +145,12 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     }
     @objc func addAllItems(_ call: CAPPluginCall) {
         let items = call.getArray("items", [String:Any].self)!
-        
+
+        if let refusal = drmNoProviderRejection(for: items) {
+            call.reject(refusal.message, refusal.code)
+            return
+        }
+
         let tracks = createTracks(items)
         audioPlayerImpl.addAllItems(tracks)
         call.resolve();
@@ -183,7 +210,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     }
     @objc func seekTo(_ call: CAPPluginCall) {
         let to = call.getFloat("position", 0.0)
-        audioPlayerImpl.seek(to: to, isCommand: false)
+        audioPlayerImpl.seek(to: to, isCommand: true)
         call.resolve();
     }
     @objc func playTrackByIndex(_ call: CAPPluginCall) {
@@ -275,7 +302,83 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         call.resolve(["position": position])
     }
 
+    // MARK: - Offline downloads (Story 59.5)
+
+    @objc func startDownload(_ call: CAPPluginCall) {
+        let downloadId = call.getString("downloadId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let url = call.getString("url")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let drm = call.getObject("drm")
+        if downloadId.isEmpty || url.isEmpty || drm == nil {
+            call.reject("downloadId, url and drm are required", "invalidArgument")
+            return
+        }
+        let failure = OfflineDownloads.shared.start(downloadId: downloadId, url: url, drm: drm)
+        if let failure {
+            call.reject("Offline provider is not registered", failure)
+            return
+        }
+        call.resolve(["downloadId": downloadId])
+    }
+
+    @objc func cancelDownload(_ call: CAPPluginCall) {
+        let downloadId = call.getString("downloadId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if downloadId.isEmpty {
+            call.reject("downloadId is required", "invalidArgument")
+            return
+        }
+        OfflineDownloads.shared.cancel(downloadId)
+        call.resolve()
+    }
+
+    @objc func deleteDownload(_ call: CAPPluginCall) {
+        let downloadId = call.getString("downloadId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if downloadId.isEmpty {
+            call.reject("downloadId is required", "invalidArgument")
+            return
+        }
+        OfflineDownloads.shared.delete(downloadId)
+        call.resolve()
+    }
+
+    @objc func renewDownload(_ call: CAPPluginCall) {
+        let downloadId = call.getString("downloadId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if downloadId.isEmpty {
+            call.reject("downloadId is required", "invalidArgument")
+            return
+        }
+        OfflineDownloads.shared.renew(downloadId, drm: call.getObject("drm")) { failure in
+            DispatchQueue.main.async {
+                if let failure {
+                    call.reject("Offline licence renewal failed", failure)
+                } else {
+                    call.resolve()
+                }
+            }
+        }
+    }
+
+    @objc func listDownloads(_ call: CAPPluginCall) {
+        let items: [[String: Any]] = OfflineDownloads.shared.list().map { info in
+            var entry: [String: Any] = [
+                "downloadId": info.downloadId,
+                "state": info.state,
+                "progress": Double(info.progress),
+                "needsRenewal": info.needsRenewal
+            ]
+            if let expiresAt = info.expiresAt {
+                entry["expiresAt"] = expiresAt
+            } else {
+                entry["expiresAt"] = NSNull()
+            }
+            return entry
+        }
+        call.resolve(["downloads": items])
+    }
+
     public override func load() {
+        OfflineDownloads.shared.eventSink = { [weak self] event in
+            self?.emitDownload(event)
+        }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applicationWillResignActive),
@@ -303,6 +406,25 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
     func onStatus(_ data: [String: Any]) {
         notifyListeners("status", data: data)
     }
+
+    func emitDownload(_ event: DownloadEvent) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            var data: [String: Any] = [
+                "downloadId": event.downloadId,
+                "state": event.state,
+                "progress": Double(event.progress)
+            ]
+            if let error = event.error {
+                data["error"] = error
+            }
+            self.notifyListeners(
+                "download",
+                data: data,
+                retainUntilConsumed: event.state != DownloadStates.downloading
+            )
+        }
+    }
         
     // MARK: - Utility
     func createTracks(_ items: [[String: Any]]?) -> [AudioTrack] {
@@ -312,13 +434,40 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
 
         var newList: [AudioTrack] = []
         for item in items ?? [] {
-            let track = AudioTrack.initWithDictionary(item)
+            let track = AudioTrack.initWithDictionary(item, onDrmError: { [weak self] trackId, error in
+                self?.audioPlayerImpl.reportDrmError(trackId: trackId, error: error)
+            })
             if let track = track {
                 newList.append(track)
             }
         }
 
         return newList;
+    }
+
+    /// Reject `drm` items when no `AudioDrm` provider is registered (Story 58.5), and `downloadId`
+    /// items when no `AudioOffline` provider is registered (Story 59.5). `drm` still uses
+    /// `AudioDrm`; `downloadId` uses `AudioOffline`. Queue is left unchanged by the caller.
+    func drmNoProviderRejection(for items: [[String: Any]]) -> (code: String, message: String)? {
+        drmNoProviderRejection(for: items.map { Optional($0) })
+    }
+
+    func drmNoProviderRejection(for items: [[String: Any]?]) -> (code: String, message: String)? {
+        func downloadId(of item: [String: Any]?) -> String? {
+            guard let raw = item?["downloadId"], !(raw is NSNull) else { return nil }
+            let id = (raw as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return id.isEmpty ? nil : id
+        }
+        if items.contains(where: { downloadId(of: $0) != nil }) && AudioOffline.getProvider() == nil {
+            return (AudioDrm.codeNoProvider, "Offline provider is not registered")
+        }
+        let needsStreamingDrm = items.contains { item in
+            item?["drm"] is [String: Any] && downloadId(of: item) == nil
+        }
+        if needsStreamingDrm && AudioDrm.getProvider() == nil {
+            return (AudioDrm.codeNoProvider, "DRM provider is not registered")
+        }
+        return nil
     }
 
 }

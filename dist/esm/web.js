@@ -53,11 +53,12 @@ export class PlaylistWeb extends WebPlugin {
         this.lastKnownHandoffPosition = 0;
         this.hlsLoaded = false;
     }
-    addAllItems(options) {
+    async addAllItems(options) {
+        assertWebDrmNotSupported(options.items);
         this.playlistItems = this.playlistItems.concat(validateTracks(options.items));
-        return Promise.resolve();
     }
-    addItem(options) {
+    async addItem(options) {
+        assertWebDrmNotSupported([options.item]);
         const track = validateTrack(options.item);
         if (track) {
             const insertIndex = options.index !== undefined && options.index !== null
@@ -68,7 +69,6 @@ export class PlaylistWeb extends WebPlugin {
             // automatically reflects the shift caused by this insertion; no bookkeeping needed here.
             this.updateStatus(RmxAudioStatusMessage.RMXSTATUS_ITEM_ADDED, Object.assign(Object.assign({}, track), { index: insertIndex }), track.trackId);
         }
-        return Promise.resolve();
     }
     moveItem(options) {
         const { from, to } = options;
@@ -85,6 +85,7 @@ export class PlaylistWeb extends WebPlugin {
     }
     async replaceItem(options) {
         var _a;
+        assertWebDrmNotSupported([options.item]);
         let replaceIndex = -1;
         if (options.index !== undefined && options.index !== null) {
             replaceIndex = options.index;
@@ -243,8 +244,24 @@ export class PlaylistWeb extends WebPlugin {
         }
         return Promise.reject();
     }
+    async startDownload(_options) {
+        throw offlineNotSupported();
+    }
+    async cancelDownload(_options) {
+        throw offlineNotSupported();
+    }
+    async deleteDownload(_options) {
+        throw offlineNotSupported();
+    }
+    async renewDownload(_options) {
+        throw offlineNotSupported();
+    }
+    async listDownloads() {
+        throw offlineNotSupported();
+    }
     async setPlaylistItems(options) {
         var _a, _b, _c;
+        assertWebDrmNotSupported(options.items);
         this.playlistItems = options.items;
         if (this.playlistItems.length > 0) {
             let currentItem = this.playlistItems.filter(i => { var _a; return i.trackId === ((_a = options.options) === null || _a === void 0 ? void 0 : _a.playFromId); })[0];
@@ -603,6 +620,20 @@ export class PlaylistWeb extends WebPlugin {
                 reject();
             };
         });
+    }
+}
+/** Offline downloads are native-only (Story 59.4); web rejects `notSupported`. */
+function offlineNotSupported() {
+    const error = new Error('Offline downloads not supported on this platform');
+    error.code = 'notSupported';
+    return error;
+}
+/** iOS/web refuse `drm` before creating a player (Story 57.5). */
+export function assertWebDrmNotSupported(items) {
+    if (items.some((item) => item != null && (item.drm != null || item.downloadId != null))) {
+        const error = new Error('DRM not supported on this platform yet');
+        error.code = 'notSupported';
+        throw error;
     }
 }
 //# sourceMappingURL=web.js.map

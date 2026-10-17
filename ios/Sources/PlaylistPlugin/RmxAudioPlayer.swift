@@ -61,7 +61,7 @@ final class RmxAudioPlayer: NSObject {
     private let nowPlayingInfoQueue = DispatchQueue(label: "RMXAudioPlayerNowPlayingQueue")
     private let coverArtworkCache = NSCache<NSURL, MPMediaItemArtwork>()
     private var isReplacingItems = false
-    private var isWaitingToStartPlayback = false
+    var isWaitingToStartPlayback = false
     private var loop = false
     private var isWebViewActive = true
 
@@ -231,14 +231,32 @@ final class RmxAudioPlayer: NSObject {
             trackInfo["trackId"] = existing.trackId ?? ""
         }
 
-        guard let replacement = AudioTrack.initWithDictionary(trackInfo) else {
+        guard let replacement = AudioTrack.initWithDictionary(trackInfo, onDrmError: { [weak self] trackId, error in
+            self?.reportDrmError(trackId: trackId, error: error)
+        }) else {
             throw RmxAudioPlayerError.trackIdNotFound
         }
 
         removeTrackObservers(existing)
         registerTrackObservers(replacement)
         avQueuePlayer.queuedAudioTracks[resolvedIndex] = replacement
-        rebuildQueuePreservingCurrentPlayback()
+        // Stream→local swap: do not keep the old stream head (often the end) or auto-play
+        // before FairPlay is ready. JS follows with playTrackById, which arms the
+        // readyToPlay flag when it actually wants audio. Only keep that backup when
+        // the queue was already playing — otherwise a finished download starts audio
+        // while the user is paused.
+        if replacement.downloadId != nil {
+            // Do not pause: a paused FairPlay .movpkg with
+            // canUseNetworkResourcesForLiveStreamingWhilePaused=false never becomes ready.
+            let wasPlaying = avQueuePlayer.isPlaying
+            isWaitingToStartPlayback = wasPlaying
+            rebuildQueuePreservingCurrentPlayback(
+                seekTo: Float(replacement.startPositionSeconds),
+                resumePlaying: false
+            )
+        } else {
+            rebuildQueuePreservingCurrentPlayback()
+        }
         onStatus(.rmxstatus_ITEM_REPLACED, trackId: replacement.trackId, param: replacement.toDict())
     }
 
@@ -252,14 +270,17 @@ final class RmxAudioPlayer: NSObject {
     /// observers on tracks that were never removed from the queue (removeAllTrackObservers() only
     /// clears NotificationCenter observers, not KVO). Callers are responsible for registering/
     /// removing observers for whichever single track actually changed identity.
-    private func rebuildQueuePreservingCurrentPlayback() {
+    private func rebuildQueuePreservingCurrentPlayback(
+        seekTo: Float? = nil,
+        resumePlaying: Bool = true
+    ) {
         let tracks = avQueuePlayer.queuedAudioTracks
         guard !tracks.isEmpty else {
             return
         }
 
         let currentIdx = avQueuePlayer.currentIndex() ?? 0
-        let seekPos = getTrackCurrentTime(nil)
+        let seekPos = seekTo ?? getTrackCurrentTime(nil)
         let wasPlaying = avQueuePlayer.isPlaying
         let rate = avQueuePlayer.rate
 
@@ -274,12 +295,12 @@ final class RmxAudioPlayer: NSObject {
             seek(to: seekPos, isCommand: false)
         }
 
-        if wasPlaying {
+        if resumePlaying && wasPlaying {
             if rate > 0 {
                 avQueuePlayer.rate = rate
             }
             playCommand(false)
-        } else {
+        } else if resumePlaying {
             pauseCommand(false)
         }
     }
@@ -331,8 +352,11 @@ final class RmxAudioPlayer: NSObject {
         }
         playCommand(false)
 
-        if positionTime != nil {
-            seek(to: positionTime!, isCommand: false)
+        if let positionTime, positionTime > 0 {
+            seek(to: positionTime, isCommand: false)
+        }
+        if avQueuePlayer.currentAudioTrack?.status != .readyToPlay {
+            isWaitingToStartPlayback = true
         }
     }
 
@@ -351,8 +375,11 @@ final class RmxAudioPlayer: NSObject {
         }
         playCommand(false)
 
-        if positionTime != nil {
-            seek(to: positionTime!, isCommand: false)
+        if let positionTime, positionTime > 0 {
+            seek(to: positionTime, isCommand: false)
+        }
+        if avQueuePlayer.currentAudioTrack?.status != .readyToPlay {
+            isWaitingToStartPlayback = true
         }
     }
 
@@ -457,7 +484,11 @@ final class RmxAudioPlayer: NSObject {
         }
 
             print( "music-controls-play ")
-        
+
+        if refuseIfOfflineExpired(avQueuePlayer.currentAudioTrack) {
+            return
+        }
+        avQueuePlayer.actionAtItemEnd = .advance
         avQueuePlayer.play()
     }
 
@@ -533,17 +564,29 @@ final class RmxAudioPlayer: NSObject {
         wasPlayingInterrupted = false
         initializeMPCommandCenter()
 
+        let playerItem = avQueuePlayer.currentAudioTrack
+        // Never seek a FairPlay/.movpkg item before readyToPlay — including 0.
+        // A seek here cancels the pending play() and the item never starts.
+        if playerItem?.status != .readyToPlay {
+            if positionTime > 0 {
+                playerItem?.startPositionSeconds = Double(positionTime)
+            }
+            print("RmxAudioPlayer.seek deferred until ready: \(positionTime)")
+            return
+        }
+
         let seekToTime = CMTimeMakeWithSeconds(Float64(positionTime), preferredTimescale: 1000)
         avQueuePlayer.seek(to: seekToTime, toleranceBefore: .zero, toleranceAfter: .zero)
 
         let action = "music-controls-seek-to"
         print(String(format: "%@ %.3f", action, positionTime))
 
-        // Always fire seek event, not just for commands
-        let playerItem = avQueuePlayer.currentAudioTrack
-        onStatus(.rmxstatus_SEEK, trackId: playerItem?.trackId, param: [
-            "position": NSNumber(value: positionTime)
-        ])
+        // Internal restores (replaceItem/setTracks/playTrackById) must not persist viewedUntil.
+        if isCommand {
+            onStatus(.rmxstatus_SEEK, trackId: playerItem?.trackId, param: [
+                "position": NSNumber(value: positionTime)
+            ])
+        }
     }
 
     func setVolume(_ volume: Float) {
@@ -681,7 +724,9 @@ final class RmxAudioPlayer: NSObject {
             // Native loop restart, not an explicit JS track selection — resume track 0 at its
             // saved position, matching advanceToNextItem's wraparound.
             avQueuePlayer.setCurrentIndex(0, completionHandler: { _ in }, resumeAtSavedPosition: true)
-            avQueuePlayer.play()
+            if !refuseIfOfflineExpired(avQueuePlayer.currentAudioTrack) {
+                avQueuePlayer.play()
+            }
         }
     }
 
@@ -712,7 +757,9 @@ final class RmxAudioPlayer: NSObject {
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
             if options.contains(.shouldResume) {
                 if wasPlayingInterrupted {
-                    avQueuePlayer.play()
+                    if !refuseIfOfflineExpired(avQueuePlayer.currentAudioTrack) {
+                        avQueuePlayer.play()
+                    }
                 }
             } else {
                 // Interruption ended. Playback should not resume.
@@ -1016,6 +1063,10 @@ final class RmxAudioPlayer: NSObject {
         print("Update Track changed: \(info)")
         onStatus(.rmxstatus_TRACK_CHANGED, trackId: trackId, param: info)
 
+        if let playerItem, refuseIfOfflineExpired(playerItem) {
+            return
+        }
+
         if avQueuePlayer.isAtEnd && avQueuePlayer.currentItem == nil {
             if !loop {
                 avQueuePlayer.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
@@ -1051,14 +1102,23 @@ final class RmxAudioPlayer: NSObject {
                 let trackStatus = getStatusItem(playerItem)
                 onStatus(.rmxstatus_CANPLAY, trackId: playerItem.trackId, param: trackStatus)
 
+                if playerItem.startPositionSeconds > 0 {
+                    let pending = Float(playerItem.startPositionSeconds)
+                    playerItem.startPositionSeconds = 0
+                    seek(to: pending, isCommand: false)
+                }
+
                 if isWaitingToStartPlayback {
                     isWaitingToStartPlayback = false
                     print("RmxAudioPlayer[setPlaylistItems] is beginning playback after waiting for ReadyToPlay event")
                     playCommand(false)
                 }
             case .failed:
-                // Failed. Examine AVPlayerItem.error
+                // Failed. Examine AVPlayerItem.error. Freeze the queue so a DRM miss
+                // does not advance to the next lecture.
                 isWaitingToStartPlayback = false
+                avQueuePlayer.actionAtItemEnd = .none
+                avQueuePlayer.pause()
                 var errorMsg = ""
                 var errorCode = RmxAudioErrorType.rmxerr_NONE_SUPPORTED
                 if let error = playerItem.error {
@@ -1070,7 +1130,6 @@ final class RmxAudioPlayer: NSObject {
                 let errorParam = createError(withCode: errorCode, message: errorMsg)
                 onStatus(.rmxstatus_ERROR, trackId: playerItem.trackId, param: errorParam)
             case .unknown:
-                isWaitingToStartPlayback = false
                 print("PlayerItem status changed to AVPlayerItemStatusUnknown [\(name ?? "")]")
                 // Not ready
             default:
@@ -1341,18 +1400,18 @@ final class RmxAudioPlayer: NSObject {
     func activateAudioSession() {
         let avSession = AVAudioSession.sharedInstance()
 
-        // If no devices are connected, play audio through the default speaker (rather than the earpiece).
-        var options: AVAudioSession.CategoryOptions = .defaultToSpeaker
-
-        // If both Bluetooth streaming options are enabled, the low quality stream is preferred; enable A2DP only.
-        options.insert(.allowBluetoothA2DP)
-
+        // Match the video plugin: `.playback` uses the speaker and ignores the Ring/Silent
+        // switch. `.playAndRecord` routed to the earpiece (or went silent when muted), so
+        // FairPlay video looked fine while catalog listen appeared broken.
         do {
-            // Always set category first, even if session is already active
-            // This ensures we have the correct category after video player exits
-            try avSession.setCategory(.playAndRecord, options: options)
+            try avSession.setCategory(.playback, mode: .spokenAudio, options: [.allowBluetoothA2DP])
         } catch {
             print("Error setting category! \(error.localizedDescription)")
+            do {
+                try avSession.setCategory(.playback, options: [.allowBluetoothA2DP])
+            } catch {
+                print("Error setting playback category! \(error.localizedDescription)")
+            }
         }
 
         do {
@@ -1406,6 +1465,36 @@ final class RmxAudioPlayer: NSObject {
             "code": NSNumber(value: code.rawValue),
             "message": message ?? ""
         ]
+    }
+
+    /// Story 58.5: DRM session errors surface via the existing `status` channel's `value.error`,
+    /// a typed discriminator string -- mirrors Android's `OnStatusCallback.createDrmError`.
+    func createDrmError(_ typedError: String) -> [String: Any] {
+        [
+            "code": NSNumber(value: RmxAudioErrorType.rmxerr_NONE_SUPPORTED.rawValue),
+            "message": "",
+            "error": typedError
+        ]
+    }
+
+    /// Reports a DRM session error for `trackId` on the existing `status` channel
+    /// (`rmxstatus_ERROR`), for a `AudioTrack` DRM session opened via `AudioDrm`.
+    func reportDrmError(trackId: String, error: String) {
+        onStatus(.rmxstatus_ERROR, trackId: trackId, param: createDrmError(error))
+    }
+
+    /// Offline items whose provider `state` is `expired` never play: emit the existing DRM
+    /// `expired` error and do not start playback. Streaming items are unchanged.
+    @discardableResult
+    func refuseIfOfflineExpired(_ track: AudioTrack?) -> Bool {
+        guard let downloadId = track?.downloadId else { return false }
+        guard let provider = AudioOffline.getProvider() else { return false }
+        guard AudioOffline.stateOf(provider, downloadId: downloadId) == AudioOffline.stateExpired else {
+            return false
+        }
+        avQueuePlayer.pause()
+        reportDrmError(trackId: track?.trackId ?? downloadId, error: AudioDrm.errorExpired)
+        return true
     }
 
     func onStatus(_ what: RmxAudioStatusMessage, trackId: String?, param: [String:Any]?) {
@@ -1529,6 +1618,24 @@ final class RmxAudioPlayer: NSObject {
         // (where isAtBeginning = currentIndex() == 0) would silently drop the PLAYING transition
         // for any audio track at playlist index > 0, leaving JS stuck in PAUSED.
         lastTrackId = nil
+
+        let item = avQueuePlayer.currentAudioTrack
+        if item?.status != .readyToPlay {
+            if position > 0 {
+                item?.startPositionSeconds = Double(position)
+            }
+            if play {
+                isWaitingToStartPlayback = true
+                playCommand(false)
+            }
+            NSLog(
+                "[Playlist] resumeAfterVideoHandoff: defer until readyToPlay pos=%.3f play=%d",
+                position,
+                play ? 1 : 0
+            )
+            completion(true)
+            return
+        }
 
         let finish: () -> Void = { [weak self] in
             guard let self = self else {

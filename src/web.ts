@@ -19,7 +19,9 @@ import type {
     SetPlaybackRateOptions,
     SetPlaybackVolumeOptions
 } from './definitions';
-import type { AudioPlayerOptions, AudioTrack } from './interfaces';
+import type {
+    AudioPlayerOptions, AudioTrack, DownloadIdOptions, DownloadInfo, RenewDownloadOptions, StartDownloadOptions
+} from './interfaces';
 import { validateTrack, validateTracks } from './utils';
 
 declare let Hls: any;
@@ -77,12 +79,13 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     private lastProgressObservedAtMs: number | null = null;
     private stallWatchdogId: ReturnType<typeof setInterval> | undefined;
 
-    addAllItems(options: AddAllItemOptions): Promise<void> {
+    async addAllItems(options: AddAllItemOptions): Promise<void> {
+        assertWebDrmNotSupported(options.items);
         this.playlistItems = this.playlistItems.concat(validateTracks(options.items));
-        return Promise.resolve();
     }
 
-    addItem(options: AddItemOptions): Promise<void> {
+    async addItem(options: AddItemOptions): Promise<void> {
+        assertWebDrmNotSupported([options.item]);
         const track = validateTrack(options.item);
         if (track) {
             const insertIndex = options.index !== undefined && options.index !== null
@@ -97,7 +100,6 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                 track.trackId
             );
         }
-        return Promise.resolve();
     }
 
     moveItem(options: MoveItemOptions): Promise<void> {
@@ -119,6 +121,7 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 
     async replaceItem(options: ReplaceItemOptions): Promise<void> {
+        assertWebDrmNotSupported([options.item]);
         let replaceIndex = -1;
         if (options.index !== undefined && options.index !== null) {
             replaceIndex = options.index;
@@ -308,7 +311,28 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
         return Promise.reject();
     }
 
+    async startDownload(_options: StartDownloadOptions): Promise<{ downloadId: string }> {
+        throw offlineNotSupported();
+    }
+
+    async cancelDownload(_options: DownloadIdOptions): Promise<void> {
+        throw offlineNotSupported();
+    }
+
+    async deleteDownload(_options: DownloadIdOptions): Promise<void> {
+        throw offlineNotSupported();
+    }
+
+    async renewDownload(_options: RenewDownloadOptions): Promise<void> {
+        throw offlineNotSupported();
+    }
+
+    async listDownloads(): Promise<{ downloads: DownloadInfo[] }> {
+        throw offlineNotSupported();
+    }
+
     async setPlaylistItems(options: PlaylistOptions): Promise<void> {
+        assertWebDrmNotSupported(options.items);
         this.playlistItems = options.items;
         if (this.playlistItems.length > 0) {
             let currentItem = this.playlistItems.filter(i => i.trackId === options.options?.playFromId)[0];
@@ -717,5 +741,21 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
                     reject();
                 };
             });
+    }
+}
+
+/** Offline downloads are native-only (Story 59.4); web rejects `notSupported`. */
+function offlineNotSupported(): Error & { code: string } {
+    const error = new Error('Offline downloads not supported on this platform') as Error & { code: string };
+    error.code = 'notSupported';
+    return error;
+}
+
+/** iOS/web refuse `drm` before creating a player (Story 57.5). */
+export function assertWebDrmNotSupported(items: Array<AudioTrack | null | undefined>): void {
+    if (items.some((item) => item != null && (item.drm != null || item.downloadId != null))) {
+        const error = new Error('DRM not supported on this platform yet') as Error & { code: string };
+        error.code = 'notSupported';
+        throw error;
     }
 }

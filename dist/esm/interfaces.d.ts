@@ -140,7 +140,99 @@ export interface AudioTrack {
      * Android Auto/CarPlay, or the in-app Next/Previous buttons). Optional; defaults to 0.
      */
     startPosition?: number;
+    /**
+     * Optional DRM descriptor fields (API names). Android attaches Widevine, and iOS attaches
+     * FairPlay (Story 58.5), through a host-registered provider. Token URL, heartbeat URL, and
+     * Bearer live on that provider, not here. Web still refuses items that set this.
+     */
+    drm?: AudioTrackDrmOptions;
+    /**
+     * Id of a completed offline download (see `startDownload`). The item plays from
+     * the local download (Android cache / iOS `AVAssetDownload` asset) with the host provider's
+     * offline licence; `assetUrl` is not used for playback. If the licence has expired, playback
+     * is refused with the `expired` error. Web refuses items that set this.
+     */
+    downloadId?: string;
 }
+/** Lifecycle states of an offline download (`download` event and `listDownloads`). */
+export type DownloadState = 'queued' | 'downloading' | 'completed' | 'failed' | 'expired';
+/**
+ * Error discriminators of offline downloads: the five DRM discriminators plus
+ * `offlineDeviceLimit` (the user already holds offline licences on the maximum number of devices).
+ */
+export type DownloadError = AudioTrackDrmError | 'offlineDeviceLimit';
+/** Payload of the `download` listener. */
+export interface DownloadEvent {
+    downloadId: string;
+    state: DownloadState;
+    /** 0..1 */
+    progress: number;
+    /** Set with `failed`, and with `expired` after a refused renewal. */
+    error?: DownloadError;
+}
+/** One entry of `listDownloads`. */
+export interface DownloadInfo {
+    downloadId: string;
+    state: DownloadState;
+    /** 0..1 */
+    progress: number;
+    /** Estimated licence expiry (epoch ms): last successful acquire/renew + 27 days. `null` before the licence exists. */
+    expiresAt: number | null;
+    /** The host provider asks for a renewal soon. */
+    needsRenewal: boolean;
+}
+export interface StartDownloadOptions {
+    /** Stable id chosen by the app; also the id later set as `AudioTrack.downloadId`. */
+    downloadId: string;
+    /** HLS playlist (`audio.m3u8`). May be re-signed on a resumed start. Android reuses cached segments; iOS starts a new task and discards partial media. */
+    url: string;
+    /** Defaults to HLS (`application/x-mpegURL`). */
+    mimeType?: string;
+    /** Descriptor handed to the host provider's `acquire`. */
+    drm: AudioTrackDrmOptions;
+}
+export interface DownloadIdOptions {
+    downloadId: string;
+}
+export interface RenewDownloadOptions {
+    downloadId: string;
+    /** Descriptor handed to the host provider's `renew`. */
+    drm?: AudioTrackDrmOptions;
+}
+/**
+ * Optional playlist-item DRM fields. Names match the playback API and video plugin.
+ * Token / heartbeat URLs and Bearer are supplied by the host provider (57.6).
+ */
+export interface AudioTrackDrmStreamLimit {
+    mode?: string;
+    renewalIntervalSeconds?: number;
+    heartbeatIntervalSeconds?: number;
+}
+export interface AudioTrackDrmOptions {
+    /**
+     * Consumed by Android via the host-registered drm-kit Widevine provider; ignored on iOS
+     * (FairPlay only — see `fairplayLicenseUrl`).
+     */
+    widevineLicenseUrl?: string;
+    playbackSessionId?: string;
+    renewalCredential?: string;
+    streamLimit?: AudioTrackDrmStreamLimit;
+    /**
+     * Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still
+     * ignored on Android (Widevine only).
+     */
+    fairplayLicenseUrl?: string;
+    /**
+     * Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still
+     * ignored on Android (Widevine only).
+     */
+    fairplayCertificateUrl?: string;
+}
+/**
+ * Exactly the five DRM error discriminators. Emitted on the existing `status`
+ * channel as `value.error` (do not overload numeric `RmxAudioErrorType` 0–4).
+ */
+export type AudioTrackDrmError = 'blockedByStreamLimit' | 'notEntitled' | 'expired' | 'network' | 'unknown';
 /**
  * Encapsulates the fields you can pass to the plugin to remove a track.
  * You can either remove a track by its ID if you know it, or by index if you know it;
@@ -270,6 +362,12 @@ export interface OnStatusErrorCallbackData {
      * The error, as a message
      */
     message: string;
+    /**
+     * Typed DRM failure when the host provider reports one. Exactly one of
+     * `blockedByStreamLimit` | `notEntitled` | `expired` | `network` | `unknown`.
+     * Unknown strings are coerced to `unknown`. Not a new listener.
+     */
+    error?: AudioTrackDrmError;
 }
 /**
  * Function declaration for onStatus event handlers

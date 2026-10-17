@@ -1,6 +1,8 @@
 package org.dwbn.plugins.playlist.manager
 
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import org.dwbn.plugins.playlist.AudioDrm
 
 /**
  * Playback decisions that keep the Media3 playlist behaving like the former PlaylistCore stack.
@@ -98,6 +100,51 @@ object PlaylistPlaybackPolicy {
     @JvmStatic
     fun shouldSkipAfterError(sequentialErrors: Int, nextAvailable: Boolean): Boolean =
         nextAvailable && sequentialErrors <= MAX_SEQUENTIAL_ERRORS
+
+    /**
+     * Typed DRM failures are terminal. ExoPlayer's default load retry (~1–5s backoff) would
+     * re-hit `/drm-token` and flood 403s. Do not skip/prepare/retry the same source.
+     */
+    @JvmStatic
+    fun shouldHaltPlaybackForDrmError(discriminator: String?): Boolean =
+        discriminator == AudioDrm.ERROR_BLOCKED_BY_STREAM_LIMIT ||
+            discriminator == AudioDrm.ERROR_NOT_ENTITLED ||
+            discriminator == AudioDrm.ERROR_EXPIRED
+
+    /** First typed terminal DRM error name found in [error]'s cause chain, if any. */
+    @JvmStatic
+    fun drmDiscriminatorFromCause(error: Throwable?): String? {
+        var cause = error
+        while (cause != null) {
+            if (cause is PlaybackException) {
+                when (cause.errorCode) {
+                    PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED,
+                    PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR,
+                    -> return AudioDrm.ERROR_EXPIRED
+                }
+            }
+            val message = cause.message
+            if (shouldHaltPlaybackForDrmError(message)) {
+                return message
+            }
+            if (messageLooksExpired(message)) {
+                return AudioDrm.ERROR_EXPIRED
+            }
+            cause = cause.cause
+        }
+        return null
+    }
+
+    private fun messageLooksExpired(message: String?): Boolean {
+        if (message == null) {
+            return false
+        }
+        val upper = message.uppercase()
+        return upper.contains("ERROR_KEY_EXPIRED") ||
+            upper.contains("KEY_EXPIRED") ||
+            upper.contains("ERROR_DRM_NO_LICENSE") ||
+            upper.contains("DRM_NO_LICENSE")
+    }
 
     /**
      * PlaylistCore assumed the user had pressed play for every item after the first, so it kept

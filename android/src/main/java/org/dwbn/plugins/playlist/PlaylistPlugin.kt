@@ -7,6 +7,9 @@ import com.getcapacitor.*
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.dwbn.plugins.playlist.data.AudioTrack
 import org.dwbn.plugins.playlist.manager.PlaybackProgress
+import org.dwbn.plugins.playlist.offline.DownloadEvent
+import org.dwbn.plugins.playlist.offline.DownloadStates
+import org.dwbn.plugins.playlist.offline.OfflineDownloads
 import org.dwbn.plugins.playlist.manager.PlaylistPlaybackPolicy
 import org.dwbn.plugins.playlist.playlist.AudioPlaylistHandler
 import org.dwbn.plugins.playlist.service.MediaService
@@ -24,6 +27,95 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     override fun load() {
         audioPlayerImpl = RmxAudioPlayer(this, context.applicationContext)
+        audioPlayerImpl!!.playlistManager.drmErrorListener = { trackId, error ->
+            Handler(Looper.getMainLooper()).post {
+                emitDrmError(trackId, error)
+            }
+        }
+        OfflineDownloads.get(context.applicationContext).eventSink =
+            OfflineDownloads.EventSink { event -> emitDownload(event) }
+    }
+
+    private fun offlineDownloads(): OfflineDownloads = OfflineDownloads.get(context.applicationContext)
+
+    /** Story 59.4: starts a protected HLS download; progress arrives on the `download` listener. */
+    @PluginMethod
+    fun startDownload(call: PluginCall) {
+        val downloadId = call.getString("downloadId")?.trim().orEmpty()
+        val url = call.getString("url")?.trim().orEmpty()
+        val drm = call.getObject("drm")
+        if (downloadId.isEmpty() || url.isEmpty() || drm == null) {
+            call.reject("downloadId, url and drm are required", "invalidArgument")
+            return
+        }
+        val failure = offlineDownloads().start(downloadId, url, call.getString("mimeType")?.trim()?.ifEmpty { null }, drm)
+        if (failure != null) {
+            call.reject("Offline provider is not registered", failure)
+            return
+        }
+        call.resolve(JSObject().put("downloadId", downloadId))
+    }
+
+    @PluginMethod
+    fun cancelDownload(call: PluginCall) {
+        val downloadId = call.getString("downloadId")?.trim().orEmpty()
+        if (downloadId.isEmpty()) {
+            call.reject("downloadId is required", "invalidArgument")
+            return
+        }
+        offlineDownloads().cancel(downloadId)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun deleteDownload(call: PluginCall) {
+        val downloadId = call.getString("downloadId")?.trim().orEmpty()
+        if (downloadId.isEmpty()) {
+            call.reject("downloadId is required", "invalidArgument")
+            return
+        }
+        offlineDownloads().delete(downloadId)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun renewDownload(call: PluginCall) {
+        val downloadId = call.getString("downloadId")?.trim().orEmpty()
+        if (downloadId.isEmpty()) {
+            call.reject("downloadId is required", "invalidArgument")
+            return
+        }
+        offlineDownloads().renew(downloadId, call.getObject("drm")) { failure ->
+            if (failure == null) {
+                call.resolve()
+            } else {
+                call.reject("Offline licence renewal failed", failure)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun listDownloads(call: PluginCall) {
+        val items = JSONArray()
+        for (info in offlineDownloads().list()) {
+            val entry = JSObject()
+            entry.put("downloadId", info.downloadId)
+            entry.put("state", info.state)
+            entry.put("progress", info.progress.toDouble())
+            entry.put("expiresAt", info.expiresAt ?: JSONObject.NULL)
+            entry.put("needsRenewal", info.needsRenewal)
+            items.put(entry)
+        }
+        call.resolve(JSObject().put("downloads", items))
+    }
+
+    private fun emitDownload(event: DownloadEvent) {
+        val data = JSObject()
+        data.put("downloadId", event.downloadId)
+        data.put("state", event.state)
+        data.put("progress", event.progress.toDouble())
+        event.error?.let { data.put("error", it) }
+        notifyListeners("download", data, event.state != DownloadStates.DOWNLOADING)
     }
 
     @PluginMethod
@@ -81,7 +173,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         Handler(Looper.getMainLooper()).post {
 
             val trackItems: ArrayList<AudioTrack> = getTrackItems(items)
-            audioPlayerImpl!!.playlistManager.setAllItems(trackItems, options)
+            val failure = audioPlayerImpl!!.playlistManager.setAllItems(trackItems, options)
+            if (failure != null) {
+                call.reject("DRM provider is not registered", failure)
+                return@post
+            }
             for (playerItem in trackItems) {
                 if (playerItem.trackId != null) {
                     onStatus(
@@ -94,7 +190,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
             call.resolve()
         }
-        Log.i(TAG, "setPlaylistItems: " + items.toString())
+        Log.i(TAG, "setPlaylistItems: ${items.length()} items")
     }
 
     @PluginMethod
@@ -106,7 +202,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             val alreadyQueued = playerItem?.trackId?.let {
                 audioPlayerImpl!!.playlistManager.findTrackPosition(it) >= 0
             } == true
-            audioPlayerImpl!!.getPlaylistManager().addItem(playerItem, index)
+            val failure = audioPlayerImpl!!.getPlaylistManager().addItem(playerItem, index)
+            if (failure != null) {
+                call.reject("DRM provider is not registered", failure)
+                return@post
+            }
 
             if (!alreadyQueued && playerItem?.trackId != null) {
                 val payload = playerItem.toDict()
@@ -158,7 +258,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             // An omitted trackId in the payload intentionally means "keep the existing id",
             // so this must not be rejected the way a brand-new addItem() track would be.
             val replacement: AudioTrack? = getTrackItem(item, requireTrackId = false)
-            val replaced = audioPlayerImpl!!.playlistManager.replaceItem(trackIndex, trackId, replacement)
+            val (replaced, failure) = audioPlayerImpl!!.playlistManager.replaceItem(trackIndex, trackId, replacement)
+            if (failure != null) {
+                call.reject("DRM provider is not registered", failure)
+                return@post
+            }
 
             if (replaced != null) {
                 onStatus(
@@ -184,7 +288,11 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
                 val id = item.trackId
                 id.isNullOrEmpty() || playlistManager.findTrackPosition(id) < 0
             }
-            playlistManager.addAllItems(trackItems)
+            val failure = playlistManager.addAllItems(trackItems)
+            if (failure != null) {
+                call.reject("DRM provider is not registered", failure)
+                return@post
+            }
 
             for (playerItem in newlyAdded) {
                 if (playerItem.trackId != null) {
@@ -533,6 +641,14 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
             statusCallback = OnStatusCallback(this)
         }
         val errorObj = OnStatusCallback.createErrorWithCode(errorCode, message)
+        onStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, trackId, errorObj)
+    }
+
+    private fun emitDrmError(trackId: String?, discriminator: String) {
+        if (statusCallback == null) {
+            statusCallback = OnStatusCallback(this)
+        }
+        val errorObj = OnStatusCallback.createDrmError(discriminator)
         onStatus(RmxAudioStatusMessage.RMXSTATUS_ERROR, trackId, errorObj)
     }
 

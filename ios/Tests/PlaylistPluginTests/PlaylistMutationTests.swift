@@ -184,4 +184,23 @@ final class PlaylistMutationTests: XCTestCase {
             "title": "Title"
         ]))
     }
+
+    func testReplaceItem_downloadIdWhilePaused_doesNotArmAutoPlay() throws {
+        let (player, updater) = makePlayer(trackIds: ["a"])
+        player.isWaitingToStartPlayback = true
+        XCTAssertFalse(player.avQueuePlayer.isPlaying)
+
+        try player.replaceItem(at: 0, id: nil, with: [
+            "assetUrl": "https://example.com/local-a.mp3",
+            "downloadId": "dl-a",
+            "artist": "Artist",
+            "album": "Album",
+            "title": "Title"
+        ])
+
+        XCTAssertFalse(player.isWaitingToStartPlayback)
+        XCTAssertFalse(player.avQueuePlayer.isPlaying)
+        XCTAssertEqual(player.avQueuePlayer.queuedAudioTracks[0].downloadId, "dl-a")
+        XCTAssertEqual(updater.count(of: .rmxstatus_ITEM_REPLACED), 1)
+    }
 }

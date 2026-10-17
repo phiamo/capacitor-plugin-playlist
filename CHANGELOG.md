@@ -2,9 +2,34 @@
 
 ## Unreleased
 
+## [8.4.1] - 2026-10-17
+
 ### Fixed
+- **CI:** the iOS job now builds the scheme (`generic/platform=iOS`) instead of `xcodebuild test`, which the scheme does not define. That unblocks the npm publish workflow for `@dwbn/capacitor-plugin-playlist`.
+
+## [8.4.0] - 2026-10-16
+
+**Renamed to `@dwbn/capacitor-plugin-playlist`.** The package now lives in the `@dwbn` npm organization. The unscoped `capacitor-plugin-playlist` is deprecated and receives no further releases. To switch, replace the dependency, change imports from `'capacitor-plugin-playlist'` to `'@dwbn/capacitor-plugin-playlist'`, and run `npx cap sync`. The native plugin name (`Playlist`) and the Android package are unchanged. **iOS:** the pod and the Swift Package product are renamed `CapacitorPluginPlaylist` → `DwbnCapacitorPluginPlaylist`, because Capacitor derives the Swift package name from the npm name.
+
+### Added
+- **iOS:** protected audio playback via a host-registered FairPlay `AudioDrmProvider`/`AudioDrmSession` (`AudioDrm.swift`), mirroring the existing Android `AudioDrm` hook and `@dwbn/capacitor-video-player`'s own `VideoDrm.swift`, its sibling plugin (Story 58.5). `setPlaylistItems`/`addItem`/`addAllItems`/`replaceItem` now reject `{code: "noProvider"}` for `drm` items when no provider is registered, replacing the `notSupported` placeholder from Story 57.5. DRM session errors surface on the existing `status` channel's `value.error`.
+- **Android:** offline downloads of protected HLS audio (Story 59.4). New `startDownload`, `cancelDownload`, `deleteDownload`, `renewDownload`, `listDownloads` and a `download` listener (`queued | downloading | completed | failed | expired`), backed by a Media3 `DownloadManager` / `DownloadService` (`dataSync` foreground service). Licences and renewal are delegated to a host-registered `AudioOfflineProvider` (`AudioOffline.setProvider`); the licence is acquired before any segment is fetched. Playlist items with `downloadId` play from the download cache without network; an `expired` provider state refuses playback with the existing `expired` error. Cache, index and metadata live under `noBackupFilesDir`; the cache key ignores the URL query so a re-signed URL reuses cached segments. New error discriminator `offlineDeviceLimit`. Web rejects `notSupported`. See [docs/drm.md](./docs/drm.md#offline-downloads-android-and-ios).
+- **iOS:** offline downloads of protected HLS audio (Story 59.5). `startDownload` / `cancelDownload` / `deleteDownload` / `renewDownload` / `listDownloads` and the `download` listener now run on iOS via `AVAssetDownloadURLSession`. Licences and renewal stay on a host-registered `AudioOfflineProvider` (`AudioOffline.setProvider`); the FairPlay `skd://` identifier is read and the licence acquired before any media is fetched. Playlist items with `downloadId` play the local asset (empty `assetUrl` is ok); an `expired` provider state refuses playback with the existing `expired` error. Media, index and metadata live under Application Support with `isExcludedFromBackup`. A failed download retried with a fresh URL starts a new task and discards partial media. Web still rejects `notSupported`. See [docs/drm.md](./docs/drm.md#offline-downloads-android-and-ios).
+
+### Changed
+- **iOS:** the minimum is iOS 15 again (was iOS 18 since 0.9.4). Nothing in the plugin needs more, and iOS 15–17 devices can install apps that use it (Story 58.2).
+
+### Fixed
+- **iOS:** catalog listen uses `AVAudioSessionCategoryPlayback` (speaker, ignores the Ring/Silent switch) instead of `.playAndRecord`, which routed to the earpiece or went silent after FairPlay video.
 - **Android / iOS:** `addItem` / `addAllItems` are now idempotent by `trackId`. A second add of a queued track is a no-op and does not emit `ITEM_ADDED`, so JS retries cannot duplicate the native queue.
 - **Android:** `playTrackById` now switches even while another item is playing. It only skips `beginPlayback` when the requested id is already the current playing track.
+- **Android:** no more crash (`ForegroundServiceStartNotAllowedException`) when Android restarts `MediaService` in the background, e.g. after the app process died during playback. Android 12+ refuses `startForeground` there; the service now keeps running without the foreground notification instead of taking the app down.
+- **Android:** replacing a DRM item (`replaceItem`, e.g. restoring the protected track after a video handoff) could leave the player on the released DRM session. Media3 updated the equivalent media source in place and kept the old session's `DrmSessionManager`, so the next license request failed with `unknown`. DRM replacements now always build a new media source.
+
+### Documentation
+- README shortened to an overview. Guides moved to `docs/`: installation, usage, events, DRM, upgrading, legacy versions, history & credits. The generated API reference now lives in `docs/API.md`.
+- New end-to-end [audio ↔ video handoff guide](./docs/video-handoff.md) together with `@dwbn/capacitor-video-player`, including protected (Widevine) playback with drm-kit.
+- Added `LICENSE` (MIT, crediting the original cordova-plugin-playlist by Rolamix).
 
 ## 8.0.0
 
