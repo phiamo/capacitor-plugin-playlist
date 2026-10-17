@@ -44,7 +44,7 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
-      - run: xcodebuild test -scheme DwbnCapacitorPluginPlaylist -destination 'platform=iOS Simulator,name=iPhone 16' -skipMacroValidation
+      - run: xcodebuild -scheme DwbnCapacitorPluginPlaylist -destination generic/platform=iOS
 
   validate-version:
     needs: [test-ts, test-android, test-ios]
@@ -102,7 +102,7 @@ jobs:
         id: changelog
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          BODY=$(awk "/^## ${VERSION}$/{flag=1; next} /^## /{flag=0} flag" CHANGELOG.md)
+          BODY=$(awk "/^## \[?${VERSION}\]?/{flag=1; next} /^## /{flag=0} flag" CHANGELOG.md)
           if [ -z "$(echo "$BODY" | tr -d '[:space:]')" ]; then
             echo "No CHANGELOG section found for version ${VERSION}"
             exit 1
