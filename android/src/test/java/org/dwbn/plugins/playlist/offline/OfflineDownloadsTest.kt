@@ -142,11 +142,31 @@ class OfflineDownloadsTest {
     }
 
     @Test
-    fun start_noDrmFormat_failsWithoutLicence() {
+    fun start_clearHls_skipsAcquireAndHasNoExpiry() {
         engine.format = null
-        downloads.start("d1", "https://cdn.example/a.m3u8", null, drm())
-        assertEquals(DownloadStates.FAILED, events.last().state)
-        assertFalse(calls.contains("acquire:d1"))
+        downloads.start("d1", "https://cdn.example/a.m3u8", null, null)
+
+        assertEquals(listOf("prepare:d1", "enqueue:d1"), calls)
+        assertFalse(downloads.isProtected("d1"))
+        engine.emit("d1", EngineState.COMPLETED, 1f)
+        val info = downloads.list().single()
+        assertEquals(DownloadStates.COMPLETED, info.state)
+        assertNull(info.expiresAt)
+        assertFalse(info.needsRenewal)
+    }
+
+    @Test
+    fun start_clearCompleted_isIdempotentEvenIfProviderExpired() {
+        engine.format = null
+        downloads.start("d1", "https://cdn.example/a.m3u8", null, null)
+        engine.emit("d1", EngineState.COMPLETED, 1f)
+        provider.stateResult = AudioOfflineProvider.STATE_EXPIRED
+        calls.clear()
+
+        assertNull(downloads.start("d1", "https://cdn.example/a.m3u8", null, null))
+        assertTrue(calls.isEmpty())
+        assertEquals(DownloadStates.COMPLETED, events.last().state)
+        assertEquals(DownloadStates.COMPLETED, downloads.list().single().state)
     }
 
     @Test

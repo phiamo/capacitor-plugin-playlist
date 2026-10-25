@@ -177,6 +177,26 @@ object MediaNotificationPolicy {
     fun lastKnownPositionSec(handoffPositionSec: Float): Float = handoffPositionSec
 
     /**
+     * Overlay prewarm must not [org.dwbn.plugins.playlist.manager.PlaylistManager.beginPlayback].
+     * That prepares the queued-placeholder URL (and any leftover audio Widevine session) while
+     * the video player is opening its own DRM session.
+     */
+    @JvmStatic
+    fun shouldBeginPlaybackOnPrewarm(): Boolean = false
+
+    /**
+     * Retain FGS while the app is visible (Android 14+ while-in-use). [beginPlayback] is a no-op
+     * unless [shouldBeginPlaybackOnPrewarm] is flipped.
+     */
+    @JvmStatic
+    fun applyPrewarmForeground(retainForeground: Runnable, beginPlayback: Runnable) {
+        retainForeground.run()
+        if (shouldBeginPlaybackOnPrewarm()) {
+            beginPlayback.run()
+        }
+    }
+
+    /**
      * Failed in-place resume must not last-resort [org.dwbn.plugins.playlist.manager.PlaylistManager.beginPlayback]
      * (Android 12+ forbids starting FGS from the background after video). JS may play/seek.
      */

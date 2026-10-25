@@ -157,7 +157,7 @@ export interface PlaylistPlugin {
      * - iOS: restores pinned track, reactivates `AVAudioSession`, seeks to `position`, and when `play` is true starts playback (seek-then-play). Returns `{ resumed: true }` when native handled the handoff.
      * - Web: stores position only (no native session); returns `{ resumed: false }`.
      *
-     * **With `prewarm: true` (Android, before video):** starts `MediaService` in foreground at `position` but stays silent — no audio focus, no audible playback. Always returns `{ resumed: false }`.
+     * **With `prewarm: true` (Android, before video):** retains `MediaService` FGS while the app is visible (Android 14+ while-in-use). Does not prepare or play the audio item — overlay video owns decrypt. Always returns `{ resumed: false }`.
      */
     resumeAfterVideoHandoff(options: ResumeAfterVideoHandoffOptions): Promise<ResumeAfterVideoHandoffResult>;
     /**
@@ -166,11 +166,12 @@ export interface PlaylistPlugin {
      */
     getLastKnownPosition(): Promise<GetLastKnownPositionResult>;
     /**
-     * Download a protected HLS lecture for offline playback (Android and iOS). The host
-     * `AudioOfflineProvider` acquires the offline licence first; only then is media fetched, so a
-     * refused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the
-     * outcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL
-     * reuses cached segments on Android; on iOS the partial asset is discarded and a new task starts.
+     * Download an HLS lecture for offline playback (Android and iOS). Protected playlists pass
+     * `drm`; the host `AudioOfflineProvider` acquires the offline licence first, then media is
+     * fetched, so a refused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media.
+     * Unpackaged (clear) HLS omits `drm` and skips the licence. Progress and the outcome arrive on
+     * the `download` listener. Restarting a `failed` download with a fresh URL reuses cached
+     * segments on Android; on iOS the partial asset is discarded and a new task starts.
      *
      * Rejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.
      * Web rejects `notSupported`.

@@ -221,6 +221,19 @@ class MediaNotificationPolicyTest {
     }
 
     @Test
+    fun prewarm_retainsForegroundWithoutBeginPlayback() {
+        val retainCalls = mutableListOf<String>()
+        val beginPlaybackCalls = mutableListOf<String>()
+        MediaNotificationPolicy.applyPrewarmForeground(
+            { retainCalls.add("retain") },
+            { beginPlaybackCalls.add("beginPlayback") }
+        )
+        assertEquals(listOf("retain"), retainCalls)
+        assertTrue(beginPlaybackCalls.isEmpty())
+        assertFalse(MediaNotificationPolicy.shouldBeginPlaybackOnPrewarm())
+    }
+
+    @Test
     fun failedInPlaceResume_doesNotBeginPlayback() {
         val beginPlaybackCalls = mutableListOf<String>()
         MediaNotificationPolicy.applyBeginPlaybackWhenInPlaceUnavailable {

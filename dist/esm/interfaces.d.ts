@@ -176,7 +176,7 @@ export interface DownloadInfo {
     state: DownloadState;
     /** 0..1 */
     progress: number;
-    /** Estimated licence expiry (epoch ms): last successful acquire/renew + 27 days. `null` before the licence exists. */
+    /** Licence expiry (epoch ms) from the host provider. `null` before the licence exists. */
     expiresAt: number | null;
     /** The host provider asks for a renewal soon. */
     needsRenewal: boolean;
@@ -188,8 +188,8 @@ export interface StartDownloadOptions {
     url: string;
     /** Defaults to HLS (`application/x-mpegURL`). */
     mimeType?: string;
-    /** Descriptor handed to the host provider's `acquire`. */
-    drm: AudioTrackDrmOptions;
+    /** Descriptor handed to the host provider's `acquire`. Omit for unpackaged (clear) HLS. */
+    drm?: AudioTrackDrmOptions;
 }
 export interface DownloadIdOptions {
     downloadId: string;
@@ -227,6 +227,8 @@ export interface AudioTrackDrmOptions {
      * ignored on Android (Widevine only).
      */
     fairplayCertificateUrl?: string;
+    /** Catalog asset slug for `/drm-token`; must match this session, not DrmHost's last audio slug. */
+    slug?: string;
 }
 /**
  * Exactly the five DRM error discriminators. Emitted on the existing `status`

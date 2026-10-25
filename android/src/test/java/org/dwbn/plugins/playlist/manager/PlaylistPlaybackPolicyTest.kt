@@ -40,6 +40,12 @@ class PlaylistPlaybackPolicyTest {
     }
 
     @Test
+    fun queuedPlaceholder_isNotPreparedOnBeginPlayback() {
+        assertFalse(PlaylistPlaybackPolicy.shouldPrepareOnBeginPlayback(true))
+        assertTrue(PlaylistPlaybackPolicy.shouldPrepareOnBeginPlayback(false))
+    }
+
+    @Test
     fun previousAvailable_emptyPlaylist_isFalse() {
         assertFalse(PlaylistPlaybackPolicy.previousAvailable(0, loop = true, itemCount = 0))
     }

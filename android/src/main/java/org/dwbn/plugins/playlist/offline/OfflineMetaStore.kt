@@ -8,7 +8,7 @@ import java.io.File
  * (Media3 keeps the request URI in its no-backup index). Lives under `noBackupFilesDir`.
  */
 class OfflineMetaStore(private val file: File) {
-    data class Entry(val acquiredAt: Long, val expiresAt: Long)
+    data class Entry(val acquiredAt: Long, val expiresAt: Long, val protected: Boolean = true)
 
     @Synchronized
     fun get(downloadId: String): Entry? = read()[downloadId]
@@ -40,7 +40,8 @@ class OfflineMetaStore(private val file: File) {
             val out = LinkedHashMap<String, Entry>()
             for (key in root.keys()) {
                 val item = root.optJSONObject(key) ?: continue
-                out[key] = Entry(item.optLong("acquiredAt"), item.optLong("expiresAt"))
+                val protected = !item.has("protected") || item.optBoolean("protected", true)
+                out[key] = Entry(item.optLong("acquiredAt"), item.optLong("expiresAt"), protected)
             }
             out
         } catch (_: Exception) {
@@ -53,7 +54,10 @@ class OfflineMetaStore(private val file: File) {
         for ((id, entry) in all) {
             root.put(
                 id,
-                JSONObject().put("acquiredAt", entry.acquiredAt).put("expiresAt", entry.expiresAt)
+                JSONObject()
+                    .put("acquiredAt", entry.acquiredAt)
+                    .put("expiresAt", entry.expiresAt)
+                    .put("protected", entry.protected)
             )
         }
         file.parentFile?.mkdirs()

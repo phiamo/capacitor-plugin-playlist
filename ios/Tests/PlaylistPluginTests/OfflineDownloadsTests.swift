@@ -124,12 +124,29 @@ final class OfflineDownloadsTests: XCTestCase {
         XCTAssertFalse(calls.contains("acquire:d1"))
     }
 
-    func test_start_noSkdIdentifier_failsWithoutLicence() {
+    func test_start_clearHls_skipsAcquireAndHasNoExpiry() {
         engine.keyIdentifier = nil
-        downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8", drm: drm())
-        XCTAssertEqual(events.last?.state, DownloadStates.failed)
-        XCTAssertEqual(events.last?.error, AudioDrm.errorUnknown)
-        XCTAssertFalse(calls.contains("acquire:d1"))
+        downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8", drm: nil)
+        XCTAssertEqual(calls, ["prepare:d1", "enqueue:d1"])
+        XCTAssertFalse(downloads.isProtected("d1"))
+        engine.emit("d1", .completed, 1)
+        let info = downloads.list().first
+        XCTAssertEqual(info?.state, DownloadStates.completed)
+        XCTAssertNil(info?.expiresAt)
+        XCTAssertEqual(info?.needsRenewal, false)
+    }
+
+    func test_start_clearCompleted_isIdempotentEvenIfProviderExpired() {
+        engine.keyIdentifier = nil
+        downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8", drm: nil)
+        engine.emit("d1", .completed, 1)
+        provider.stateResult = AudioOffline.stateExpired
+        calls.removeAll()
+
+        XCTAssertNil(downloads.start(downloadId: "d1", url: "https://cdn.example/a.m3u8", drm: nil))
+        XCTAssertTrue(calls.isEmpty)
+        XCTAssertEqual(events.last?.state, DownloadStates.completed)
+        XCTAssertEqual(downloads.list().first?.state, DownloadStates.completed)
     }
 
     func test_start_segmentFailure_discardsPartialThenIsResumable() {

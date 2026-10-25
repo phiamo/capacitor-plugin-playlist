@@ -308,8 +308,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         let downloadId = call.getString("downloadId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let url = call.getString("url")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let drm = call.getObject("drm")
-        if downloadId.isEmpty || url.isEmpty || drm == nil {
-            call.reject("downloadId, url and drm are required", "invalidArgument")
+        if downloadId.isEmpty || url.isEmpty {
+            call.reject("downloadId and url are required", "invalidArgument")
             return
         }
         let failure = OfflineDownloads.shared.start(downloadId: downloadId, url: url, drm: drm)
@@ -458,7 +458,11 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
             let id = (raw as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return id.isEmpty ? nil : id
         }
-        if items.contains(where: { downloadId(of: $0) != nil }) && AudioOffline.getProvider() == nil {
+        let needsOfflineProvider = items.contains { item in
+            guard let id = downloadId(of: item) else { return false }
+            return OfflineDownloads.shared.isProtected(id)
+        }
+        if needsOfflineProvider && AudioOffline.getProvider() == nil {
             return (AudioDrm.codeNoProvider, "Offline provider is not registered")
         }
         let needsStreamingDrm = items.contains { item in

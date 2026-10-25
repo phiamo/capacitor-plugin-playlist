@@ -83,7 +83,9 @@ class OfflineDownloads(
         val provider = providerSource() ?: return AudioOffline.CODE_NO_PROVIDER
         val existing = engine.get(downloadId)
         if (existing?.state == EngineState.COMPLETED && meta.get(downloadId) != null) {
-            if (AudioOffline.stateOf(provider, downloadId) == AudioOfflineProvider.STATE_ACTIVE) {
+            if (!isProtected(downloadId) ||
+                AudioOffline.stateOf(provider, downloadId) == AudioOfflineProvider.STATE_ACTIVE
+            ) {
                 emit(downloadId, DownloadStates.COMPLETED, 1f, null)
                 return null
             }
@@ -121,8 +123,17 @@ class OfflineDownloads(
             }
             val format = prepared.format
             if (format == null) {
-                Log.w(TAG, "no DRM init data found for download")
-                fail(downloadId, AudioDrm.ERROR_UNKNOWN, token)
+                if (pending[downloadId] !== token) {
+                    return
+                }
+                try {
+                    persistClearMeta(downloadId)
+                    engine.enqueue(prepared)
+                } catch (e: Exception) {
+                    Log.w(TAG, "clear enqueue failed: ${e.javaClass.simpleName}")
+                    meta.remove(downloadId)
+                    fail(downloadId, AudioDrm.ERROR_UNKNOWN, token)
+                }
                 return
             }
             if (pending[downloadId] !== token) {
@@ -248,7 +259,7 @@ class OfflineDownloads(
             }
             seen.add(download.id)
             var state = stateName(download)
-            if (state == DownloadStates.COMPLETED && provider != null &&
+            if (state == DownloadStates.COMPLETED && isProtected(download.id) && provider != null &&
                 AudioOffline.stateOf(provider, download.id) == AudioOfflineProvider.STATE_EXPIRED
             ) {
                 state = DownloadStates.EXPIRED
@@ -291,25 +302,40 @@ class OfflineDownloads(
         } catch (_: RuntimeException) {
             null
         }
-        meta.put(downloadId, OfflineMetaStore.Entry(now, fromProvider ?: OfflineExpiry.expiresAt(now)))
+        meta.put(downloadId, OfflineMetaStore.Entry(now, fromProvider ?: OfflineExpiry.expiresAt(now), true))
     }
 
+    private fun persistClearMeta(downloadId: String) {
+        meta.put(downloadId, OfflineMetaStore.Entry(clock(), 0, false))
+    }
+
+    /** False for unpackaged HLS (no licence). Missing meta is treated as protected (legacy DRM rows). */
+    fun isProtected(downloadId: String): Boolean = meta.get(downloadId)?.protected != false
+
     private fun licenceExpiresAt(provider: AudioOfflineProvider?, downloadId: String): Long? {
+        if (!isProtected(downloadId)) {
+            return null
+        }
         if (provider != null) {
             try {
                 provider.expiresAt(downloadId)?.let { return it }
             } catch (_: RuntimeException) {
             }
         }
-        return meta.get(downloadId)?.expiresAt
+        val expiresAt = meta.get(downloadId)?.expiresAt ?: return null
+        return expiresAt.takeIf { it > 0 }
     }
 
-    private fun needsRenewal(provider: AudioOfflineProvider?, downloadId: String): Boolean =
-        try {
+    private fun needsRenewal(provider: AudioOfflineProvider?, downloadId: String): Boolean {
+        if (!isProtected(downloadId)) {
+            return false
+        }
+        return try {
             provider?.needsRenewal(downloadId) == true
         } catch (_: RuntimeException) {
             false
         }
+    }
 
     /** Delivery URL of the download, for offline playback only; never persisted or logged. */
     fun requestUri(downloadId: String): String? = engine.get(downloadId)?.requestUri

@@ -53,6 +53,13 @@ final class OfflineMetaStore {
     struct Entry: Equatable {
         let acquiredAt: Int64
         let expiresAt: Int64
+        let protected: Bool
+
+        init(acquiredAt: Int64, expiresAt: Int64, protected: Bool = true) {
+            self.acquiredAt = acquiredAt
+            self.expiresAt = expiresAt
+            self.protected = protected
+        }
     }
 
     private let file: URL
@@ -106,7 +113,8 @@ final class OfflineMetaStore {
             guard let item = value as? [String: Any] else { continue }
             let acquiredAt = int64(item["acquiredAt"])
             let expiresAt = int64(item["expiresAt"])
-            out[key] = Entry(acquiredAt: acquiredAt, expiresAt: expiresAt)
+            let protected = (item["protected"] as? Bool) ?? true
+            out[key] = Entry(acquiredAt: acquiredAt, expiresAt: expiresAt, protected: protected)
         }
         return out
     }
@@ -114,7 +122,11 @@ final class OfflineMetaStore {
     private func write(_ all: [String: Entry]) {
         var root: [String: Any] = [:]
         for (id, entry) in all {
-            root[id] = ["acquiredAt": entry.acquiredAt, "expiresAt": entry.expiresAt]
+            root[id] = [
+                "acquiredAt": entry.acquiredAt,
+                "expiresAt": entry.expiresAt,
+                "protected": entry.protected,
+            ]
         }
         guard let data = try? JSONSerialization.data(withJSONObject: root, options: []) else {
             return

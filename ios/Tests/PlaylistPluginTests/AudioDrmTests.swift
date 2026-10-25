@@ -49,6 +49,15 @@ final class AudioDrmTests: XCTestCase {
         XCTAssertTrue((attempt.session as? FakeAudioDrmSession) === session)
     }
 
+    func test_open_deadKitSession_isNoProvider() {
+        let session = FakeAudioDrmSession()
+        session.hasKitSession = false
+        AudioDrm.setProvider(FakeAudioDrmProvider { _, _ in session })
+        let attempt = AudioDrm.open(["slug": "test-1"], onError: nil)
+        XCTAssertEqual(attempt.failureCode, AudioDrm.codeNoProvider)
+        XCTAssertNil(attempt.session)
+    }
+
     func test_providerOnError_emitsTypedDiscriminator() {
         var errors: [String] = []
         AudioDrm.setProvider(FakeAudioDrmProvider { _, onError in
@@ -121,6 +130,20 @@ final class AudioTrackDrmWiringTests: XCTestCase {
         track = nil
         XCTAssertTrue(session.releaseCalled)
         XCTAssertEqual(session.releaseCallCount, 1)
+    }
+
+    func test_deadKitSession_doesNotConstructTrack() {
+        let session = FakeAudioDrmSession()
+        session.hasKitSession = false
+        AudioDrm.setProvider(FakeAudioDrmProvider { _, _ in session })
+
+        let track = AudioTrack.initWithDictionary([
+            "trackId": "a",
+            "assetUrl": "https://cdn.example/drm/audio.m3u8",
+            "drm": ["playbackSessionId": "sess-1", "slug": "test-1"]
+        ])
+
+        XCTAssertNil(track)
     }
 
     func test_plainPlaybackWithoutDrmConstructsCleanly() {
@@ -291,6 +314,7 @@ final class FakeAudioDrmSession: AudioDrmSession {
     var startCalled = false
     var releaseCalled = false
     var releaseCallCount = 0
+    var hasKitSession = true
 
     func attach(to asset: AVURLAsset) {
         attachedAsset = asset

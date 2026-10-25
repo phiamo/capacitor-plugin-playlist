@@ -80,6 +80,13 @@ object PlaylistPlaybackPolicy {
         if (fromIndex <= 0 && loop) itemCount - 1 else fromIndex - 1
 
     /**
+     * Queued placeholders stay idle in the timeline. [PlaylistManager.beginPlayback] must not
+     * prepare `https://localhost/queued` (video-overlay handoff).
+     */
+    @JvmStatic
+    fun shouldPrepareOnBeginPlayback(isQueuedPlaceholder: Boolean): Boolean = !isQueuedPlaceholder
+
+    /**
      * [PlaylistPlugin.playTrackById] must switch even while another item is playing.
      * Skip [PlaylistManager.beginPlayback] only when the requested item is already the current
      * playing track.

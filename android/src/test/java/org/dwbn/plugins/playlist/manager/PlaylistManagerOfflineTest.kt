@@ -97,6 +97,23 @@ class PlaylistManagerOfflineTest {
     }
 
     @Test
+    fun addItem_clearDownload_doesNotNeedProviderOrSession() {
+        val manager = manager()
+        manager.offlineIsProtected = { false }
+
+        assertNull(manager.addItem(offlineTrack("a")))
+        val player = ExoPlayer.Builder(RuntimeEnvironment.getApplication()).build()
+        try {
+            manager.attachPlayer(player)
+            assertEquals("https://cdn.example/d-a/audio.m3u8?sig=1", player.currentMediaItem?.localConfiguration?.uri.toString())
+            assertNull(manager.drmSessionManagerFor(player.currentMediaItem!!))
+        } finally {
+            manager.detachPlayer()
+            player.release()
+        }
+    }
+
+    @Test
     fun streamingItems_areUnchangedByOfflineSupport() {
         val provider = FakeOfflineProvider(RecordingSession())
         AudioOffline.setProvider(provider)

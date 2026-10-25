@@ -473,7 +473,7 @@ Re-arm native audio after video ends or, on Android, prewarm the media service b
 - iOS: restores pinned track, reactivates `AVAudioSession`, seeks to `position`, and when `play` is true starts playback (seek-then-play). Returns `{ resumed: true }` when native handled the handoff.
 - Web: stores position only (no native session); returns `{ resumed: false }`.
 
-**With `prewarm: true` (Android, before video):** starts `MediaService` in foreground at `position` but stays silent — no audio focus, no audible playback. Always returns `{ resumed: false }`.
+**With `prewarm: true` (Android, before video):** retains `MediaService` FGS while the app is visible (Android 14+ while-in-use). Does not prepare or play the audio item — overlay video owns decrypt. Always returns `{ resumed: false }`.
 
 | Param         | Type                                                                                      |
 | ------------- | ----------------------------------------------------------------------------------------- |
@@ -504,11 +504,12 @@ or passed to `resumeAfterVideoHandoff`.
 startDownload(options: StartDownloadOptions) => Promise<{ downloadId: string; }>
 ```
 
-Download a protected HLS lecture for offline playback (Android and iOS). The host
-`AudioOfflineProvider` acquires the offline licence first; only then is media fetched, so a
-refused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the
-outcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL
-reuses cached segments on Android; on iOS the partial asset is discarded and a new task starts.
+Download an HLS lecture for offline playback (Android and iOS). Protected playlists pass
+`drm`; the host `AudioOfflineProvider` acquires the offline licence first, then media is
+fetched, so a refused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media.
+Unpackaged (clear) HLS omits `drm` and skips the licence. Progress and the outcome arrive on
+the `download` listener. Restarting a `failed` download with a fresh URL reuses cached
+segments on Android; on iOS the partial asset is discarded and a new task starts.
 
 Rejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.
 Web rejects `notSupported`.
@@ -674,6 +675,7 @@ An audio track for playback by the playlist.
 | **`streamLimit`**            | <code><a href="#audiotrackdrmstreamlimit">AudioTrackDrmStreamLimit</a></code> |                                                                                                                                   |
 | **`fairplayLicenseUrl`**     | <code>string</code>                                                           | Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still ignored on Android (Widevine only).         |
 | **`fairplayCertificateUrl`** | <code>string</code>                                                           | Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still ignored on Android (Widevine only).         |
+| **`slug`**                   | <code>string</code>                                                           | Catalog asset slug for `/drm-token`; must match this session, not DrmHost's last audio slug.                                      |
 
 
 #### AudioTrackDrmStreamLimit
@@ -896,7 +898,7 @@ that were in the previous list.
 | **`downloadId`** | <code>string</code>                                                   | Stable id chosen by the app; also the id later set as <a href="#audiotrack">`AudioTrack.downloadId`</a>.                                            |
 | **`url`**        | <code>string</code>                                                   | HLS playlist (`audio.m3u8`). May be re-signed on a resumed start. Android reuses cached segments; iOS starts a new task and discards partial media. |
 | **`mimeType`**   | <code>string</code>                                                   | Defaults to HLS (`application/x-mpegURL`).                                                                                                          |
-| **`drm`**        | <code><a href="#audiotrackdrmoptions">AudioTrackDrmOptions</a></code> | Descriptor handed to the host provider's `acquire`.                                                                                                 |
+| **`drm`**        | <code><a href="#audiotrackdrmoptions">AudioTrackDrmOptions</a></code> | Descriptor handed to the host provider's `acquire`. Omit for unpackaged (clear) HLS.                                                                |
 
 
 #### DownloadIdOptions
@@ -918,13 +920,13 @@ that were in the previous list.
 
 One entry of `listDownloads`.
 
-| Prop               | Type                                                    | Description                                                                                                     |
-| ------------------ | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **`downloadId`**   | <code>string</code>                                     |                                                                                                                 |
-| **`state`**        | <code><a href="#downloadstate">DownloadState</a></code> |                                                                                                                 |
-| **`progress`**     | <code>number</code>                                     | 0..1                                                                                                            |
+| Prop               | Type                                                    | Description                                                                         |
+| ------------------ | ------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **`downloadId`**   | <code>string</code>                                     |                                                                                     |
+| **`state`**        | <code><a href="#downloadstate">DownloadState</a></code> |                                                                                     |
+| **`progress`**     | <code>number</code>                                     | 0..1                                                                                |
 | **`expiresAt`**    | <code>number \| null</code>                             | Licence expiry (epoch ms) from the host provider. `null` before the licence exists. |
-| **`needsRenewal`** | <code>boolean</code>                                    | The host provider asks for a renewal soon.                                                                      |
+| **`needsRenewal`** | <code>boolean</code>                                    | The host provider asks for a renewal soon.                                          |
 
 
 ### Type Aliases

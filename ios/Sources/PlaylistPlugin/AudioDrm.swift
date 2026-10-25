@@ -20,6 +20,12 @@ public protocol AudioDrmSession: AnyObject {
     func attach(to asset: AVURLAsset)
     func start()
     func release()
+    /// False when the host wrapper could not start a kit session (empty token/URLs).
+    var hasKitSession: Bool { get }
+}
+
+extension AudioDrmSession {
+    public var hasKitSession: Bool { true }
 }
 
 /// Host-registered factory for `AudioDrmSession`. Register from the app at launch via
@@ -98,6 +104,9 @@ public final class AudioDrm {
             onError?(AudioDrm.typedError(error))
         }
         let session = registered.open(drm, onError: typedOnError)
+        guard session.hasKitSession else {
+            return .noProvider
+        }
         return .ok(session)
     }
 

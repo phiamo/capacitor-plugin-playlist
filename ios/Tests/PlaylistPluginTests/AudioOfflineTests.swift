@@ -228,6 +228,33 @@ final class AudioTrackOfflineWiringTests: XCTestCase {
         XCTAssertEqual(track?.toDict()?["downloadId"] as? String, "d1")
     }
 
+    func test_clearDownload_doesNotAttachOffline() {
+        let local = tmp.appendingPathComponent("d1.movpkg")
+        try? Data().write(to: local)
+        let engine = FakeEngine()
+        engine.store["d1"] = EngineDownload(id: "d1", state: .completed, progress: 1, localURL: local, failedByNetwork: false)
+        let meta = OfflineMetaStore(file: tmp.appendingPathComponent("clear-meta.json"))
+        meta.put("d1", entry: OfflineMetaStore.Entry(acquiredAt: 1, expiresAt: 0, protected: false))
+        let downloads = OfflineDownloads(
+            engine: engine,
+            meta: meta,
+            executor: { $0() },
+            providerSource: { AudioOffline.getProvider() }
+        )
+        OfflineDownloads.setSharedForTest(downloads)
+        let stub = FakeAudioOfflineProvider()
+        AudioOffline.setProvider(stub)
+
+        let track = AudioTrack.initWithDictionary([
+            "trackId": "a",
+            "downloadId": "d1"
+        ])
+
+        XCTAssertNotNil(track)
+        XCTAssertEqual(track?.assetUrl, local)
+        XCTAssertTrue(stub.attached.isEmpty)
+    }
+
     func test_expiredDownload_doesNotAttachOffline() {
         let local = tmp.appendingPathComponent("d1.movpkg")
         try? Data().write(to: local)

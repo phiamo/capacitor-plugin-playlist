@@ -463,7 +463,7 @@
         ],
         "returns": "Promise<ResumeAfterVideoHandoffResult>",
         "tags": [],
-        "docs": "Re-arm native audio after video ends or, on Android, prewarm the media service before video starts.\n\n**Without `prewarm` (typical exit path):**\n- Android: when `play` is true (default), re-acquires focus and resumes at `position`. When `resumed` is `true`, JS should skip redundant `seekTo`/`play`. When `play` is false, clears handoff retain and returns `{ resumed: false }` so JS can seek without playing.\n- iOS: restores pinned track, reactivates `AVAudioSession`, seeks to `position`, and when `play` is true starts playback (seek-then-play). Returns `{ resumed: true }` when native handled the handoff.\n- Web: stores position only (no native session); returns `{ resumed: false }`.\n\n**With `prewarm: true` (Android, before video):** starts `MediaService` in foreground at `position` but stays silent — no audio focus, no audible playback. Always returns `{ resumed: false }`.",
+        "docs": "Re-arm native audio after video ends or, on Android, prewarm the media service before video starts.\n\n**Without `prewarm` (typical exit path):**\n- Android: when `play` is true (default), re-acquires focus and resumes at `position`. When `resumed` is `true`, JS should skip redundant `seekTo`/`play`. When `play` is false, clears handoff retain and returns `{ resumed: false }` so JS can seek without playing.\n- iOS: restores pinned track, reactivates `AVAudioSession`, seeks to `position`, and when `play` is true starts playback (seek-then-play). Returns `{ resumed: true }` when native handled the handoff.\n- Web: stores position only (no native session); returns `{ resumed: false }`.\n\n**With `prewarm: true` (Android, before video):** retains `MediaService` FGS while the app is visible (Android 14+ while-in-use). Does not prepare or play the audio item — overlay video owns decrypt. Always returns `{ resumed: false }`.",
         "complexTypes": [
           "ResumeAfterVideoHandoffResult",
           "ResumeAfterVideoHandoffOptions"
@@ -494,7 +494,7 @@
         ],
         "returns": "Promise<{ downloadId: string; }>",
         "tags": [],
-        "docs": "Download a protected HLS lecture for offline playback (Android and iOS). The host\n`AudioOfflineProvider` acquires the offline licence first; only then is media fetched, so a\nrefused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media. Progress and the\noutcome arrive on the `download` listener. Restarting a `failed` download with a fresh URL\nreuses cached segments on Android; on iOS the partial asset is discarded and a new task starts.\n\nRejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.\nWeb rejects `notSupported`.",
+        "docs": "Download an HLS lecture for offline playback (Android and iOS). Protected playlists pass\n`drm`; the host `AudioOfflineProvider` acquires the offline licence first, then media is\nfetched, so a refused licence (`notEntitled`, `offlineDeviceLimit`, ...) fetches no media.\nUnpackaged (clear) HLS omits `drm` and skips the licence. Progress and the outcome arrive on\nthe `download` listener. Restarting a `failed` download with a fresh URL reuses cached\nsegments on Android; on iOS the partial asset is discarded and a new task starts.\n\nRejects `noProvider` when no provider is registered, `invalidArgument` for missing fields.\nWeb rejects `notSupported`.",
         "complexTypes": [
           "StartDownloadOptions"
         ],
@@ -915,6 +915,13 @@
           "name": "fairplayCertificateUrl",
           "tags": [],
           "docs": "Consumed by iOS via the host-registered drm-kit FairPlay provider (Story 58.5); still\nignored on Android (Widevine only).",
+          "complexTypes": [],
+          "type": "string | undefined"
+        },
+        {
+          "name": "slug",
+          "tags": [],
+          "docs": "Catalog asset slug for `/drm-token`; must match this session, not DrmHost's last audio slug.",
           "complexTypes": [],
           "type": "string | undefined"
         }
@@ -1550,7 +1557,7 @@
         {
           "name": "drm",
           "tags": [],
-          "docs": "Descriptor handed to the host provider's `acquire`.",
+          "docs": "Descriptor handed to the host provider's `acquire`. Omit for unpackaged (clear) HLS.",
           "complexTypes": [
             "AudioTrackDrmOptions"
           ],
@@ -1632,7 +1639,7 @@
         {
           "name": "expiresAt",
           "tags": [],
-          "docs": "Estimated licence expiry (epoch ms): last successful acquire/renew + 27 days. `null` before the licence exists.",
+          "docs": "Licence expiry (epoch ms) from the host provider. `null` before the licence exists.",
           "complexTypes": [],
           "type": "number | null"
         },

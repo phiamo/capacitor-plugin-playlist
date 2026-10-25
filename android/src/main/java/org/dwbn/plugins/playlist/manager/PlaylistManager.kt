@@ -78,6 +78,9 @@ class PlaylistManager(private val application: Application) {
     /** Delivery URI of a download (Story 59.4); resolved lazily so streaming never touches the engine. */
     var offlineUriResolver: (String) -> String? = { id -> OfflineDownloads.get(application).requestUri(id) }
 
+    /** Protected downloads need an offline licence session; clear HLS does not. */
+    var offlineIsProtected: (String) -> Boolean = { id -> OfflineDownloads.get(application).isProtected(id) }
+
     private data class PendingBegin(val seekPosition: Long, val startPaused: Boolean)
 
     var currentPosition: Int = INVALID_POSITION
@@ -571,12 +574,16 @@ class PlaylistManager(private val application: Application) {
         drmPlaybackHalted = false
         try {
             ensureServiceStarted()
+            val index = currentPosition.coerceIn(0, audioTracks.size - 1)
+            if (!PlaylistPlaybackPolicy.shouldPrepareOnBeginPlayback(isQueuedPlaceholder(audioTracks[index]))) {
+                ensureForeground()
+                return
+            }
             val exoPlayer = player
             if (exoPlayer == null) {
                 pendingBeginPlayback = PendingBegin(seekPosition, startPaused)
                 return
             }
-            val index = currentPosition.coerceIn(0, audioTracks.size - 1)
             // Snapshot the position of whatever track is being switched away from — covers the
             // JS "tap a different playlist item" path (playTrackById), not just native skip, so a
             // later native skip back to that track resumes correctly regardless of how it was left.
@@ -832,9 +839,17 @@ class PlaylistManager(private val application: Application) {
         return AudioMediaItemFactory.fromAudioTrack(track, drmSessions[sessionKey(track)])
     }
 
-    /** Items with a licence session to open: streaming DRM or an offline download. */
-    private fun needsSession(track: AudioTrack?): Boolean =
-        track != null && (track.drm != null || track.downloadId != null)
+    /** Items with a licence session to open: streaming DRM or a protected offline download. */
+    private fun needsSession(track: AudioTrack?): Boolean {
+        if (track == null) {
+            return false
+        }
+        if (track.drm != null) {
+            return true
+        }
+        val downloadId = track.downloadId ?: return false
+        return offlineIsProtected(downloadId)
+    }
 
     /**
      * Offline items with an expired licence never play: emit the existing DRM `expired` error and
@@ -842,6 +857,9 @@ class PlaylistManager(private val application: Application) {
      */
     private fun blockIfOfflineExpired(track: AudioTrack?): Boolean {
         val downloadId = track?.downloadId ?: return false
+        if (!offlineIsProtected(downloadId)) {
+            return false
+        }
         val provider = AudioOffline.getProvider() ?: return false
         if (AudioOffline.stateOf(provider, downloadId) != AudioOfflineProvider.STATE_EXPIRED) {
             return false
@@ -876,6 +894,9 @@ class PlaylistManager(private val application: Application) {
         for (track in tracks) {
             val downloadId = track.downloadId
             if (downloadId != null) {
+                if (!offlineIsProtected(downloadId)) {
+                    continue
+                }
                 val provider = AudioOffline.getProvider()
                 if (provider == null) {
                     releaseOpened(opened)

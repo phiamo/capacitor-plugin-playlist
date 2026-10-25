@@ -508,8 +508,14 @@ public class RmxAudioPlayer implements MediaControlsListener {
         lastKnownHandoffPositionSec = positionSec;
         long positionMs = (long) (positionSec * 1000f);
         if (prewarm) {
-            playlistManager.setVideoHandoffForegroundRetain(true);
-            playlistManager.beginPlayback(positionMs, true);
+            MediaNotificationPolicy.applyPrewarmForeground(
+                () -> {
+                    playlistManager.setVideoHandoffForegroundRetain(true);
+                    playlistManager.ensureServiceStarted();
+                    playlistManager.ensureForeground();
+                },
+                () -> playlistManager.beginPlayback(positionMs, true)
+            );
             return false;
         }
         MediaService service = MediaService.getInstance();

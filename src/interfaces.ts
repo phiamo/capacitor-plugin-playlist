@@ -205,8 +205,8 @@ export interface StartDownloadOptions {
     url: string;
     /** Defaults to HLS (`application/x-mpegURL`). */
     mimeType?: string;
-    /** Descriptor handed to the host provider's `acquire`. */
-    drm: AudioTrackDrmOptions;
+    /** Descriptor handed to the host provider's `acquire`. Omit for unpackaged (clear) HLS. */
+    drm?: AudioTrackDrmOptions;
 }
 
 export interface DownloadIdOptions {
@@ -248,6 +248,8 @@ export interface AudioTrackDrmOptions {
      * ignored on Android (Widevine only).
      */
     fairplayCertificateUrl?: string;
+    /** Catalog asset slug for `/drm-token`; must match this session, not DrmHost's last audio slug. */
+    slug?: string;
 }
 
 /**

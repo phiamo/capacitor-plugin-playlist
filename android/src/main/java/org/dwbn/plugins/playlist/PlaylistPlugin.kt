@@ -44,8 +44,8 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         val downloadId = call.getString("downloadId")?.trim().orEmpty()
         val url = call.getString("url")?.trim().orEmpty()
         val drm = call.getObject("drm")
-        if (downloadId.isEmpty() || url.isEmpty() || drm == null) {
-            call.reject("downloadId, url and drm are required", "invalidArgument")
+        if (downloadId.isEmpty() || url.isEmpty()) {
+            call.reject("downloadId and url are required", "invalidArgument")
             return
         }
         val failure = offlineDownloads().start(downloadId, url, call.getString("mimeType")?.trim()?.ifEmpty { null }, drm)

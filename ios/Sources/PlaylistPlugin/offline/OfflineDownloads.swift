@@ -86,6 +86,10 @@ final class OfflineDownloads: OfflineEngineListener {
             return AudioOffline.codeNoProvider
         }
         if engine.get(downloadId)?.state == .completed {
+            if !isProtected(downloadId) {
+                emit(downloadId, DownloadStates.completed, 1, nil)
+                return nil
+            }
             if AudioOffline.stateOf(provider, downloadId: downloadId) == AudioOffline.stateActive {
                 persistLicenceClock(provider, downloadId: downloadId)
                 emit(downloadId, DownloadStates.completed, 1, nil)
@@ -138,7 +142,14 @@ final class OfflineDownloads: OfflineEngineListener {
             return
         }
         guard let keyIdentifier = prepared.keyIdentifier else {
-            fail(downloadId, AudioDrm.errorUnknown, token: token)
+            guard isCurrent(downloadId, token: token) else { return }
+            do {
+                persistClearMeta(downloadId)
+                try engine.enqueue(prepared)
+            } catch {
+                meta.remove(downloadId)
+                fail(downloadId, AudioDrm.errorUnknown, token: token)
+            }
             return
         }
         guard isCurrent(downloadId, token: token) else { return }
@@ -244,6 +255,7 @@ final class OfflineDownloads: OfflineEngineListener {
             seen.insert(download.id)
             var state = stateName(download)
             if state == DownloadStates.completed,
+               isProtected(download.id),
                let provider,
                AudioOffline.stateOf(provider, downloadId: download.id) == AudioOffline.stateExpired {
                 state = DownloadStates.expired
@@ -309,18 +321,39 @@ final class OfflineDownloads: OfflineEngineListener {
     private func persistLicenceClock(_ provider: AudioOfflineProvider, downloadId: String) {
         let now = clock()
         let fromProvider = provider.expiresAt(downloadId: downloadId)
-        meta.put(downloadId, entry: OfflineMetaStore.Entry(acquiredAt: now, expiresAt: fromProvider ?? OfflineExpiry.expiresAt(now)))
+        meta.put(
+            downloadId,
+            entry: OfflineMetaStore.Entry(
+                acquiredAt: now,
+                expiresAt: fromProvider ?? OfflineExpiry.expiresAt(now),
+                protected: true
+            )
+        )
+    }
+
+    private func persistClearMeta(_ downloadId: String) {
+        meta.put(downloadId, entry: OfflineMetaStore.Entry(acquiredAt: clock(), expiresAt: 0, protected: false))
+    }
+
+    /// False for unpackaged HLS (no licence). Missing meta is treated as protected (legacy DRM rows).
+    func isProtected(_ downloadId: String) -> Bool {
+        meta.get(downloadId)?.protected != false
     }
 
     private func licenceExpiresAt(_ provider: AudioOfflineProvider?, downloadId: String) -> Int64? {
+        guard isProtected(downloadId) else { return nil }
         if let provider, let value = provider.expiresAt(downloadId: downloadId) {
             return value
         }
-        return meta.get(downloadId)?.expiresAt
+        guard let expiresAt = meta.get(downloadId)?.expiresAt, expiresAt > 0 else {
+            return nil
+        }
+        return expiresAt
     }
 
     private func needsRenewal(_ provider: AudioOfflineProvider?, downloadId: String) -> Bool {
-        provider?.needsRenewal(downloadId: downloadId) == true
+        guard isProtected(downloadId) else { return false }
+        return provider?.needsRenewal(downloadId: downloadId) == true
     }
 
     private func emit(_ downloadId: String, _ state: String, _ progress: Float, _ error: String?) {

@@ -54,7 +54,7 @@ final class AudioTrack: AVPlayerItem {
         // (FairPlay binds to the asset; empty `assetUrl` is ok).
         let asset = AVURLAsset(url: assetUrl)
         var openedSession: AudioDrmSession?
-        if let downloadId {
+        if let downloadId, OfflineDownloads.shared.isProtected(downloadId) {
             let expired = AudioOffline.getProvider().map {
                 AudioOffline.stateOf($0, downloadId: downloadId) == AudioOffline.stateExpired
             } ?? false
@@ -66,6 +66,9 @@ final class AudioTrack: AVPlayerItem {
         } else if let drm = trackInfo["drm"] as? JSObject {
             let attempt = AudioDrm.open(drm) { error in
                 onDrmError?(trackId, error)
+            }
+            if AudioDrm.getProvider() != nil && attempt.session == nil {
+                return nil
             }
             if let session = attempt.session {
                 session.attach(to: asset)
