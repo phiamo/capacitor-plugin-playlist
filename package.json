@@ -1,6 +1,6 @@
 {
   "name": "@dwbn/capacitor-plugin-playlist",
-  "version": "8.4.1",
+  "version": "8.4.2",
   "description": "Playlist ",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [8.4.2] - 2026-10-26
+
+### Added
+- **Android / iOS:** unpackaged (clear) HLS can use `startDownload` without `drm`. The plugin skips licence acquire, stores a non-expiring package, and plays `downloadId` without Widevine/FairPlay.
+
+### Fixed
+- **Android:** video overlay prewarm retains the media-service foreground state without preparing the queued placeholder URL, so leftover audio DRM sessions are not opened while video decrypts.
+
 ## [8.4.1] - 2026-10-17
 
 ### Fixed
