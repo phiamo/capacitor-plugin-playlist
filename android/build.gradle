@@ -94,7 +94,7 @@ dependencies {
     implementation "androidx.media3:media3-exoplayer-hls:$media3Version"
     implementation "androidx.media3:media3-session:$media3Version"
 
-    // Image Loading (artwork — Story 55.5 wires Glide into Media3 notification)
+    // Image Loading (artwork for the Media3 notification)
     implementation 'com.github.bumptech.glide:glide:5.0.7'
     annotationProcessor 'com.github.bumptech.glide:compiler:5.0.7'
 
