@@ -129,7 +129,7 @@ func application(_ application: UIApplication,
    ```
 
 2. **Android 13+ (API 33+):** declare `android.permission.POST_NOTIFICATIONS` in your **host** `AndroidManifest.xml` and request it at runtime when not granted. This plugin does not merge that permission — without it, media notifications may not appear.
-3. Minimum SDK **24**.
+3. Minimum SDK **24** (Android 7 and later). There is no upper cap.
 
 ### Audio and video in one app
 
@@ -145,6 +145,6 @@ Uses Media3 `ExoPlayer` inside `MediaService` (`MediaSessionService`). Notificat
 
 ### iOS
 
-Uses a customized AVQueuePlayer (`AVBidirectionalQueuePlayer`) for track-change feedback and continuous audio session between songs. Minimum iOS **18**. CocoaPods and Swift Package Manager are both supported.
+Uses a customized AVQueuePlayer (`AVBidirectionalQueuePlayer`) for track-change feedback and continuous audio session between songs. iOS **15 and later**, including current iOS. CocoaPods and Swift Package Manager are both supported.
 
 Next: [Usage](./usage.md) · [Protected playback (DRM)](./drm.md) · [Video handoff](./video-handoff.md)

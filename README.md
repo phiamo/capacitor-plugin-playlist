@@ -32,9 +32,9 @@ The plugins work on their own. drm-kit is optional and is added by the **app**, 
 | Video handoff | ✅ (with optional prewarm) | ✅ | stub (pause + position) |
 | DRM | ✅ Widevine via [drm-kit](./docs/drm.md) | ✅ FairPlay via [drm-kit](./docs/drm.md) | — |
 | Offline downloads | ✅ Widevine HLS | ✅ FairPlay HLS | — |
-| Minimum | SDK 24 | iOS 15 | modern browsers |
+| Minimum | Android 7 (API 24) and later | iOS 15 and later | modern browsers |
 
-Requires **Capacitor 8** (`@capacitor/core >= 8.0.0`).
+Those are floors, not the only supported releases. Android API 24+ and iOS 15+ include current systems (iOS 18 through the current iOS). There is no upper cap. Requires **Capacitor 8** (`@capacitor/core >= 8.0.0`).
 
 ## Install
 
