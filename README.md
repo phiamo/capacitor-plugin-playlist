@@ -4,7 +4,7 @@ Native audio playlists for Capacitor on **Android**, **iOS** and **Web**. Suppor
 
 [![npm](https://img.shields.io/npm/v/@dwbn/capacitor-plugin-playlist?style=flat-square)](https://www.npmjs.com/package/@dwbn/capacitor-plugin-playlist)
 [![CI](https://img.shields.io/github/actions/workflow/status/phiamo/capacitor-plugin-playlist/release-package.yml?branch=main&style=flat-square)](https://github.com/phiamo/capacitor-plugin-playlist/actions/workflows/release-package.yml)
-[![license](https://img.shields.io/npm/l/@dwbn/capacitor-plugin-playlist?style=flat-square)](./LICENSE)
+[![license](https://img.shields.io/github/license/phiamo/capacitor-plugin-playlist?style=flat-square)](./LICENSE)
 [![Capacitor 8](https://img.shields.io/badge/capacitor-8-119EFF?style=flat-square)](https://capacitorjs.com)
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W8V527Q5YX)
