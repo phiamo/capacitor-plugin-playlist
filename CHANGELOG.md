@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [8.4.3] - 2026-10-28
+
+### Fixed
+- **Android:** reset `OfflineStorage` singletons before the no-backup dir test so CI does not fail on a leftover Robolectric application.
+- **Android:** boxed-type and deprecation warnings in playlist unit tests.
+
+### Changed
+- First publish of `@dwbn/capacitor-plugin-playlist` to the `@dwbn` npm organization.
+
 ## [8.4.2] - 2026-10-26
 
 ### Added
