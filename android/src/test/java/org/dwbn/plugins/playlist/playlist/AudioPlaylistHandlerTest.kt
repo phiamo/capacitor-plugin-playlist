@@ -134,11 +134,11 @@ class AudioPlaylistHandlerTest {
         } as Player
 
         private fun defaultValue(returnType: Class<*>): Any? = when (returnType) {
-            java.lang.Boolean.TYPE, java.lang.Boolean::class.java -> false
-            java.lang.Integer.TYPE, java.lang.Integer::class.java -> 0
-            java.lang.Long.TYPE, java.lang.Long::class.java -> 0L
-            java.lang.Float.TYPE, java.lang.Float::class.java -> 0f
-            java.lang.Double.TYPE, java.lang.Double::class.java -> 0.0
+            Boolean::class.javaPrimitiveType, Boolean::class.javaObjectType -> false
+            Int::class.javaPrimitiveType, Int::class.javaObjectType -> 0
+            Long::class.javaPrimitiveType, Long::class.javaObjectType -> 0L
+            Float::class.javaPrimitiveType, Float::class.javaObjectType -> 0f
+            Double::class.javaPrimitiveType, Double::class.javaObjectType -> 0.0
             else -> null
         }
     }

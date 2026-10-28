@@ -20,6 +20,8 @@ import java.io.IOException
 @UnstableApi
 class DrmTerminalLoadErrorPolicyTest {
 
+    // Media3 deprecates every public LoadEventInfo constructor; the test only needs a minimal value.
+    @Suppress("DEPRECATION")
     private fun info(error: IOException) = LoadErrorHandlingPolicy.LoadErrorInfo(
         LoadEventInfo(1, DataSpec(Uri.parse("https://example.com/seg.ts")), 0),
         MediaLoadData(C.DATA_TYPE_MEDIA),
