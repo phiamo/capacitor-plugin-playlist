@@ -54,6 +54,17 @@ object OfflineStorage {
             databaseProvider(context)
         ).also { cache = it }
 
+    /** Drops the process-wide cache and index so the next call rebinds to the current storage dir. */
+    @Synchronized
+    @JvmStatic
+    @androidx.annotation.VisibleForTesting
+    fun resetForTesting() {
+        cache?.release()
+        cache = null
+        (databaseProvider as? SQLiteOpenHelper)?.close()
+        databaseProvider = null
+    }
+
     /** Cache read-only on top of [upstream]: playback never writes, a miss falls through. */
     @JvmStatic
     fun readOnlyDataSourceFactory(context: Context, upstream: DataSource.Factory): CacheDataSource.Factory =

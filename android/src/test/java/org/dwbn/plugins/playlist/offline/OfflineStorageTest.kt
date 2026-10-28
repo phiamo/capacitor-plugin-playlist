@@ -110,6 +110,8 @@ class OfflineStorageTest {
         val context = RuntimeEnvironment.getApplication()
         val noBackup = context.noBackupFilesDir.canonicalPath
 
+        // Other tests may have bound the process-wide singletons to a previous Robolectric dir.
+        OfflineStorage.resetForTesting()
         OfflineStorage.cache(context)
         OfflineStorage.databaseProvider(context).writableDatabase.close()
 
