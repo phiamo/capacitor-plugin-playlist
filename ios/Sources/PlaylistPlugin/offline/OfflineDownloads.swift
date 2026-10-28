@@ -2,7 +2,7 @@
 //  OfflineDownloads.swift
 //  PlaylistPlugin
 //
-//  Download orchestration (Story 59.5). Order on start: read FairPlay `skd://` from the remote
+// Download orchestration. Order on start: read FairPlay `skd://` from the remote
 //  HLS → `provider.acquire` (background) → only then start the download task, so a refused
 //  licence (incl. `offlineDeviceLimit`) fetches no media. Licences and renewal belong
 //  to the host `AudioOfflineProvider`; this class never touches drm-kit.
@@ -45,7 +45,7 @@ struct DownloadInfo {
     let needsRenewal: Bool
 }
 
-/// Download orchestration (Story 59.5).
+/// Download orchestration.
 final class OfflineDownloads: OfflineEngineListener {
     typealias EventSink = (DownloadEvent) -> Void
     typealias Work = () -> Void
@@ -95,7 +95,7 @@ final class OfflineDownloads: OfflineEngineListener {
                 emit(downloadId, DownloadStates.completed, 1, nil)
                 return nil
             }
-            // Leftover media with an unusable licence (Story 59.7): drop and re-acquire.
+            // Leftover media with an unusable licence: drop and re-acquire.
             removeAll(downloadId)
         }
         let token = NSObject()

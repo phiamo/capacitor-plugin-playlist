@@ -5,7 +5,7 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.drm.DrmSessionManager;
 
 /**
- * Plugin-owned DRM session. Host (Story 57.6) wraps drm-kit {@code WidevineSession}; this plugin
+ * Plugin-owned DRM session. The host wraps drm-kit {@code WidevineSession}; this plugin
  * never imports drm-kit.
  */
 @UnstableApi

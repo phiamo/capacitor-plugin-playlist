@@ -2,8 +2,8 @@
 //  AudioDrm.swift
 //  PlaylistPlugin
 //
-//  Story 58.5: Swift port of the Android `AudioDrm`/`AudioDrmProvider`/`AudioDrmSession` trio
-//  (org.dwbn.plugins.playlist), reusing capacitor-video-player's `VideoDrm.swift` (Story 58.4) as
+//  Swift port of the Android `AudioDrm`/`AudioDrmProvider`/`AudioDrmSession` trio
+// (org.dwbn.plugins.playlist), reusing capacitor-video-player's `VideoDrm.swift` as
 //  the AVFoundation-shaped Swift pattern (attach-to-asset, not Android Media3's
 //  `applyDrm(MediaItem.Builder)`).
 //
@@ -12,7 +12,7 @@ import AVFoundation
 import Capacitor
 import Foundation
 
-/// Plugin-owned DRM session. The host (Story 58.5) wraps drm-kit `FairPlaySession`; this plugin
+/// Plugin-owned DRM session. The host wraps drm-kit `FairPlaySession`; this plugin
 /// never imports drm-kit.
 public protocol AudioDrmSession: AnyObject {
     /// Routes the asset's FairPlay key requests through the session. Call before any
@@ -36,9 +36,9 @@ public protocol AudioDrmProvider {
     func open(_ drm: JSObject, onError: @escaping (String) -> Void) -> AudioDrmSession
 }
 
-/// Plugin-owned DRM provider registry. The host app registers drm-kit in Story 58.5; this module
+/// Plugin-owned DRM provider registry. The host app registers drm-kit; this module
 /// does not depend on drm-kit. Mirrors Android `AudioDrm` (org.dwbn.plugins.playlist) and this
-/// plugin's own `VideoDrm.swift` sibling (capacitor-video-player, Story 58.4).
+/// plugin's own `VideoDrm.swift` sibling (capacitor-video-player).
 public final class AudioDrm {
 
     public static let codeNoProvider = "noProvider"

@@ -46,7 +46,7 @@ data class DownloadInfo(
 )
 
 /**
- * Download orchestration (Story 59.4). Order on start: prepare HLS -> first `Format` with
+ * Download orchestration. Order on start: prepare HLS -> first `Format` with
  * `drmInitData` -> `provider.acquire` (background) -> only then enqueue segments, so a refused
  * licence (incl. `offlineDeviceLimit`) fetches no media. Licences and renewal belong to
  * the host [AudioOfflineProvider]; this class never touches drm-kit.
@@ -89,7 +89,7 @@ class OfflineDownloads(
                 emit(downloadId, DownloadStates.COMPLETED, 1f, null)
                 return null
             }
-            // Leftover media with an unusable licence (Story 59.7): drop and re-acquire.
+            // Leftover media with an unusable licence: drop and re-acquire.
             removeAll(downloadId)
         }
         val token = Any()

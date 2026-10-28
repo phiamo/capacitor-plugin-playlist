@@ -91,7 +91,7 @@ Add to `Info.plist`:
 
 Without `audio` background mode, iOS stops playback when the app backgrounds.
 
-Offline FairPlay downloads use a plugin-owned `AVAssetDownloadURLSession`. Forward the system callback (Story 59.6 wires this in the host app):
+Offline FairPlay downloads use a plugin-owned `AVAssetDownloadURLSession`. Forward the system callback (the host app wires this):
 
 ```swift
 import PlaylistPlugin

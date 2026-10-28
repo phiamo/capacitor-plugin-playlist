@@ -38,7 +38,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
 
     private fun offlineDownloads(): OfflineDownloads = OfflineDownloads.get(context.applicationContext)
 
-    /** Story 59.4: starts a protected HLS download; progress arrives on the `download` listener. */
+    /** starts a protected HLS download; progress arrives on the `download` listener. */
     @PluginMethod
     fun startDownload(call: PluginCall) {
         val downloadId = call.getString("downloadId")?.trim().orEmpty()

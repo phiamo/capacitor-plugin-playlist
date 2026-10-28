@@ -2,7 +2,7 @@
 //  OfflineDownloadsTests.swift
 //  PlaylistPluginTests
 //
-//  Story 59.5: licence-first download orchestration, expiry maths, pending guard, HLS skd://
+// licence-first download orchestration, expiry maths, pending guard, HLS skd://
 //  parse, backup exclusion. No FairPlay in XCTest — the engine is a fake.
 //
 

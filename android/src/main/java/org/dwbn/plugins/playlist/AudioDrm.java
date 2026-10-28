@@ -5,7 +5,7 @@ import com.getcapacitor.JSObject;
 import java.util.function.Consumer;
 
 /**
- * Plugin-owned DRM provider registry. The host app registers drm-kit in Story 57.6; this module
+ * Plugin-owned DRM provider registry. The host app registers drm-kit; this module
  * does not depend on drm-kit.
  */
 @UnstableApi

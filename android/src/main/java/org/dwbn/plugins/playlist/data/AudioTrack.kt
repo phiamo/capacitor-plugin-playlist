@@ -68,7 +68,7 @@ class AudioTrack(private val config: JSONObject) {
         }
 
     /**
-     * Id of a completed offline download (Story 59.4). When set, the item plays from the download
+     * Id of a completed offline download. When set, the item plays from the download
      * cache with the host provider's offline licence; `assetUrl` is not used for playback.
      */
     val downloadId: String?

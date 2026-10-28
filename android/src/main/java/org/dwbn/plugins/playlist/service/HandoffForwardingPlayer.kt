@@ -11,7 +11,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Routes the playlist MediaSession to the video ExoPlayer while handoff retain is active and video
- * is attached; otherwise blocks play during retain-only prewarm (Story 55.6).
+ * is attached; otherwise blocks play during retain-only prewarm.
  */
 @OptIn(UnstableApi::class)
 internal class HandoffForwardingPlayer(

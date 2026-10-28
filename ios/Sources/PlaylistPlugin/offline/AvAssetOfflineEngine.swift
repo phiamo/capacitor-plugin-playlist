@@ -2,7 +2,7 @@
 //  AvAssetOfflineEngine.swift
 //  PlaylistPlugin
 //
-//  `AVAssetDownloadURLSession` segment engine (Story 59.5). FairPlay is not exercised in XCTest;
+// `AVAssetDownloadURLSession` segment engine. FairPlay is not exercised in XCTest;
 //  unit tests inject a fake `OfflineEngine`.
 //
 

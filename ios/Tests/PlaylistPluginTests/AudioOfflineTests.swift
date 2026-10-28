@@ -2,7 +2,7 @@
 //  AudioOfflineTests.swift
 //  PlaylistPluginTests
 //
-//  Story 59.5: registry, typedError (incl. offlineDeviceLimit), attachOffline, queue downloadId.
+// registry, typedError (incl. offlineDeviceLimit), attachOffline, queue downloadId.
 //
 
 import AVFoundation

@@ -302,7 +302,7 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         call.resolve(["position": position])
     }
 
-    // MARK: - Offline downloads (Story 59.5)
+    // MARK: - Offline downloads
 
     @objc func startDownload(_ call: CAPPluginCall) {
         let downloadId = call.getString("downloadId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -445,8 +445,8 @@ public class PlaylistPlugin: CAPPlugin, StatusUpdater, CAPBridgedPlugin {
         return newList;
     }
 
-    /// Reject `drm` items when no `AudioDrm` provider is registered (Story 58.5), and `downloadId`
-    /// items when no `AudioOffline` provider is registered (Story 59.5). `drm` still uses
+    /// Reject `drm` items when no `AudioDrm` provider is registered, and `downloadId`
+    /// items when no `AudioOffline` provider is registered. `drm` still uses
     /// `AudioDrm`; `downloadId` uses `AudioOffline`. Queue is left unchanged by the caller.
     func drmNoProviderRejection(for items: [[String: Any]]) -> (code: String, message: String)? {
         drmNoProviderRejection(for: items.map { Optional($0) })

@@ -12,9 +12,7 @@ import org.dwbn.plugins.playlist.handoff.VideoPlayerBridge;
 import org.dwbn.plugins.playlist.service.MediaNotificationPolicy;
 
 /**
- * ExoPlayer playback facade for {@link org.dwbn.plugins.playlist.PlaylistPlugin}. Story 55.4
- * replaces PlaylistCore's {@code DefaultPlaylistHandler}; notification/focus polish is Story 55.5,
- * full video handoff behaviour is Story 55.6.
+ * ExoPlayer playback facade for {@link org.dwbn.plugins.playlist.PlaylistPlugin}. Replaces PlaylistCore's {@code DefaultPlaylistHandler}, including notification, audio focus, and video handoff.
  */
 @OptIn(markerClass = UnstableApi.class)
 public class AudioPlaylistHandler {
@@ -140,7 +138,7 @@ public class AudioPlaylistHandler {
         }
     }
 
-    /** Pause for video without tearing down the foreground service (Epic 45 / Story 55.6). */
+    /** Pause for video without tearing down the foreground service (video handoff). */
     public void pauseForVideoHandoff() {
         pauseForVideoHandoff(playlistManager.getPlayer());
     }

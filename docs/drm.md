@@ -157,7 +157,7 @@ AudioOffline.setProvider(MyFairPlayOfflineProvider())
 | `state(downloadId)` | `none` \| `active` \| `expired`. Quick, local. |
 | `attachOffline(downloadId, asset)` | Answer the local asset's key requests from the stored persistable key. Call before the player item loads. |
 
-Adapter sketch over drm-kit's `FairPlayOfflineLicenseManager` (host wiring is Story 59.6):
+Adapter sketch over drm-kit's `FairPlayOfflineLicenseManager` (the host app wires this):
 
 ```swift
 final class MyFairPlayOfflineProvider: AudioOfflineProvider {
@@ -181,7 +181,7 @@ final class MyFairPlayOfflineProvider: AudioOfflineProvider {
 
 Map drm-kit's error names to the discriminators if they differ; anything unknown becomes `unknown`.
 
-Also forward the plugin-owned background session (Story 59.6 wires this in the host app):
+Also forward the plugin-owned background session (the host app wires this):
 
 ```swift
 func application(_ application: UIApplication,
@@ -209,7 +209,7 @@ await Playlist.addItem({ item: { trackId: 'talk-42', downloadId: 'dl-42', assetU
 ```
 
 - `startDownload` resolves once the request is accepted; everything else is reported on the `download` listener. It rejects `noProvider` when no provider is registered. Progress ticks are not retained; terminal states (`queued` / `completed` / `failed` / `expired`) are.
-- **Android** order: prepare HLS → first track `Format` with `drmInitData` → `provider.acquire` → enqueue segments. The playlist must therefore expose the PSSH to the downloader, via `#EXT-X-SESSION-KEY` in the multivariant playlist (the DWBN backend publishes the Widevine key there for every audio package since Story 59.4a; older packages need the `app:drm:backfill-session-key` backfill); without a format carrying `drmInitData` the download fails with `unknown`.
+- **Android** order: prepare HLS → first track `Format` with `drmInitData` → `provider.acquire` → enqueue segments. The playlist must therefore expose the PSSH to the downloader, via `#EXT-X-SESSION-KEY` in the multivariant playlist (the DWBN backend publishes the Widevine key there for every audio package; older packages need the `app:drm:backfill-session-key` backfill); without a format carrying `drmInitData` the download fails with `unknown`.
 - **iOS** order: read FairPlay `skd://` from the remote HLS → `provider.acquire(downloadId, keyIdentifier, drm)` off the main thread → only then start `AVAssetDownloadURLSession.makeAssetDownloadTask(downloadConfiguration:)`. No identifier → `unknown`. Prepare I/O → `network`. FairPlay does not run in Simulator.
 - A segment `403` (signed URL expired) ends in `failed`. Call `startDownload` again with a fresh URL: **Android** reuses cached segments (the cache key ignores the URL query); **iOS** starts a new task and discards partial media.
 - `expiresAt` (epoch ms) is the host provider's real licence expiry (Widevine CDM remaining time / FairPlay `licenseExpiresAt`). If the provider returns nothing, the plugin falls back to last acquire/renew + 27 days.

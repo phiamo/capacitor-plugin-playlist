@@ -75,7 +75,7 @@ class PlaylistManager(private val application: Application) {
         private set
     var drmErrorListener: ((trackId: String?, error: String) -> Unit)? = null
 
-    /** Delivery URI of a download (Story 59.4); resolved lazily so streaming never touches the engine. */
+    /** Delivery URI of a download; resolved lazily so streaming never touches the engine. */
     var offlineUriResolver: (String) -> String? = { id -> OfflineDownloads.get(application).requestUri(id) }
 
     /** Protected downloads need an offline licence session; clear HLS does not. */

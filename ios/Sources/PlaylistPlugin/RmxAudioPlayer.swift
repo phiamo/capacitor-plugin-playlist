@@ -1467,7 +1467,7 @@ final class RmxAudioPlayer: NSObject {
         ]
     }
 
-    /// Story 58.5: DRM session errors surface via the existing `status` channel's `value.error`,
+    /// DRM session errors surface via the existing `status` channel's `value.error`,
     /// a typed discriminator string -- mirrors Android's `OnStatusCallback.createDrmError`.
     func createDrmError(_ typedError: String) -> [String: Any] {
         [
@@ -1559,7 +1559,7 @@ final class RmxAudioPlayer: NSObject {
         isWaitingToStartPlayback = false
     }
 
-    // MARK: - Epic 45 video handoff
+    // MARK: - video handoff
 
     private var lastKnownHandoffPosition: Float = 0
     /// Track id at video open — AVQueuePlayer can advance while video owns the session.

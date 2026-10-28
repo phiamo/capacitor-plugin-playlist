@@ -744,14 +744,14 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     }
 }
 
-/** Offline downloads are native-only (Story 59.4); web rejects `notSupported`. */
+/** Offline downloads are native-only; web rejects `notSupported`. */
 function offlineNotSupported(): Error & { code: string } {
     const error = new Error('Offline downloads not supported on this platform') as Error & { code: string };
     error.code = 'notSupported';
     return error;
 }
 
-/** iOS/web refuse `drm` before creating a player (Story 57.5). */
+/** iOS/web refuse `drm` before creating a player. */
 export function assertWebDrmNotSupported(items: Array<AudioTrack | null | undefined>): void {
     if (items.some((item) => item != null && (item.drm != null || item.downloadId != null))) {
         const error = new Error('DRM not supported on this platform yet') as Error & { code: string };

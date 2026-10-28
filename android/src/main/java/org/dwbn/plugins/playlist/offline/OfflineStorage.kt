@@ -19,7 +19,7 @@ import java.io.File
 /**
  * Where offline data lives. Cache, download index and plugin metadata sit under
  * [Context.getNoBackupFilesDir] so Android backup / device transfer never copies them
- * (Story 59.4). Never `getDatabasePath`, never the cache dir.
+ *. Never `getDatabasePath`, never the cache dir.
  */
 @UnstableApi
 object OfflineStorage {

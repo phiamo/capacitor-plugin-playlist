@@ -2,7 +2,7 @@
 //  AudioOfflineProvider.swift
 //  PlaylistPlugin
 //
-//  Host-registered owner of offline FairPlay licences and renewal (Story 59.5).
+// Host-registered owner of offline FairPlay licences and renewal.
 //  The host wraps drm-kit `FairPlayOfflineLicenseManager`; this plugin never imports drm-kit.
 //
 

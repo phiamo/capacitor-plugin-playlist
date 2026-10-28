@@ -2,11 +2,10 @@
 //  AudioDrmTests.swift
 //  PlaylistPluginTests
 //
-//  Story 58.5: replaces the old `PlaylistDrm.notSupportedRefusal` coverage (Story 57.5's iOS
-//  placeholder) with `AudioDrm` registry/typed-error coverage (mirrors `VideoDrmTests` from
-//  Story 58.4) plus an `AudioTrack` DRM-wiring test (mirrors
-//  `FullScreenVideoPlayerViewDrmWiringTests`) and direct coverage of
-//  `PlaylistPlugin.drmNoProviderRejection(for:)`, the guard actually wired into
+//  Replaces the old `PlaylistDrm.notSupportedRefusal` coverage with `AudioDrm`
+//  registry and typed-error coverage (mirrors `VideoDrmTests`) plus an `AudioTrack`
+//  DRM-wiring test (mirrors `FullScreenVideoPlayerViewDrmWiringTests`) and direct
+//  coverage of `PlaylistPlugin.drmNoProviderRejection(for:)`, the guard wired into
 //  `setPlaylistItems`/`addItem`/`replaceItem`/`addAllItems`.
 //
 

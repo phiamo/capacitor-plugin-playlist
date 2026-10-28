@@ -88,5 +88,5 @@ export declare class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     private hlsLoaded;
     protected loadHlsJs(): Promise<void>;
 }
-/** iOS/web refuse `drm` before creating a player (Story 57.5). */
+/** iOS/web refuse `drm` before creating a player. */
 export declare function assertWebDrmNotSupported(items: Array<AudioTrack | null | undefined>): void;

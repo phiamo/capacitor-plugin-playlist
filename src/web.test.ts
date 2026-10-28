@@ -551,7 +551,7 @@ describe('PlaylistWeb drm', () => {
     });
 });
 
-describe('PlaylistWeb offline downloads (Story 59.4)', () => {
+describe('PlaylistWeb offline downloads', () => {
     let web: PlaylistWeb;
 
     beforeEach(() => {

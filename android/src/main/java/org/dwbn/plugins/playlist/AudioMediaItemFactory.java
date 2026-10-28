@@ -10,7 +10,7 @@ import java.util.Locale;
 import org.dwbn.plugins.playlist.data.AudioTrack;
 
 /**
- * Single factory for audio {@link MediaItem} instances. Story 57.5 — optional {@link
+ * Single factory for audio {@link MediaItem} instances. optional {@link
  * AudioDrmSession#applyDrm} is the only place Widevine {@link MediaItem.DrmConfiguration} attaches.
  */
 @OptIn(markerClass = UnstableApi.class)

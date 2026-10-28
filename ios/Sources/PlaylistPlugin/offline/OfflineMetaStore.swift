@@ -3,7 +3,7 @@
 //  PlaylistPlugin
 //
 //  Plugin-owned download metadata: only the licence clock. Delivery URLs are never stored here.
-//  Lives under Application Support and is excluded from backup (Story 59.5).
+// Lives under Application Support and is excluded from backup.
 //
 
 import Foundation

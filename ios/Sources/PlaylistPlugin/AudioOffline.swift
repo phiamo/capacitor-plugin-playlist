@@ -9,7 +9,7 @@
 import AVFoundation
 import Foundation
 
-/// Plugin-owned offline-licence provider registry. The host app registers drm-kit in Story 59.6;
+/// Plugin-owned offline-licence provider registry. The host app registers drm-kit;
 /// this module does not depend on drm-kit. Mirrors Android `AudioOffline`.
 public final class AudioOffline {
 
@@ -17,7 +17,7 @@ public final class AudioOffline {
 
     /// Plugin-owned background `AVAssetDownloadURLSession` identifier. The host must forward
     /// `application(_:handleEventsForBackgroundURLSession:completionHandler:)` when `identifier`
-    /// matches this value (wired in Story 59.6).
+    /// matches this value.
     public static let backgroundSessionIdentifier = "org.dwbn.plugins.playlist.offline"
 
     public static let stateNone = "none"
