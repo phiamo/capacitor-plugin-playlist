@@ -666,11 +666,15 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
         // alive for the entire app lifetime. Nulling it silences all subsequent audio events
         // (PLAYING, PAUSE, PLAYBACK_POSITION, etc.) because onStatus() would early-return.
         // Only clear the playback items so native memory is released.
-        audioPlayerImpl!!.playlistManager.clearItems()
+        val manager = audioPlayerImpl!!.playlistManager
+        // An explicit release is "stop now". A stuck video-handoff retain would skip
+        // endForeground and leave the notification (and session) playing.
+        manager.videoHandoffForegroundRetain = false
+        manager.clearItems()
         // release() is a definitive "done with playback" signal (unlike clearAllItems(), which
         // may be about to load a new queue) — tear down the notification/FGS so it doesn't
         // linger forever under SHOW_NOTIFICATION_FOR_IDLE_PLAYER_ALWAYS.
-        audioPlayerImpl!!.playlistManager.endForeground()
+        manager.endForeground()
     }
 
     private fun getTrackItem(item: JSONObject?, requireTrackId: Boolean = true): AudioTrack? {

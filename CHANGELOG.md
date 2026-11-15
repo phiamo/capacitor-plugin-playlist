@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [8.4.4] - 2026-11-15
+
+### Fixed
+- **Android:** `release()` clears a stuck video-handoff retain before it ends the foreground service, so closing the player stops the session and removes the notification.
+- **Android:** a preparing player that is already audible is reported as `playing` instead of `loading`.
+
 ## [8.4.3] - 2026-10-28
 
 ### Fixed

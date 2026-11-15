@@ -229,7 +229,18 @@ public class RmxAudioPlayer implements MediaControlsListener {
             case RETRIEVING:
             case PREPARING:
                 if (currentItem != null && currentItem.getTrackId() != null) {
-                    onStatus(RmxAudioStatusMessage.RMXSTATUS_LOADING, currentItem.getTrackId(), trackStatus);
+                    // ExoPlayer can already be audible while the mapped state is still PREPARING
+                    // (BUFFERING raced ahead of isPlaying). Report PLAYING so the app does not
+                    // stay on loading after native playback has started.
+                    if (playlistManager.isPlaying()) {
+                        if (!trackLoaded) {
+                            onStatus(RmxAudioStatusMessage.RMXSTATUS_CANPLAY, currentItem.getTrackId(), trackStatus);
+                            trackLoaded = true;
+                        }
+                        onStatus(RmxAudioStatusMessage.RMXSTATUS_PLAYING, currentItem.getTrackId(), trackStatus);
+                    } else {
+                        onStatus(RmxAudioStatusMessage.RMXSTATUS_LOADING, currentItem.getTrackId(), trackStatus);
+                    }
                 }
                 break;
             case SEEKING:
@@ -362,8 +373,10 @@ public class RmxAudioPlayer implements MediaControlsListener {
                 status = "error";
                 break;
             case RETRIEVING:
-            case SEEKING:
             case PREPARING:
+                status = playlistManager.isPlaying() ? "playing" : "loading";
+                break;
+            case SEEKING:
                 status = "loading";
                 break;
             case PLAYING:
