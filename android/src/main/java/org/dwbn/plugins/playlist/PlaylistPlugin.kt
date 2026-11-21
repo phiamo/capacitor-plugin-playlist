@@ -435,18 +435,18 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
                 val position = playlistManager.findTrackPosition(id)
                 if (position >= 0) {
                     val hasPosition = call.data.has("position") && !call.data.isNull("position")
-                    val requestedMs = if (hasPosition) {
-                        (call.getFloat("position")!! * 1000.0f).toLong()
-                    } else {
-                        0L
-                    }
+                    val explicitMs = PlaylistPlaybackPolicy.playTrackByIdExplicitPositionMs(
+                        hasPosition,
+                        if (hasPosition) call.getFloat("position")!! else 0f,
+                    )
+                    val requestedMs = explicitMs ?: 0L
                     val previousIndex = playlistManager.currentPosition
                     val handler = playlistManager.playlistHandler
                     val alreadyPlaying = handler?.currentMediaPlayer?.isPlaying == true
                     val sameTrack = position == previousIndex
                     val currentMs = handler?.currentMediaPlayer?.currentPosition ?: 0L
                     val seekPosition = PlaylistPlaybackPolicy.playTrackByIdPositionMs(
-                        hasPosition,
+                        explicitMs != null,
                         requestedMs,
                         sameTrack,
                         currentMs,
@@ -460,7 +460,7 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
                     val resumed = audioPlayerImpl!!.tryResumeVideoHandoffInPlace(seekPosition)
                     if (!resumed && shouldBegin) {
                         playlistManager.beginPlayback(seekPosition, false)
-                    } else if (!resumed && PlaylistPlaybackPolicy.shouldSeekPlayByIdInPlace(shouldBegin, hasPosition)) {
+                    } else if (!resumed && PlaylistPlaybackPolicy.shouldSeekPlayByIdInPlace(shouldBegin, explicitMs != null)) {
                         handler?.seek(seekPosition)
                     }
                 }

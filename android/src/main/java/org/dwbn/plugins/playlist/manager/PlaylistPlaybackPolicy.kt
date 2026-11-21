@@ -103,6 +103,14 @@ object PlaylistPlaybackPolicy {
      * An explicit position always wins. The same track with no position keeps [currentPositionMs].
      * A different track with no position starts at 0.
      */
+    /**
+     * Milliseconds when the call included `position`, or null when it was omitted.
+     * Omitted must not become a seek to 0.
+     */
+    @JvmStatic
+    fun playTrackByIdExplicitPositionMs(hasPosition: Boolean, positionSeconds: Float): Long? =
+        if (hasPosition) (positionSeconds * 1000.0f).toLong() else null
+
     @JvmStatic
     fun playTrackByIdPositionMs(
         hasPosition: Boolean,

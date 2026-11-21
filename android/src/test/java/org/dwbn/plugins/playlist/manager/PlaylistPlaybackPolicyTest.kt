@@ -3,6 +3,7 @@ package org.dwbn.plugins.playlist.manager
 import androidx.media3.common.Player
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -186,6 +187,22 @@ class PlaylistPlaybackPolicyTest {
     fun shouldBeginPlaybackForPlayById_startsWhenPaused() {
         assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(false, 1, 1))
         assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(false, 2, 0))
+    }
+
+    @Test
+    fun playTrackById_omittedPositionIsNotASeekToZero() {
+        assertNull(PlaylistPlaybackPolicy.playTrackByIdExplicitPositionMs(false, 0f))
+        assertEquals(40_000L, PlaylistPlaybackPolicy.playTrackByIdPositionMs(false, 0L, true, 40_000L))
+    }
+
+    @Test
+    fun playTrackById_position1170SeeksThere() {
+        val requested = PlaylistPlaybackPolicy.playTrackByIdExplicitPositionMs(true, 1170f)
+        assertEquals(1_170_000L, requested)
+        assertEquals(
+            1_170_000L,
+            PlaylistPlaybackPolicy.playTrackByIdPositionMs(true, requested!!, true, 40_000L),
+        )
     }
 
     @Test
