@@ -193,11 +193,12 @@ export class PlaylistWeb extends WebPlugin implements PlaylistPlugin {
     async playTrackById(options: PlayByIdOptions): Promise<void> {
         for (const track of this.playlistItems) {
             if (track.trackId === options.id) {
+                const hasPosition = options.position !== undefined && options.position !== null;
                 if (track !== this.currentTrack) {
                     await this.setCurrent(track);
-                    if (this.audio && options?.position && options.position! > 0) {
-                        this.audio!.currentTime = options.position!;
-                    }
+                }
+                if (this.audio && hasPosition) {
+                    this.audio.currentTime = options.position as number;
                 }
                 return this.play();
             }

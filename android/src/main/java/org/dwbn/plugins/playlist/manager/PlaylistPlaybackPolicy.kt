@@ -98,6 +98,28 @@ object PlaylistPlaybackPolicy {
         currentIndex: Int
     ): Boolean = !(alreadyPlaying && targetIndex == currentIndex)
 
+    /**
+     * Where [PlaylistPlugin.playTrackById] should put the head.
+     * An explicit position always wins. The same track with no position keeps [currentPositionMs].
+     * A different track with no position starts at 0.
+     */
+    @JvmStatic
+    fun playTrackByIdPositionMs(
+        hasPosition: Boolean,
+        requestedPositionMs: Long,
+        sameTrack: Boolean,
+        currentPositionMs: Long,
+    ): Long = when {
+        hasPosition -> requestedPositionMs
+        sameTrack -> currentPositionMs
+        else -> 0L
+    }
+
+    /** Already playing this track: seek in place and leave playWhenReady alone. */
+    @JvmStatic
+    fun shouldSeekPlayByIdInPlace(shouldBeginPlayback: Boolean, hasPosition: Boolean): Boolean =
+        !shouldBeginPlayback && hasPosition
+
     /** An item played to its end and the player moved on by itself (not a seek or list change). */
     @JvmStatic
     fun isNaturalItemEnd(transitionReason: Int): Boolean =

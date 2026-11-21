@@ -187,4 +187,19 @@ class PlaylistPlaybackPolicyTest {
         assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(false, 1, 1))
         assertTrue(PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(false, 2, 0))
     }
+
+    @Test
+    fun playTrackById_explicitPositionSeeksAnAlreadyQueuedTrack() {
+        val ms = PlaylistPlaybackPolicy.playTrackByIdPositionMs(true, 1_170_000L, true, 40_000L)
+        assertEquals(1_170_000L, ms)
+        assertTrue(PlaylistPlaybackPolicy.shouldSeekPlayByIdInPlace(false, true))
+    }
+
+    @Test
+    fun playTrackById_omittedPositionLeavesTheHead() {
+        val ms = PlaylistPlaybackPolicy.playTrackByIdPositionMs(false, 0L, true, 40_000L)
+        assertEquals(40_000L, ms)
+        assertFalse(PlaylistPlaybackPolicy.shouldSeekPlayByIdInPlace(false, false))
+        assertFalse(PlaylistPlaybackPolicy.shouldSeekPlayByIdInPlace(true, false))
+    }
 }

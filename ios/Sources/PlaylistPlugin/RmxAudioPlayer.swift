@@ -346,37 +346,41 @@ final class RmxAudioPlayer: NSObject {
         guard (0..<avQueuePlayer.queuedAudioTracks.count).contains(index) else {
             throw RmxAudioPlayerError.indexOutOfBounds
         }
-        
-        if avQueuePlayer.currentIndex() != index {
-            avQueuePlayer.setCurrentIndex(index)
-        }
-        playCommand(false)
-
-        if let positionTime, positionTime > 0 {
-            seek(to: positionTime, isCommand: false)
-        }
-        if avQueuePlayer.currentAudioTrack?.status != .readyToPlay {
-            isWaitingToStartPlayback = true
-        }
+        beginQueuedTrack(at: index, positionTime: positionTime)
     }
 
     func playTrack(_ trackId: String, positionTime: Float?) throws {
         guard !avQueuePlayer.queuedAudioTracks.isEmpty else {
             throw RmxAudioPlayerError.playlistEmpty
         }
-        
-        if avQueuePlayer.currentAudioTrack?.trackId != trackId {
-            let result = findTrack(byId: trackId)
-            let idx = result?["index"] as? Int ?? -1
-            guard idx >= 0 else {
-                throw RmxAudioPlayerError.trackIdNotFound
-            }
-            avQueuePlayer.setCurrentIndex(idx)
+        let result = findTrack(byId: trackId)
+        let idx = result?["index"] as? Int ?? -1
+        guard idx >= 0 else {
+            throw RmxAudioPlayerError.trackIdNotFound
         }
-        playCommand(false)
+        beginQueuedTrack(at: idx, positionTime: positionTime)
+    }
 
-        if let positionTime, positionTime > 0 {
+    /// An explicit position is written onto the track and resumed there, including when that
+    /// id is already current. `setCurrentIndex` otherwise seeks the new item to 0, and that
+    /// seek lands after the requested time. An omitted position does not move the head.
+    private func beginQueuedTrack(at index: Int, positionTime: Float?) {
+        let sameTrack = avQueuePlayer.currentIndex() == index
+        let wasPlaying = avQueuePlayer.isPlaying
+        if let positionTime {
+            avQueuePlayer.queuedAudioTracks[index].startPositionSeconds = Double(positionTime)
+        }
+        if !sameTrack {
+            if positionTime != nil {
+                avQueuePlayer.setCurrentIndex(index, completionHandler: { _ in }, resumeAtSavedPosition: true)
+            } else {
+                avQueuePlayer.setCurrentIndex(index)
+            }
+        } else if let positionTime {
             seek(to: positionTime, isCommand: false)
+        }
+        if !(sameTrack && wasPlaying) {
+            playCommand(false)
         }
         if avQueuePlayer.currentAudioTrack?.status != .readyToPlay {
             isWaitingToStartPlayback = true

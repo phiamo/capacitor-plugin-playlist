@@ -622,3 +622,35 @@ describe('PlaylistWeb — source selection (issue #144)', () => {
         }
     });
 });
+
+describe('PlaylistWeb#playTrackById position', () => {
+    let web: PlaylistWeb;
+
+    beforeEach(() => {
+        web = new PlaylistWeb();
+    });
+
+    it('seeks an already-queued track when position is set', async () => {
+        await web.addAllItems({ items: [track('a'), track('b')] });
+        await web.playTrackById({ id: 'b' });
+        const audio = (web as any).audio as HTMLAudioElement;
+        Object.defineProperty(audio, 'currentTime', { value: 40, writable: true, configurable: true });
+        audio.play = () => Promise.resolve();
+
+        await web.playTrackById({ id: 'b', position: 1170 });
+
+        expect(audio.currentTime).toBe(1170);
+    });
+
+    it('leaves the head when position is omitted', async () => {
+        await web.addAllItems({ items: [track('a'), track('b')] });
+        await web.playTrackById({ id: 'b' });
+        const audio = (web as any).audio as HTMLAudioElement;
+        Object.defineProperty(audio, 'currentTime', { value: 40, writable: true, configurable: true });
+        audio.play = () => Promise.resolve();
+
+        await web.playTrackById({ id: 'b' });
+
+        expect(audio.currentTime).toBe(40);
+    });
+});
