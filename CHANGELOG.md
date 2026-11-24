@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [8.4.7] - 2026-11-24
+
+### Fixed
+- **iOS:** `setTracks` skips `setCurrentIndex` and seek when `replaceAllItems` fails (e.g. after `release` + paused `setPlaylistItems` on mini exit).
+
 ## [8.4.6] - 2026-11-24
 
 ### Fixed
