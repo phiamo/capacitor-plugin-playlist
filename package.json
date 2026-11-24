@@ -1,7 +1,7 @@
 {
   "name": "@dwbn/capacitor-plugin-playlist",
-  "version": "8.4.7",
-  "description": "Playlist ",
+  "version": "8.4.8",
+  "description": "Native audio playlists for Capacitor 8 (Android, iOS, Web): background playback, lock-screen controls, video handoff, Widevine and FairPlay DRM, offline protected HLS.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
@@ -61,8 +61,23 @@
   "swiftlint": "@ionic/swiftlint-config",
   "keywords": [
     "capacitor",
+    "capacitor-plugin",
     "plugin",
-    "native"
+    "native",
+    "ionic",
+    "audio",
+    "audio-player",
+    "playlist",
+    "background-audio",
+    "media-session",
+    "lock-screen",
+    "hls",
+    "drm",
+    "widevine",
+    "fairplay",
+    "media3",
+    "avplayer",
+    "offline"
   ],
   "capacitor": {
     "ios": {
@@ -79,6 +94,7 @@
   "bugs": {
     "url": "https://github.com/phiamo/capacitor-plugin-playlist/issues"
   },
+  "homepage": "https://github.com/phiamo/capacitor-plugin-playlist#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",
