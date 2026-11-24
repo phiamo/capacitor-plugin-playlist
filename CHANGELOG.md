@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [8.4.5] - 2026-11-24
+
+### Fixed
+- **iOS:** `replaceItem` no longer rebuilds the whole `AVQueuePlayer` when swapping DRM placeholders or updating a non-current track, so skip/next and JS `TRACK_CHANGED` handling no longer flip titles across queued items. Queued placeholders (`https://localhost/queued`) are not inserted into the live queue; `setCurrentIndex` advances over placeholders with `advanceOnce` instead of `removeAllItems`.
+
 ## [8.4.4] - 2026-11-15
 
 ### Fixed

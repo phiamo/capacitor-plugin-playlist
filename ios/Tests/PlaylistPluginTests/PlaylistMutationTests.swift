@@ -185,6 +185,96 @@ final class PlaylistMutationTests: XCTestCase {
         ]))
     }
 
+    func testReplaceItem_placeholder_staysOutOfTheLiveQueue() throws {
+        let (player, updater) = makePlayer(trackIds: ["a", "b", "c"])
+        player.avQueuePlayer.setCurrentIndex(1)
+        let playing = player.avQueuePlayer.currentAudioTrack
+        XCTAssertEqual(playing?.trackId, "b")
+
+        try player.replaceItem(at: 0, id: nil, with: [
+            "assetUrl": "https://localhost/queued",
+            "trackId": "a"
+        ])
+
+        XCTAssertTrue(player.avQueuePlayer.currentAudioTrack === playing)
+        XCTAssertEqual(player.avQueuePlayer.queuedAudioTracks[0].assetUrl?.absoluteString, "https://example.com/track.mp3")
+        let liveUrls = player.avQueuePlayer.items().compactMap { ($0 as? AudioTrack)?.assetUrl?.absoluteString }
+        XCTAssertFalse(liveUrls.contains("https://localhost/queued"))
+        XCTAssertEqual(updater.count(of: .rmxstatus_ITEM_REPLACED), 1)
+    }
+
+    func testPlayTrack_doesNotInsertTheQueuedPlaceholder() throws {
+        let (player, _) = makePlayer(trackIds: ["a"])
+        player.addAllItems([
+            makeTrack(id: "queued", url: "https://localhost/queued"),
+            makeTrack(id: "b"),
+        ])
+        XCTAssertEqual(player.avQueuePlayer.queuedAudioTracks.map { $0.trackId }, ["a", "queued", "b"])
+        XCTAssertFalse(player.avQueuePlayer.items().contains { ($0 as? AudioTrack)?.isQueuedPlaceholder == true })
+
+        try player.playTrack("b", positionTime: nil)
+
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "b")
+        let liveUrls = player.avQueuePlayer.items().compactMap { ($0 as? AudioTrack)?.assetUrl?.absoluteString }
+        XCTAssertFalse(liveUrls.contains("https://localhost/queued"))
+    }
+
+    func testReplaceItem_current_keepsItsIndex() throws {
+        let (player, _) = makePlayer(trackIds: ["a", "b", "c"])
+        player.avQueuePlayer.setCurrentIndex(1)
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "b")
+
+        try player.replaceItem(at: 1, id: nil, with: [
+            "assetUrl": "https://example.com/new-b.mp3",
+            "artist": "Artist",
+            "album": "Album",
+            "title": "Title"
+        ])
+
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "b")
+        XCTAssertEqual(
+            player.avQueuePlayer.queuedAudioTracks.map { $0.trackId },
+            ["a", "b", "c"]
+        )
+        XCTAssertEqual(
+            player.avQueuePlayer.currentAudioTrack?.assetUrl?.absoluteString,
+            "https://example.com/new-b.mp3"
+        )
+    }
+
+    func testReplaceItem_nonCurrent_doesNotRemovePlayingItem() throws {
+        let (player, _) = makePlayer(trackIds: ["a", "b"])
+        let playing = player.avQueuePlayer.currentAudioTrack
+        XCTAssertEqual(playing?.trackId, "a")
+
+        var currentBecameNil = false
+        let observation = player.avQueuePlayer.observe(\.currentItem, options: [.new]) { _, change in
+            if change.newValue == nil {
+                currentBecameNil = true
+            }
+        }
+
+        try player.replaceItem(at: 1, id: nil, with: [
+            "assetUrl": "https://example.com/local-b.mp3",
+            "artist": "Artist",
+            "album": "Album",
+            "title": "Title"
+        ])
+        observation.invalidate()
+
+        XCTAssertFalse(currentBecameNil)
+        XCTAssertTrue(player.avQueuePlayer.currentAudioTrack === playing)
+        XCTAssertTrue(player.avQueuePlayer.items().contains { $0 === playing })
+        XCTAssertEqual(
+            player.avQueuePlayer.items().compactMap { ($0 as? AudioTrack)?.trackId },
+            ["a", "b"]
+        )
+        XCTAssertEqual(
+            player.avQueuePlayer.queuedAudioTracks[1].assetUrl?.absoluteString,
+            "https://example.com/local-b.mp3"
+        )
+    }
+
     func testReplaceItem_downloadIdWhilePaused_doesNotArmAutoPlay() throws {
         let (player, updater) = makePlayer(trackIds: ["a"])
         player.isWaitingToStartPlayback = true

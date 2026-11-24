@@ -133,6 +133,9 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
             var newCurrentTrack: AudioTrack?
             for i in (tempNowPlayingIndex - offset)..<(tempPlaylist.count) {
                 let item = tempPlaylist[i]
+                if item.isQueuedPlaceholder {
+                    continue
+                }
                 if newCurrentTrack == nil {
                     newCurrentTrack = item
                 }
@@ -175,40 +178,101 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     ///   `selectTrack` in `RmxAudioPlayer`). Other queue items keep their own saved position
     ///   regardless of this flag — they're untouched by this operation.
     func setCurrentIndex(_ newCurrentIndex: Int, completionHandler: @escaping (Bool) -> Void, resumeAtSavedPosition: Bool = false) {
+        guard newCurrentIndex >= 0, newCurrentIndex < queuedAudioTracks.count else {
+            completionHandler(false)
+            return
+        }
+        let target = queuedAudioTracks[newCurrentIndex]
+        let targetTime: CMTime = resumeAtSavedPosition ? resumeTime(for: target) : .zero
+        if target.isQueuedPlaceholder {
+            completionHandler(false)
+            return
+        }
+        if currentAudioTrack === target {
+            seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
+            return
+        }
+
+        // The next queued item is usually still a placeholder. Advancing by
+        // removeAllItems inserts that placeholder, AVQueuePlayer preloads it
+        // (NSURLError -1004), and the failed items swap currentItem with -15697.
+        if let currentIdx = currentIndex(), newCurrentIndex > currentIdx {
+            let between = queuedAudioTracks[(currentIdx + 1)..<newCurrentIndex]
+            if between.allSatisfy(\.isQueuedPlaceholder), advanceOnce(to: target) {
+                seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
+                return
+            }
+        }
+        if currentAudioTrack == nil, advanceOnce(to: target) {
+            seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
+            return
+        }
+
         let currentrate = rate
         if currentrate > 0 {
             pause()
         }
 
-        // Snapshot the position being left so a later skip back within this session resumes
-        // correctly instead of restarting the track from its queue-build-time position.
         snapshotPosition(of: currentAudioTrack)
-
-        // Note: it is necessary to have seekToTime called twice in this method, once before and once after re-making the area. If it is not present before, the player will resume from the same spot in the next item when the previous item finishes playing; if it is not present after, the previous item will be played from the same spot that the current item was on.
         seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
-        // The next two lines are necessary since RemoveAllItems resets both the nowPlayingIndex and _itemsForPlayer
         let tempPlaylist = queuedAudioTracks
         super.removeAllItems()
-        let newCurrentTrack: AudioTrack? = newCurrentIndex >= 0 && newCurrentIndex < tempPlaylist.count
-            ? tempPlaylist[newCurrentIndex]
-            : nil
-        let targetTime: CMTime = resumeAtSavedPosition ? resumeTime(for: newCurrentTrack) : .zero
         for i in newCurrentIndex..<(tempPlaylist.count) {
             let item = tempPlaylist[i]
-            // Only the new current item's target depends on resumeAtSavedPosition; every other
-            // (untouched) queue item keeps resuming at its own previously-saved position.
+            if item.isQueuedPlaceholder {
+                continue
+            }
             let itemSeekTime = (i == newCurrentIndex) ? targetTime : resumeTime(for: item)
             item.seek(to: itemSeekTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
             super.insert(item, after: nil)
         }
-        // Not a typo; see above comment. Seeks the player itself to the new current item's target
-        // position — without this, AVQueuePlayer can override the per-item seek above.
         seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
+    }
+
+    /// Puts `target` immediately after the playing item and advances once.
+    /// Does not call `removeAllItems`.
+    private func advanceOnce(to target: AudioTrack) -> Bool {
+        for case let item as AudioTrack in items() where item !== currentItem && item.isQueuedPlaceholder {
+            super.remove(item)
+        }
+        if !items().contains(where: { $0 === target }) {
+            super.insert(target, after: currentItem as? AudioTrack)
+        }
+        if currentItem === target {
+            return true
+        }
+        let live = items()
+        guard live.dropFirst().first === target else {
+            return false
+        }
+        let preserved = rate
+        super.advanceToNextItem()
+        if preserved > 0 {
+            rate = preserved
+        }
+        return currentItem === target
     }
 
     func replaceAllItems(with items: [AudioTrack]) {
         removeAllItemsSilently()
         appendItems(items)
+    }
+
+    /// Swaps one item that is queued behind the current item. Does not remove the playing
+    /// item and does not change `currentItem`. No-op when `existing` is not in the live
+    /// AVQueuePlayer queue (already played); the caller has already updated `queuedAudioTracks`.
+    func replaceFutureItem(_ existing: AudioTrack, with replacement: AudioTrack) {
+        let playerItems = items()
+        guard let itemIndex = playerItems.firstIndex(where: { $0 === existing }), itemIndex > 0 else {
+            return
+        }
+        let predecessor = playerItems[itemIndex - 1]
+        if replacement.startPositionSeconds > 0 {
+            let time = CMTime(seconds: replacement.startPositionSeconds, preferredTimescale: 1000)
+            replacement.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
+        }
+        super.remove(existing)
+        super.insert(replacement, after: predecessor)
     }
 
     func appendItems(_ items: [AudioTrack]) {
@@ -291,7 +355,12 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
     func insert(_ item: AudioTrack, after afterItem: AudioTrack?) {
         // This method calls the superclass to add the new item to the AVQueuePlayer, then adds that item to the
         // proper location in the itemsForPlayer array and increments the nowPlayingIndex if necessary.
-        super.insert(item, after: afterItem)
+        // Placeholder URLs stay in queuedAudioTracks so the playlist index is stable, but they
+        // are not AVPlayerItems. AVQueuePlayer would preload https://localhost/queued.
+        if !item.isQueuedPlaceholder {
+            let liveAfter = (afterItem?.isQueuedPlaceholder == true) ? (currentItem as? AudioTrack) : afterItem
+            super.insert(item, after: liveAfter)
+        }
 
         if afterItem != nil && queuedAudioTracks.contains(afterItem!) {
             // AfterItem is non-nil
