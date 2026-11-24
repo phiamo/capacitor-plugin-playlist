@@ -662,9 +662,14 @@ final class RmxAudioPlayer: NSObject {
         
         isReplacingItems = true
         print("RmxAudioPlayer[setTracks] replacing tracks ")
-        _ = avQueuePlayer.replaceAllItems(with: tracks)
+        let replaced = avQueuePlayer.replaceAllItems(with: tracks)
         
         print("RmxAudioPlayer[setTracks] replacing finished ")
+        guard replaced else {
+            isReplacingItems = false
+            print("RmxAudioPlayer[setTracks] replaceAllItems failed — skipping index/seek")
+            return
+        }
         for playerItem in tracks {
             addTrackObservers(playerItem)
         }
