@@ -17,8 +17,13 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "QueueExceptionGuard",
+            path: "ios/Sources/QueueExceptionGuard",
+            publicHeadersPath: "include"),
+        .target(
             name: "PlaylistPlugin",
             dependencies: [
+                "QueueExceptionGuard",
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm")
             ],

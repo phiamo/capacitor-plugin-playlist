@@ -293,4 +293,24 @@ final class PlaylistMutationTests: XCTestCase {
         XCTAssertEqual(player.avQueuePlayer.queuedAudioTracks[0].downloadId, "dl-a")
         XCTAssertEqual(updater.count(of: .rmxstatus_ITEM_REPLACED), 1)
     }
+
+    func testReplaceItem_currentIndexGreaterThanZero_skipsSecondSetCurrentIndexRebuild() throws {
+        let (player, _) = makePlayer(trackIds: ["a", "b", "c"])
+        player.avQueuePlayer.setCurrentIndex(2)
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "c")
+
+        try player.replaceItem(at: 2, id: nil, with: [
+            "assetUrl": "https://example.com/new-c.mp3",
+            "artist": "Artist",
+            "album": "Album",
+            "title": "Title"
+        ])
+
+        XCTAssertEqual(player.avQueuePlayer.currentIndex(), 2)
+        XCTAssertEqual(
+            player.avQueuePlayer.currentAudioTrack?.assetUrl?.absoluteString,
+            "https://example.com/new-c.mp3"
+        )
+        XCTAssertEqual(player.avQueuePlayer.items().count, 1)
+    }
 }

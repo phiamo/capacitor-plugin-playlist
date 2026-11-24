@@ -20,6 +20,7 @@ enum RmxAudioPlayerError: Error, LocalizedError {
     case queueEmpty
     case indexNotFound
     case trackNotFoundById(String)
+    case queueMutationFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -37,6 +38,8 @@ enum RmxAudioPlayerError: Error, LocalizedError {
             return "Index not found"
         case .trackNotFoundById(let id):
             return "Could not find track by id" + id
+        case .queueMutationFailed(let detail):
+            return "Native playlist queue update failed: " + detail
         }
     }
 }
@@ -181,7 +184,7 @@ final class RmxAudioPlayer: NSObject {
         if insertIndex == 0 {
             registerTrackObservers(item)
             avQueuePlayer.queuedAudioTracks.insert(item, at: 0)
-            rebuildQueuePreservingCurrentPlayback()
+            try rebuildQueuePreservingCurrentPlayback()
             onStatus(.rmxstatus_ITEM_ADDED, trackId: item.trackId, param: item.toDict())
             return
         }
@@ -202,7 +205,7 @@ final class RmxAudioPlayer: NSObject {
 
         let item = avQueuePlayer.queuedAudioTracks.remove(at: from)
         avQueuePlayer.queuedAudioTracks.insert(item, at: to)
-        rebuildQueuePreservingCurrentPlayback()
+        try rebuildQueuePreservingCurrentPlayback()
 
         onStatus(.rmxstatus_ITEM_MOVED, trackId: item.trackId, param: [
             "from": NSNumber(value: from),
@@ -263,16 +266,16 @@ final class RmxAudioPlayer: NSObject {
             if replacement.downloadId != nil {
                 let wasPlaying = avQueuePlayer.isPlaying
                 isWaitingToStartPlayback = wasPlaying
-                rebuildQueuePreservingCurrentPlayback(
+                try rebuildQueuePreservingCurrentPlayback(
                     seekTo: Float(replacement.startPositionSeconds),
                     resumePlaying: false,
                     currentIndex: resolvedIndex
                 )
             } else {
-                rebuildQueuePreservingCurrentPlayback(currentIndex: resolvedIndex)
+                try rebuildQueuePreservingCurrentPlayback(currentIndex: resolvedIndex)
             }
-        } else {
-            avQueuePlayer.replaceFutureItem(existing, with: replacement)
+        } else if !avQueuePlayer.replaceFutureItem(existing, with: replacement) {
+            try rebuildQueuePreservingCurrentPlayback(currentIndex: resolvedIndex)
         }
         onStatus(.rmxstatus_ITEM_REPLACED, trackId: replacement.trackId, param: replacement.toDict())
     }
@@ -298,7 +301,7 @@ final class RmxAudioPlayer: NSObject {
         seekTo: Float? = nil,
         resumePlaying: Bool = true,
         currentIndex preservedIndex: Int? = nil
-    ) {
+    ) throws {
         let tracks = avQueuePlayer.queuedAudioTracks
         guard !tracks.isEmpty else {
             return
@@ -310,15 +313,29 @@ final class RmxAudioPlayer: NSObject {
         let seekPos = seekTo ?? getTrackCurrentTime(nil)
         let wasPlaying = avQueuePlayer.isPlaying
         let rate = avQueuePlayer.rate
+        let targetTime: CMTime
+        if let seekTo {
+            targetTime = CMTimeMakeWithSeconds(Float64(seekTo), preferredTimescale: 1000)
+        } else if seekPos > 0 {
+            targetTime = CMTimeMakeWithSeconds(Float64(seekPos), preferredTimescale: 1000)
+        } else {
+            targetTime = .zero
+        }
 
         isReplacingItems = true
-        avQueuePlayer.replaceAllItems(with: tracks)
-        isReplacingItems = false
+        defer { isReplacingItems = false }
 
-        if !avQueuePlayer.queuedAudioTracks.isEmpty && currentIdx >= 0 {
-            avQueuePlayer.setCurrentIndex(currentIdx)
+        let ok: Bool
+        if currentIdx == 0 {
+            ok = avQueuePlayer.replaceAllItems(with: tracks)
+        } else {
+            ok = avQueuePlayer.rebuildLiveQueue(fromLogicalIndex: currentIdx, targetTime: targetTime)
         }
-        if seekPos > 0 {
+        guard ok else {
+            throw RmxAudioPlayerError.queueMutationFailed("rebuildQueuePreservingCurrentPlayback")
+        }
+
+        if currentIdx == 0 && seekPos > 0 && seekTo == nil {
             seek(to: seekPos, isCommand: false)
         }
 
@@ -645,7 +662,7 @@ final class RmxAudioPlayer: NSObject {
         
         isReplacingItems = true
         print("RmxAudioPlayer[setTracks] replacing tracks ")
-        avQueuePlayer.replaceAllItems(with: tracks)
+        _ = avQueuePlayer.replaceAllItems(with: tracks)
         
         print("RmxAudioPlayer[setTracks] replacing finished ")
         for playerItem in tracks {

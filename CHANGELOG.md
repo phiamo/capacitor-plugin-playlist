@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [8.4.6] - 2026-11-24
+
+### Fixed
+- **iOS:** `replaceItem` / queue rebuilds no longer call `replaceAllItems` plus `setCurrentIndex` (double `AVQueuePlayer` teardown). Current-item swaps at index > 0 use a single `rebuildLiveQueue` pass; failures surface as Swift errors instead of `SIGABRT` from uncaught AVFoundation exceptions (`QueueExceptionGuard`).
+
 ## [8.4.5] - 2026-11-24
 
 ### Fixed

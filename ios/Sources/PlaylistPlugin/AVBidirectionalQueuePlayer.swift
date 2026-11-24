@@ -27,6 +27,9 @@
 
 import AVFoundation
 import MediaPlayer
+#if SWIFT_PACKAGE
+import QueueExceptionGuard
+#endif
 
 let AVBidirectionalQueueAddedItem = "AVBidirectionalQueuePlayer.AddedItem"
 let AVBidirectionalQueueAddedAllItems = "AVBidirectionalQueuePlayer.AddedAllItems"
@@ -215,28 +218,18 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
 
         snapshotPosition(of: currentAudioTrack)
         seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
-        let tempPlaylist = queuedAudioTracks
-        super.removeAllItems()
-        for i in newCurrentIndex..<(tempPlaylist.count) {
-            let item = tempPlaylist[i]
-            if item.isQueuedPlaceholder {
-                continue
-            }
-            let itemSeekTime = (i == newCurrentIndex) ? targetTime : resumeTime(for: item)
-            item.seek(to: itemSeekTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
-            super.insert(item, after: nil)
+        if rebuildLiveQueue(fromLogicalIndex: newCurrentIndex, targetTime: targetTime) {
+            seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
+        } else {
+            completionHandler(false)
         }
-        seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: completionHandler)
     }
 
     /// Puts `target` immediately after the playing item and advances once.
     /// Does not call `removeAllItems`.
     private func advanceOnce(to target: AudioTrack) -> Bool {
-        for case let item as AudioTrack in items() where item !== currentItem && item.isQueuedPlaceholder {
-            super.remove(item)
-        }
-        if !items().contains(where: { $0 === target }) {
-            super.insert(target, after: currentItem as? AudioTrack)
+        guard QueueExceptionGuard.perform({ self.stripPlaceholdersBeforeAdvance(to: target) }) else {
+            return false
         }
         if currentItem === target {
             return true
@@ -246,32 +239,93 @@ class AVBidirectionalQueuePlayer: AVQueuePlayer {
             return false
         }
         let preserved = rate
-        super.advanceToNextItem()
+        guard QueueExceptionGuard.perform({ self.superAdvanceToNextItem() }) else {
+            return false
+        }
         if preserved > 0 {
             rate = preserved
         }
         return currentItem === target
     }
 
-    func replaceAllItems(with items: [AudioTrack]) {
-        removeAllItemsSilently()
-        appendItems(items)
+    private func stripPlaceholdersBeforeAdvance(to target: AudioTrack) {
+        for case let item as AudioTrack in items() where item !== currentItem && item.isQueuedPlaceholder {
+            if items().contains(where: { $0 === item }) {
+                super.remove(item)
+            }
+        }
+        if !items().contains(where: { $0 === target }) {
+            super.insert(target, after: currentItem as? AudioTrack)
+        }
     }
 
-    /// Swaps one item that is queued behind the current item. Does not remove the playing
-    /// item and does not change `currentItem`. No-op when `existing` is not in the live
-    /// AVQueuePlayer queue (already played); the caller has already updated `queuedAudioTracks`.
-    func replaceFutureItem(_ existing: AudioTrack, with replacement: AudioTrack) {
+    private func superAdvanceToNextItem() {
+        super.advanceToNextItem()
+    }
+
+    /// Clears the live AVQueuePlayer queue and appends from `newCurrentIndex` without mutating
+    /// `queuedAudioTracks`. Single teardown after logical model updates.
+    @discardableResult
+    func rebuildLiveQueue(fromLogicalIndex newCurrentIndex: Int, targetTime: CMTime = .zero) -> Bool {
+        guard newCurrentIndex >= 0, newCurrentIndex < queuedAudioTracks.count else {
+            return false
+        }
+        let target = queuedAudioTracks[newCurrentIndex]
+        guard !target.isQueuedPlaceholder else {
+            return false
+        }
+        return QueueExceptionGuard.perform {
+            self.repopulateLiveQueue(fromLogicalIndex: newCurrentIndex, targetTime: targetTime)
+        }
+    }
+
+    private func repopulateLiveQueue(fromLogicalIndex newCurrentIndex: Int, targetTime: CMTime) {
+        super.removeAllItems()
+        for i in newCurrentIndex..<queuedAudioTracks.count {
+            let item = queuedAudioTracks[i]
+            if item.isQueuedPlaceholder {
+                continue
+            }
+            let itemSeekTime = (i == newCurrentIndex) ? targetTime : resumeTime(for: item)
+            item.seek(to: itemSeekTime, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
+            let live = items()
+            guard !live.contains(where: { $0 === item }) else { continue }
+            super.insert(item, after: nil)
+        }
+    }
+
+    @discardableResult
+    func replaceAllItems(with items: [AudioTrack]) -> Bool {
+        QueueExceptionGuard.perform {
+            self.removeAllItemsSilently()
+            self.appendItems(items)
+        }
+    }
+
+    /// Swaps one item queued behind the current item without changing `currentItem`.
+    /// Returns `false` when `existing` is not in the live queue.
+    @discardableResult
+    func replaceFutureItem(_ existing: AudioTrack, with replacement: AudioTrack) -> Bool {
         let playerItems = items()
         guard let itemIndex = playerItems.firstIndex(where: { $0 === existing }), itemIndex > 0 else {
-            return
+            return false
         }
-        let predecessor = playerItems[itemIndex - 1]
+        guard let predecessor = playerItems[itemIndex - 1] as? AudioTrack else {
+            return false
+        }
         if replacement.startPositionSeconds > 0 {
             let time = CMTime(seconds: replacement.startPositionSeconds, preferredTimescale: 1000)
             replacement.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero, completionHandler: nil)
         }
+        return QueueExceptionGuard.perform {
+            self.swapQueuedItem(existing, with: replacement, after: predecessor)
+        }
+    }
+
+    private func swapQueuedItem(_ existing: AudioTrack, with replacement: AudioTrack, after predecessor: AudioTrack) {
+        guard items().contains(where: { $0 === existing }) else { return }
         super.remove(existing)
+        guard !items().contains(where: { $0 === replacement }) else { return }
         super.insert(replacement, after: predecessor)
     }
 
