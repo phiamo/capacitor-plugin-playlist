@@ -434,18 +434,34 @@ public class PlaylistPlugin : Plugin(), OnStatusReportListener {
                 val playlistManager = audioPlayerImpl!!.playlistManager
                 val position = playlistManager.findTrackPosition(id)
                 if (position >= 0) {
-                    val seekPosition = (call.getFloat("position", 0f)!! * 1000.0f).toLong()
+                    val hasPosition = call.data.has("position") && !call.data.isNull("position")
+                    val explicitMs = PlaylistPlaybackPolicy.playTrackByIdExplicitPositionMs(
+                        hasPosition,
+                        if (hasPosition) call.getFloat("position")!! else 0f,
+                    )
+                    val requestedMs = explicitMs ?: 0L
                     val previousIndex = playlistManager.currentPosition
-                    playlistManager.currentPosition = position
                     val handler = playlistManager.playlistHandler
                     val alreadyPlaying = handler?.currentMediaPlayer?.isPlaying == true
+                    val sameTrack = position == previousIndex
+                    val currentMs = handler?.currentMediaPlayer?.currentPosition ?: 0L
+                    val seekPosition = PlaylistPlaybackPolicy.playTrackByIdPositionMs(
+                        explicitMs != null,
+                        requestedMs,
+                        sameTrack,
+                        currentMs,
+                    )
+                    playlistManager.currentPosition = position
                     val shouldBegin = PlaylistPlaybackPolicy.shouldBeginPlaybackForPlayById(
                         alreadyPlaying,
                         position,
                         previousIndex
                     )
-                    if (!audioPlayerImpl!!.tryResumeVideoHandoffInPlace(seekPosition) && shouldBegin) {
+                    val resumed = audioPlayerImpl!!.tryResumeVideoHandoffInPlace(seekPosition)
+                    if (!resumed && shouldBegin) {
                         playlistManager.beginPlayback(seekPosition, false)
+                    } else if (!resumed && PlaylistPlaybackPolicy.shouldSeekPlayByIdInPlace(shouldBegin, explicitMs != null)) {
+                        handler?.seek(seekPosition)
                     }
                 }
             }

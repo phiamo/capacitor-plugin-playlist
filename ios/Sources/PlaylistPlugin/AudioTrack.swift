@@ -23,6 +23,11 @@ final class AudioTrack: AVPlayerItem {
     /// the player skips away from this track, so a later skip back within the same session
     /// resumes correctly instead of restarting at 0.
     var startPositionSeconds: Double = 0
+    /// JS stands in with this URL until the track is selected. It must never become an
+    /// AVQueuePlayer item: the player preloads the next item and the load fails on device.
+    var isQueuedPlaceholder: Bool {
+        assetUrl?.host?.lowercased() == "localhost" && assetUrl?.path == "/queued"
+    }
     /// host-registered FairPlay session, opened via the registered `AudioDrm`
     /// provider before this track's `AVURLAsset` is used to construct the track. `nil` for plain
     /// (non-DRM) playback. Released in `deinit` so any removal path (`removeItem`/`removeItems`/

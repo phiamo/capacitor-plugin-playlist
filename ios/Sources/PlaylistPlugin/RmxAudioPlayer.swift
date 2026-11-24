@@ -231,31 +231,48 @@ final class RmxAudioPlayer: NSObject {
             trackInfo["trackId"] = existing.trackId ?? ""
         }
 
+        // The queued placeholder exists to drop a DRM session. AVQueuePlayer preloads the
+        // next item, so inserting https://localhost/queued makes Next fail with -1004 and a
+        // later rebuild (currentIndex nil after the object swap) restarts at track 0.
+        if Self.isQueuedPlaceholder(trackInfo) {
+            if avQueuePlayer.currentAudioTrack !== existing {
+                existing.drmSession?.release()
+                existing.drmSession = nil
+            }
+            onStatus(.rmxstatus_ITEM_REPLACED, trackId: existing.trackId, param: existing.toDict())
+            return
+        }
+
         guard let replacement = AudioTrack.initWithDictionary(trackInfo, onDrmError: { [weak self] trackId, error in
             self?.reportDrmError(trackId: trackId, error: error)
         }) else {
             throw RmxAudioPlayerError.trackIdNotFound
         }
 
-        removeTrackObservers(existing)
+        let isCurrent = avQueuePlayer.currentAudioTrack === existing
+        unregisterTrackObservers(existing)
         registerTrackObservers(replacement)
         avQueuePlayer.queuedAudioTracks[resolvedIndex] = replacement
-        // Stream→local swap: do not keep the old stream head (often the end) or auto-play
-        // before FairPlay is ready. JS follows with playTrackById, which arms the
-        // readyToPlay flag when it actually wants audio. Only keep that backup when
-        // the queue was already playing — otherwise a finished download starts audio
-        // while the user is paused.
-        if replacement.downloadId != nil {
-            // Do not pause: a paused FairPlay .movpkg with
-            // canUseNetworkResourcesForLiveStreamingWhilePaused=false never becomes ready.
-            let wasPlaying = avQueuePlayer.isPlaying
-            isWaitingToStartPlayback = wasPlaying
-            rebuildQueuePreservingCurrentPlayback(
-                seekTo: Float(replacement.startPositionSeconds),
-                resumePlaying: false
-            )
+        if isCurrent {
+            // Stream→local swap of the playing item: do not keep the old stream head
+            // (often the end) or auto-play before FairPlay is ready. JS follows with
+            // playTrackById. A paused FairPlay .movpkg with
+            // canUseNetworkResourcesForLiveStreamingWhilePaused=false never becomes ready,
+            // so this path does not pause. Replacing any other item must not rebuild the
+            // queue — removeAllItems flips currentItem between the two tracks.
+            if replacement.downloadId != nil {
+                let wasPlaying = avQueuePlayer.isPlaying
+                isWaitingToStartPlayback = wasPlaying
+                rebuildQueuePreservingCurrentPlayback(
+                    seekTo: Float(replacement.startPositionSeconds),
+                    resumePlaying: false,
+                    currentIndex: resolvedIndex
+                )
+            } else {
+                rebuildQueuePreservingCurrentPlayback(currentIndex: resolvedIndex)
+            }
         } else {
-            rebuildQueuePreservingCurrentPlayback()
+            avQueuePlayer.replaceFutureItem(existing, with: replacement)
         }
         onStatus(.rmxstatus_ITEM_REPLACED, trackId: replacement.trackId, param: replacement.toDict())
     }
@@ -270,16 +287,26 @@ final class RmxAudioPlayer: NSObject {
     /// observers on tracks that were never removed from the queue (removeAllTrackObservers() only
     /// clears NotificationCenter observers, not KVO). Callers are responsible for registering/
     /// removing observers for whichever single track actually changed identity.
+    private static func isQueuedPlaceholder(_ trackInfo: [String: Any]) -> Bool {
+        guard let raw = trackInfo["assetUrl"] as? String, let url = URL(string: raw) else {
+            return false
+        }
+        return url.host?.lowercased() == "localhost" && url.path == "/queued"
+    }
+
     private func rebuildQueuePreservingCurrentPlayback(
         seekTo: Float? = nil,
-        resumePlaying: Bool = true
+        resumePlaying: Bool = true,
+        currentIndex preservedIndex: Int? = nil
     ) {
         let tracks = avQueuePlayer.queuedAudioTracks
         guard !tracks.isEmpty else {
             return
         }
 
-        let currentIdx = avQueuePlayer.currentIndex() ?? 0
+        // After the current AudioTrack object is swapped out of queuedAudioTracks,
+        // currentIndex() cannot find it and would restart the queue at item 0.
+        let currentIdx = preservedIndex ?? avQueuePlayer.currentIndex() ?? 0
         let seekPos = seekTo ?? getTrackCurrentTime(nil)
         let wasPlaying = avQueuePlayer.isPlaying
         let rate = avQueuePlayer.rate
@@ -346,37 +373,41 @@ final class RmxAudioPlayer: NSObject {
         guard (0..<avQueuePlayer.queuedAudioTracks.count).contains(index) else {
             throw RmxAudioPlayerError.indexOutOfBounds
         }
-        
-        if avQueuePlayer.currentIndex() != index {
-            avQueuePlayer.setCurrentIndex(index)
-        }
-        playCommand(false)
-
-        if let positionTime, positionTime > 0 {
-            seek(to: positionTime, isCommand: false)
-        }
-        if avQueuePlayer.currentAudioTrack?.status != .readyToPlay {
-            isWaitingToStartPlayback = true
-        }
+        beginQueuedTrack(at: index, positionTime: positionTime)
     }
 
     func playTrack(_ trackId: String, positionTime: Float?) throws {
         guard !avQueuePlayer.queuedAudioTracks.isEmpty else {
             throw RmxAudioPlayerError.playlistEmpty
         }
-        
-        if avQueuePlayer.currentAudioTrack?.trackId != trackId {
-            let result = findTrack(byId: trackId)
-            let idx = result?["index"] as? Int ?? -1
-            guard idx >= 0 else {
-                throw RmxAudioPlayerError.trackIdNotFound
-            }
-            avQueuePlayer.setCurrentIndex(idx)
+        let result = findTrack(byId: trackId)
+        let idx = result?["index"] as? Int ?? -1
+        guard idx >= 0 else {
+            throw RmxAudioPlayerError.trackIdNotFound
         }
-        playCommand(false)
+        beginQueuedTrack(at: idx, positionTime: positionTime)
+    }
 
-        if let positionTime, positionTime > 0 {
+    /// An explicit position is written onto the track and resumed there, including when that
+    /// id is already current. `setCurrentIndex` otherwise seeks the new item to 0, and that
+    /// seek lands after the requested time. An omitted position does not move the head.
+    private func beginQueuedTrack(at index: Int, positionTime: Float?) {
+        let sameTrack = avQueuePlayer.currentIndex() == index
+        let wasPlaying = avQueuePlayer.isPlaying
+        if let positionTime {
+            avQueuePlayer.queuedAudioTracks[index].startPositionSeconds = Double(positionTime)
+        }
+        if !sameTrack {
+            if positionTime != nil {
+                avQueuePlayer.setCurrentIndex(index, completionHandler: { _ in }, resumeAtSavedPosition: true)
+            } else {
+                avQueuePlayer.setCurrentIndex(index)
+            }
+        } else if let positionTime {
             seek(to: positionTime, isCommand: false)
+        }
+        if !(sameTrack && wasPlaying) {
+            playCommand(false)
         }
         if avQueuePlayer.currentAudioTrack?.status != .readyToPlay {
             isWaitingToStartPlayback = true
@@ -1395,6 +1426,14 @@ final class RmxAudioPlayer: NSObject {
 
     func removeTrackObservers(_ playerItem: AudioTrack?) {
         avQueuePlayer.removeTrackObservers(playerItem)
+    }
+
+    /// Drops NotificationCenter and KVO observers so a replaced item can deallocate.
+    private func unregisterTrackObservers(_ playerItem: AudioTrack) {
+        removeTrackObservers(playerItem)
+        playerItem.removeObserver(self, forKeyPath: "status")
+        playerItem.removeObserver(self, forKeyPath: "duration")
+        playerItem.removeObserver(self, forKeyPath: "loadedTimeRanges")
     }
 
     func activateAudioSession() {

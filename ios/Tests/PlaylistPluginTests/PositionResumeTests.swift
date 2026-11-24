@@ -120,6 +120,36 @@ final class PositionResumeTests: XCTestCase {
         XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "b")
     }
 
+    func testPlayTrack_explicitPositionIsWrittenOntoAnAlreadyQueuedTrack() throws {
+        let player = makePlayer(trackIds: ["a", "b"])
+        player.avQueuePlayer.setCurrentIndex(1)
+
+        try player.playTrack("b", positionTime: 1170)
+
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "b")
+        XCTAssertEqual(player.avQueuePlayer.queuedAudioTracks[1].startPositionSeconds, 1170, accuracy: 0.001)
+    }
+
+    func testPlayTrack_omittedPositionLeavesTheSavedHead() throws {
+        let player = makePlayer(trackIds: ["a", "b"])
+        player.avQueuePlayer.queuedAudioTracks[1].startPositionSeconds = 40
+        player.avQueuePlayer.setCurrentIndex(1, completionHandler: { _ in }, resumeAtSavedPosition: true)
+
+        try player.playTrack("b", positionTime: nil)
+
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "b")
+        XCTAssertEqual(player.avQueuePlayer.queuedAudioTracks[1].startPositionSeconds, 40, accuracy: 0.001)
+    }
+
+    func testPlayTrack_explicitPositionOnADifferentQueuedTrack() throws {
+        let player = makePlayer(trackIds: ["a", "b"])
+
+        try player.playTrack("b", positionTime: 1170)
+
+        XCTAssertEqual(player.avQueuePlayer.currentAudioTrack?.trackId, "b")
+        XCTAssertEqual(player.avQueuePlayer.queuedAudioTracks[1].startPositionSeconds, 1170, accuracy: 0.001)
+    }
+
     // MARK: - Actual seek target (captured directly, since AVPlayerItem.currentTime() doesn't
     // reflect a seek against an unloaded/unplayable asset — see the tests above, which only check
     // which track becomes current). `AudioTrack` is `final` and can't be subclassed to intercept
