@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [8.4.8] - 2026-11-25
+
+### Fixed
+- **iOS:** FairPlay `session.start()` runs only when a track becomes current (`startDrmSessionIfNeeded`), so parked queue rows no longer mint licenses before JS can remint `/playback`.
+
 ## [8.4.7] - 2026-11-24
 
 ### Fixed
