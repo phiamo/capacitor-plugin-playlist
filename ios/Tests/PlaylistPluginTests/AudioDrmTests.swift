@@ -97,7 +97,7 @@ final class AudioTrackDrmWiringTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_drmSessionAttachedAndStartedDuringInit() {
+    func test_drmSessionAttachedAndStartedWhenCurrent() {
         let session = FakeAudioDrmSession()
         AudioDrm.setProvider(FakeAudioDrmProvider { _, _ in session })
 
@@ -110,6 +110,8 @@ final class AudioTrackDrmWiringTests: XCTestCase {
         XCTAssertNotNil(track)
         XCTAssertTrue(session.attachedAsset === (track?.asset as? AVURLAsset),
                       "drmSession.attach(to:) must be called with the track's own asset")
+        XCTAssertFalse(session.startCalled)
+        track?.startDrmSessionIfNeeded()
         XCTAssertTrue(session.startCalled)
         XCTAssertTrue((track?.drmSession as? FakeAudioDrmSession) === session)
     }

@@ -257,6 +257,7 @@ final class RmxAudioPlayer: NSObject {
         registerTrackObservers(replacement)
         avQueuePlayer.queuedAudioTracks[resolvedIndex] = replacement
         if isCurrent {
+            replacement.startDrmSessionIfNeeded()
             // Stream→local swap of the playing item: do not keep the old stream head
             // (often the end) or auto-play before FairPlay is ready. JS follows with
             // playTrackById. A paused FairPlay .movpkg with
@@ -680,6 +681,7 @@ final class RmxAudioPlayer: NSObject {
             if startIndex >= 0 {
                 avQueuePlayer.setCurrentIndex(startIndex)
             }
+            avQueuePlayer.currentAudioTrack?.startDrmSessionIfNeeded()
         }
         
         if startPosition > 0 {
@@ -1118,6 +1120,10 @@ final class RmxAudioPlayer: NSObject {
 
         if let playerItem, refuseIfOfflineExpired(playerItem) {
             return
+        }
+
+        if let playerItem {
+            playerItem.startDrmSessionIfNeeded()
         }
 
         if avQueuePlayer.isAtEnd && avQueuePlayer.currentItem == nil {

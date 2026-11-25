@@ -34,6 +34,13 @@ final class AudioTrack: AVPlayerItem {
     /// `clearAllItems`/`releaseResources`/`replaceItem`'s old-track path) releases exactly once
     /// via ARC.
     var drmSession: AudioDrmSession?
+    private var drmSessionStarted = false
+
+    func startDrmSessionIfNeeded() {
+        guard let session = drmSession, !drmSessionStarted else { return }
+        session.start()
+        drmSessionStarted = true
+    }
 
     class func initWithDictionary(
         _ trackInfo: [String: Any]?,
@@ -77,7 +84,6 @@ final class AudioTrack: AVPlayerItem {
             }
             if let session = attempt.session {
                 session.attach(to: asset)
-                session.start()
                 openedSession = session
             }
         }
