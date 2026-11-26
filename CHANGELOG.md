@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [8.4.9] - 2026-11-26
+
+### Fixed
+- **iOS:** deferred FairPlay seek on `readyToPlay` now emits `RMXSTATUS_SEEK` (`isCommand: true`) so JS keeps scrub/resume position aligned with the native head.
+
 ## [8.4.8] - 2026-11-25
 
 ### Fixed

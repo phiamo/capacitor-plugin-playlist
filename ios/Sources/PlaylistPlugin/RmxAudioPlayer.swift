@@ -1164,7 +1164,9 @@ final class RmxAudioPlayer: NSObject {
                 if playerItem.startPositionSeconds > 0 {
                     let pending = Float(playerItem.startPositionSeconds)
                     playerItem.startPositionSeconds = 0
-                    seek(to: pending, isCommand: false)
+                    // Treat deferred scrub/resume as a user seek so JS gets RMXSTATUS_SEEK
+                    // and keeps currentPosition / viewedUntil aligned with the native head.
+                    seek(to: pending, isCommand: true)
                 }
 
                 if isWaitingToStartPlayback {
